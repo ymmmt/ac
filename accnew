@@ -1,0 +1,5 @@
+#!/bin/bash
+
+problem_id="$1"
+
+acc new --choice all --template lisp $problem_id
