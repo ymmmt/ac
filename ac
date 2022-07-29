@@ -1,0 +1,3 @@
+#!/bin/bash
+
+oj t -c 'sbcl --script main.lisp' -d tests
