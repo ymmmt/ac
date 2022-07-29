@@ -1,0 +1,1 @@
+/home/yy/documents/lisp/cl-competitive/module/2cc.lisp
