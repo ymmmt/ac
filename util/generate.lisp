@@ -33,7 +33,7 @@
 
 (defun curr-dir-file (file)
   (concatenate 'string
-	       "/home/yy/documents/atcoder/util/"
+	       "/home/yy/documents/ac/util/"
 	       file))
 
 (defun module-forms-to-file (module-name chunks)
@@ -73,4 +73,4 @@
 		       (rec (cdr chunks)))))))
       (rec chunks))))
 
-(main "/home/yy/documents/atcoder/util/atcoder.lisp")
+(main "/home/yy/documents/ac/util/atcoder.lisp")
