@@ -120,7 +120,31 @@
                       (let ,(mapcar #'list vars temps)
                         ,@body))))))))
 
+(defmacro collect (n expr)
+  `(loop repeat ,n
+         collect ,expr))
+
+(defun solve (n m xys)
+  (declare (ignore m))
+  (let ((red (make-hash-table))
+        (counts (make-array (1+ n) :initial-element 1)))
+    (setf (aref counts 0) 0)
+    (setf (gethash 1 red) t)
+    (dolist (xy xys)
+      (destructuring-bind (x . y) xy
+        (when (gethash x red)
+          (setf (gethash y red) t)
+          (when (= (aref counts x) 1)
+            (remhash x red)))
+        (decf (aref counts x))
+        (incf (aref counts y))))
+    (hash-table-count red)))
+
 (defun main ()
-  (readlet (
+  (readlet (n m)
+    (let ((xys (collect m
+                 (readlet (x y)
+                   (cons x y)))))
+      (println (solve n m xys)))))
 
 #-swank (main)
