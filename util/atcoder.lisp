@@ -1,3 +1,9 @@
+(defun last1 (sequence)
+  (etypecase sequence
+    (list (car (last sequence)))
+    (vector (when (plusp (length sequence))
+              (aref sequence (1- (length sequence)))))))
+
 (defun fold-back (x lower upper)
   "XをLOWERとUPPERの内側に折り返す"
   (cond ((<= lower x upper)
@@ -1041,8 +1047,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (define-accumulations)
 @define-accumulations end
 
-(defun filter (predicate list)
-  (remove-if-not predicate list))
+(defun filter (predicate sequence &key from-end (start 0) end count key)
+  (remove-if-not predicate sequence
+                 :from-end from-end
+                 :start start
+                 :end end
+                 :count count
+                 :key key))
 
 (defun singletonp (list)
   (and (consp list) (null (cdr list))))
