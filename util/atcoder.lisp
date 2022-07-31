@@ -163,7 +163,7 @@
   (labels ((rec (src &optional acc)
              (let ((rest (nthcdr n src)))
                (if (consp rest)
-                   (rec rest (cons (sublist src 0 n) acc))
+                   (rec rest (cons (subseq src 0 n) acc))
                    (nreverse (cons src acc))))))
     (when list
       (rec list))))
