@@ -604,10 +604,13 @@
                         (list (nreverse temp-acc))
                         nil))
                    ((funcall predicate (car rest))
-                    (if (and omit-nulls (null temp-acc))
-                        (rec (cdr rest) nil)
-                        (cons (nreverse temp-acc)
-                              (rec (cdr rest) nil))))
+                    (cond ((eq rest list)
+                           (rec (cdr rest) nil))
+                          ((and omit-nulls (null temp-acc))
+                           (rec (cdr rest) nil))
+                          (t
+                           (cons (nreverse temp-acc)
+                                 (rec (cdr rest) nil)))))
                    (t
                     (rec (cdr rest)
                          (cons (car rest) temp-acc))))))
