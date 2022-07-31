@@ -1001,6 +1001,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               count (progn ,@body)))))
 
 @countingstar
+;; depends on define-accumulations, counting
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun singletonp (list)
     (and (consp list) (null (cdr list)))))
