@@ -1,3 +1,8 @@
+(defmacro min-integer (var test &optional (start 0))
+  `(loop for ,var from ,start
+         when ,test
+           return (return ,var)))
+
 (defun palindrome-p (string)
   (equal string (reverse string)))
 
