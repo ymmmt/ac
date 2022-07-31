@@ -1,3 +1,6 @@
+(defun palindrome-p (string)
+  (equal string (reverse string)))
+
 (defun last1 (sequence)
   (etypecase sequence
     (list (car (last sequence)))
@@ -596,6 +599,13 @@
                  (values (nreverse left) list)
                  (rec (1- n) (cdr list) (cons (car list) left)))))
     (rec n list nil)))
+
+;; depends on split-if
+(defun split (item list &key (test 'eql) omit-nulls)
+  (split-if (lambda (item2)
+              (funcall test item item2))
+            list
+            :omit-nulls omit-nulls))
 
 (defun split-if (predicate list &key omit-nulls)
   (labels ((rec (rest &optional temp-acc)
