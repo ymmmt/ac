@@ -1,3 +1,15 @@
+(defun slice (vec beg &optional (end (length vec)))
+  (loop (multiple-value-bind (disp-to disp-index) (array-displacement vec)
+          (if disp-to
+              (setf vec disp-to
+                    beg (+ beg disp-index)
+                    end (when end (+ end disp-index)))
+              (return))))
+  (let ((size (max 0 (- (or end (length vec)) beg))))
+    (apply #'make-array size :element-type (array-element-type vec)
+           (unless (zerop size)
+             (list :displaced-to vec :displaced-index-offset beg)))))
+
 (defun all-lower-case-chars ()
   (loop for code from #.(char-code #\a) to #.(char-code #\z)
         collect (code-char code)))
