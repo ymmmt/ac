@@ -1335,18 +1335,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (assert (<= 97 (char-code char) 122))
   (- (char-code char) 97))
 
-(defmacro mod-acc (fn divisor (var &rest args) &body body)
+(defmacro mod-acc (fn initial-value divisor (var &rest args) &body body)
   (ecase (length args)
     (1 (let ((gd (gensym "DIVISOR"))
              (gacc (gensym "ACC")))
          `(let ((,gd ,divisor))
             (reduce (lambda (,gacc ,var)
                       (mod (,fn ,gacc (progn ,@body)) ,gd))
-                    ,(car args)))))
+                    ,(car args)
+                    :initial-value ,initial-value))))
     (2 (let ((gd (gensym "DIVISOR"))
              (gans (gensym "ANSWER")))
          `(let ((,gd ,divisor)
-                (,gans 0))
+                (,gans ,initial-value))
             (loop for ,var from ,(first args) below ,(second args)
                   do (setf ,gans
                            (mod (,fn ,gans
