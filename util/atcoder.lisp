@@ -1354,13 +1354,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             do (setf (aref bits i) 1))
     bits))
 
-(defun upcase-char-index (char)
-  (assert (<= 65 (char-code char) 90))
-  (- (char-code char) 65))
+(defun lower-case-char-index (char)
+  (assert (<= #.(char-code #\a) (char-code char) #.(char-code #\z)))
+  (- (char-code char) #.(char-code #\a)))
 
-(defun downcase-char-index (char)
-  (assert (<= 97 (char-code char) 122))
-  (- (char-code char) 97))
+(defun upper-case-char-index (char)
+  (assert (<= #.(char-code #\A) (char-code char) #.(char-code #\Z)))
+  (- (char-code char) #.(char-code #\A)))
 
 (defmacro mod-acc (fn initial-value divisor (var &rest args) &body body)
   (ecase (length args)
@@ -2492,16 +2492,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                    (loop for c from 1 to count
                          collect (list (cons item c)))))))))
 
-(defun divisors (n smallest-prime-factors-vector)
-  (if (= n 1)
-      (list 1)
-      (let ((factors-ms (multiset (factors n smallest-prime-factors-vector)
-                                  #'=)))
-        (loop for ms in (all-subsets-of-multiset factors-ms)
-              collect (if (null ms)
-                          1
-                          (reduce #'* ms :key (lambda (element)
-                                                (expt (car element) (cdr element)))))))))
+;; (defun divisors (n smallest-prime-factors-vector)
+;;   (if (= n 1)
+;;       (list 1)
+;;       (let ((factors-ms (multiset (factors n smallest-prime-factors-vector)
+;;                                   #'=)))
+;;         (loop for ms in (all-subsets-of-multiset factors-ms)
+;;               collect (if (null ms)
+;;                           1
+;;                           (reduce #'* ms :key (lambda (element)
+;;                                                 (expt (car element) (cdr element)))))))))
 
 (defun nth-power-p (number n)
   (assert (and (integerp number) (integerp n) (>= n 1)))
