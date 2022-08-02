@@ -3,7 +3,7 @@
   (:export #:treap #:treap-p #:treap-key
            #:treap-split #:treap-insert #:treap-merge #:treap-delete
            #:%treap-ensure-key #:treap-unite #:treap-map #:do-treap
-           #:make-treap #:treap-update #:treap-ref #:treap-pop
+           #:make-treap #:treap-ref #:treap-pop
            #:treap-first #:treap-last #:treap-find
            #:treap-bisect-left #:treap-bisect-right #:treap-bisect-left-1 #:treap-bisect-right-1)
   (:documentation "Provides treap with explicit key, which virtully works like
