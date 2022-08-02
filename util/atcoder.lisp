@@ -1,3 +1,11 @@
+(defun all-lower-case-chars ()
+  (loop for code from #.(char-code #\a) to #.(char-code #\z)
+        collect (code-char code)))
+
+(defun all-upper-case-chars ()
+  (loop for code from #.(char-code #\A) to #.(char-code #\Z)
+        collect (code-char code)))
+
 (defmacro aand (&rest args)
   (cond ((null args) t)
         ((null (cdr args)) (car args))
