@@ -1,3 +1,10 @@
+(defmacro aand (&rest args)
+  (cond ((null args) t)
+        ((null (cdr args)) (car args))
+        (t `(let ((it ,(car args)))
+              (when it
+                (aand ,@(cdr args)))))))
+                  
 (defun mapper (hash-table &optional default)
   (lambda (key)
     (gethash key hash-table default)))
