@@ -24,6 +24,10 @@
         (t `(let ((it ,(car args)))
               (when it
                 (aand ,@(cdr args)))))))
+
+(defun quantizer (predicate)
+  (lambda (x)
+    (if (funcall predicate x) 1 0)))
                   
 (defun mapper (hash-table &optional default)
   (lambda (key)
