@@ -1,3 +1,27 @@
+(defun remove-head (item list &key (test 'eql))
+  (cond ((null list) nil)
+        ((funcall item (car list))
+         (remove-head item (cdr list) :test test))
+        (t
+         list)))
+
+;; depends on remove-head
+(defun remove-tail (item list &key (test 'eql))
+  (nreverse (remove-head item (reverse list)
+                         :test test)))
+
+(defun eqer (object)
+  (lambda (x)
+    (eq object x)))
+
+(defun eqler (object)
+  (lambda (x)
+    (eql object x)))
+
+(defun equaler (object)
+  (lambda (x)
+    (equal object x)))
+
 (defun disjoin (predicate &rest more-predicates)
   (declare (optimize (speed 3) (safety 1) (debug 1)))
   (let ((predicate (ensure-function predicate))
