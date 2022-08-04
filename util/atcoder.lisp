@@ -1,3 +1,26 @@
+(defun disjoin (predicate &rest more-predicates)
+  (declare (optimize (speed 3) (safety 1) (debug 1)))
+  (let ((predicate (ensure-function predicate))
+        (more-predicates (mapcar #'ensure-function more-predicates)))
+    (lambda (&rest arguments)
+      (or (apply predicate arguments)
+          (some (lambda (p)
+                  (declare (type function p))
+                  (apply p arguments))
+                more-predicates)))))
+
+(defun conjoin (predicate &rest more-predicates)
+  (if (null more-predicates)
+      predicate
+      (lambda (&rest arguments)
+        (and (apply predicate arguments)
+             (do ((tail (cdr more-predicates) (cdr tail))
+                  (head (car more-predicates) (car tail)))
+                 ((not tail)
+                  (apply head arguments))
+               (unless (apply head arguments)
+                 (return nil)))))))
+
 (defun slice (vec beg &optional (end (length vec)))
   (loop (multiple-value-bind (disp-to disp-index) (array-displacement vec)
           (if disp-to
@@ -28,7 +51,7 @@
 (defun quantizer (predicate)
   (lambda (x)
     (if (funcall predicate x) 1 0)))
-                  
+
 (defun mapper (hash-table &optional default)
   (lambda (key)
     (gethash key hash-table default)))
