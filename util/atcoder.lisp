@@ -1,3 +1,16 @@
+;; depends on multiset
+(defun delete-dups (list sort-predicate test)
+  (mapcar #'car
+          (multiset (sort list sort-predicate)
+                    test)))
+
+;; depends on range, cp/disjoint-set, delete-dups, curry
+(defun disjoint-set-roots (disjoint-set)
+  (let ((n (length (ds-data disjoint-set))))
+    (delete-dups (mapcar (curry #'ds-root disjoint-set)
+                         (range n))
+                 #'< #'=)))
+
 (defun remove-head (item list &key (test 'eql))
   (cond ((null list) nil)
         ((funcall item (car list))
