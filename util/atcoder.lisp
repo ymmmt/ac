@@ -1,3 +1,7 @@
+;; depends on take
+(defun best-k (k list predicate)
+  (take k (sort (copy-list list) predicate)))
+
 ;; depends on multiset
 (defun delete-dups (list sort-predicate test)
   (mapcar #'car
