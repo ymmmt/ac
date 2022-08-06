@@ -1,3 +1,14 @@
+;; depends on range
+(defun ranks (sequence &key (test '<) (rank-base 0))
+  (let ((map (make-hash-table)))
+    (map nil (lambda (item rank)
+                 (unless (gethash item map)
+                   (setf (gethash item map) rank)))
+         (sort (copy-seq sequence) test)
+         (range rank-base
+                (+ rank-base (length sequence))))
+    map))
+
 ;; depends on take
 (defun best-k (k list predicate)
   (take k (sort (copy-list list) predicate)))
