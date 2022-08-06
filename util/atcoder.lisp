@@ -1,3 +1,8 @@
+;; depends on ranks, mapper
+(defun coordinate-compress (list &key (test '<) (index-base 0))
+  (mapcar (mapper (ranks list :test test :rank-base index-base))
+          list))
+
 ;; depends on range
 (defun ranks (sequence &key (test '<) (rank-base 0))
   (let ((map (make-hash-table)))
@@ -892,6 +897,11 @@
                         (cons (apply fn (mapcar #'car lists))
                               acc)))))
       (rec lists nil))))
+
+(defun zip-with-index (list &optional (index-base 0))
+  (zip list
+       (range index-base
+              (+ index-base (length list)))))
 @zip end
 
 @zipstar
@@ -2713,7 +2723,7 @@ where (<= 0 k (length a))"
 
 ;; for list
 ;; return hash-table (more general)
-(defun coordinate-compress (items)
+(defun coordinate-compress% (items)
   (let ((s (sort (copy-list items) #'<))
         (idx 0)
         (ht (make-hash-table)))
@@ -2724,7 +2734,7 @@ where (<= 0 k (length a))"
           finally (return ht))))
 
 ;; for array
-(defun coordinate-compress (arr)
+(defun coordinate-compress% (arr)
   (let ((s (sort (copy-seq arr) #'<))
         (idx 0)
         (ht (make-hash-table :test #'eq)))
