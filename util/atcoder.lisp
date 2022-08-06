@@ -1,3 +1,16 @@
+;; depends on cp/synced-sort
+(defun synced-sort (list order &rest lists)
+  (let ((copies (mapcar (lambda (list)
+                          (coerce list 'vector))
+                        (cons list lists))))
+    (apply #'synced-sort!
+           (car copies)
+           order
+           (cdr copies))
+    (values-list (mapcar (lambda (vec)
+                           (coerce vec 'list))
+                         copies))))
+
 ;; depends on ranks, mapper
 (defun coordinate-compress (list &key (test '<) (index-base 0))
   (mapcar (mapper (ranks list :test test :rank-base index-base))
