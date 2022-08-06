@@ -120,12 +120,6 @@
                       (let ,(mapcar #'list vars temps)
                         ,@body))))))))
 
-(defun readlist (&rest args)
-  (values (read-from-string
-           (concatenate 'string "("
-                        (apply #'read-line args)
-                        ")"))))
-    
 (defmacro -> (x &rest forms)
   (if (first forms)
       (let* ((form (first forms))
@@ -136,6 +130,12 @@
                            `(,form ,x))))
         `(-> ,threaded ,@(rest forms)))
       x))
+
+(defun readlist (&rest args)
+  (values (read-from-string
+           (concatenate 'string "("
+                        (apply #'read-line args)
+                        ")"))))
 
 (defun zip (&rest lists)
   (when lists
@@ -164,19 +164,6 @@
                  (rec (1- n) (cdr list) (cons (car list) left)))))
     (rec n list nil)))
 
-(defun scanl (function initial-value list)
-  (labels ((rec (list acc)
-             (if (null list)
-                 (nreverse acc)
-                 (rec (cdr list) (cons (funcall function (car acc) (car list))
-                                       acc)))))
-    (rec list (list initial-value))))
-
-(defun scanl1 (function list)
-  (if (null list)
-      (error "scanl1: empty list")
-      (scanl function (car list) (cdr list))))
-
 (defun range (&rest args)
   (ecase (length args)
     (1 (let ((end (car args)))
@@ -188,26 +175,6 @@
     (3 (destructuring-bind (start end step) args
          (loop for i from start below end by step
                collect i)))))
-
-;; depends on range
-(defun ranks (sequence &key (test '<) (rank-base 0))
-  (let ((map (make-hash-table)))
-    (map nil (lambda (item rank)
-                 (unless (gethash item map)
-                   (setf (gethash item map) rank)))
-         (sort (copy-seq sequence) test)
-         (range rank-base
-                (+ rank-base (length sequence))))
-    map))
-
-(defun mapper (hash-table &optional default)
-  (lambda (key)
-    (gethash key hash-table default)))
-
-;; depends on ranks, mapper
-(defun coordinate-compress (list &key (test '<) (index-base 0))
-  (mapcar (mapper (ranks list :test test :rank-base index-base))
-          list))
             
 (defun binary-search (left right predicate)
   "invariant: (funcall predicate left) => t, (funcall predicate right) => nil"
@@ -221,46 +188,57 @@
                       (rec left mid))))))
     (rec left right)))
 
+(defun mvfoldl (function list initial-value &rest initial-args)
+  "Generalization of FOLDL.
+(FUNCTION item acc arg1 arg2 ... argN) => new-acc, new-arg1, new-arg2,..., new-argN
+LIST -- list of items
+INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
+  (declare (optimize (speed 3) (debug 1)))
+  (declare (function function))
+  (if (null list)
+      (apply #'values initial-value initial-args)
+      (multiple-value-call #'mvfoldl
+        function
+        (cdr list)
+        (apply function (car list) initial-value initial-args))))
+
+(define-modify-macro maxf (&rest more-numbers) max)
+
 (defconstant inf most-positive-fixnum)
 
-;; 次のようなi、j(ただしi<=(1- k)<=j、ai<aj)を見つけられれば、
+;; (< i k ), (<= k j)、(< ai aj)なるi, jを見つけられれば、
 ;; まずaiを(1- k)番目(上位k個の末尾)に持ってきて、
 ;; 次にajをそこへ持っていくという
 ;; (+ (- (1- k) i) (- j (1- k))) = (- j i)
 ;; 回の操作で求める解が得られる。
 ;; (<= k j)なる各(aj, j)に対して
 ;; (< i k)であって(< ai aj)を満たすようなiの
-;; 最大値(leftmost-pos)があればそれを見つけ、
-;; (- j leftmost-pos)を最小化する。
+;; 最大値(rightmost)があればそれを見つけ、
+;; (- j rightmost)を最小化する。
+;; rightmostを効率的に求めるために前処理をする。
 (defun solve (n k a)
   (declare (ignore n))
-  (let ((a (coordinate-compress a)))
-    (multiple-value-bind (xs ys) (split-at k a)
-      (let ((rightmost-pos (make-hash-table))
-            (i -1))
-        (dolist (x xs)
-          (setf (gethash x rightmost-pos)
-                (incf i)))
-        (let* ((xs (sort xs #'<))
-               (xs* (-> (mapcar (mapper rightmost-pos)
-                                xs)
-                        (scanl1 #'max %)
-                        (zip xs %)
-                        (coerce 'vector)))
-               (ys* (zip-with-index ys k)))
-          (reduce (lambda (acc _)
-                    (destructuring-bind (y j) _
-                      (let ((i (binary-search
-                                -1 k
-                                (lambda (i)
-                                  (destructuring-bind (x i) (svref xs* i)
-                                    (< x y))))))
-                        (if (= i -1)
-                            acc
-                            (let ((leftmost-pos (second (svref xs* i))))
-                              (min acc (- j leftmost-pos)))))))
-                  ys*
-                  :initial-value inf))))))      
+  (multiple-value-bind (xs ys)
+      (split-at k a)
+    (let ((xs* (-> (zip-with-index xs)
+                   (sort #'< :key #'car)
+                   (mapcar (let ((rightmost 0))
+                             (lambda (x*)
+                               (destructuring-bind (x i) x*
+                                 (maxf rightmost i)
+                                 (list x rightmost))))
+                           %)
+                   (coerce 'vector))))
+      (mvfoldl (lambda (y min j) 
+                 (let ((i (binary-search
+                           -1 k
+                           (lambda (l)
+                             (< (first (svref xs* l)) y)))))
+                   (values (if (= i -1)
+                               min
+                               (min min (- j (second (svref xs* i)))))
+                           (1+ j))))
+               ys inf k))))
 
 (defun main ()
   (readlet (n k)
@@ -269,5 +247,5 @@
         (println (if (< ans inf)
                      ans
                      -1))))))
-                   
+
 #-swank (main)
