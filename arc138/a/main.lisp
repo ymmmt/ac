@@ -120,6 +120,12 @@
                       (let ,(mapcar #'list vars temps)
                         ,@body))))))))
 
+(defmacro dlambda (lambda-list &body body)
+  (let ((gargs (gensym "ARGS")))
+    `(lambda (&rest ,gargs)
+       (destructuring-bind ,lambda-list ,gargs
+         ,@body))))
+
 (defmacro -> (x &rest forms)
   (if (first forms)
       (let* ((form (first forms))
@@ -164,6 +170,19 @@
                  (rec (1- n) (cdr list) (cons (car list) left)))))
     (rec n list nil)))
 
+(defun scanl (function initial-value list)
+  (labels ((rec (list acc)
+             (if (null list)
+                 (nreverse acc)
+                 (rec (cdr list) (cons (funcall function (car acc) (car list))
+                                       acc)))))
+    (rec list (list initial-value))))
+
+(defun scanl1 (function list)
+  (if (null list)
+      (error "scanl1: empty list")
+      (scanl function (car list) (cdr list))))
+
 (defun range (&rest args)
   (ecase (length args)
     (1 (let ((end (car args)))
@@ -202,8 +221,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (cdr list)
         (apply function (car list) initial-value initial-args))))
 
-(define-modify-macro maxf (&rest more-numbers) max)
-
 (defconstant inf most-positive-fixnum)
 
 ;; (< i k ), (<= k j)、(< ai aj)なるi, jを見つけられれば、
@@ -213,20 +230,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; 回の操作で求める解が得られる。
 ;; (<= k j)なる各(aj, j)に対して
 ;; (< i k)であって(< ai aj)を満たすようなiの
-;; 最大値(rightmost)があればそれを見つけ、
-;; (- j rightmost)を最小化する。
-;; rightmostを効率的に求めるために前処理をする。
+;; 最大値があればそれを見つけ、
+;; (- j i)を最小化する。
+;; そのようなiを効率的に求めるために累積minをとっておく。
 (defun solve (n k a)
   (declare (ignore n))
   (multiple-value-bind (xs ys)
       (split-at k a)
     (let ((xs* (-> (zip-with-index xs)
                    (sort #'< :key #'car)
-                   (mapcar (let ((rightmost 0))
-                             (lambda (x*)
-                               (destructuring-bind (x i) x*
-                                 (maxf rightmost i)
-                                 (list x rightmost))))
+                   (scanl1 (dlambda ((_ acc) (x i))
+                             (list x (max acc i)))
                            %)
                    (coerce 'vector))))
       (mvfoldl (lambda (y min j) 
