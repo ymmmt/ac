@@ -1,3 +1,35 @@
+;; (defmacro dlambda% (lambda-list &body body)
+;;   (let ((keywords (intersection lambda-list lambda-list-keywords)))
+;;     (when keywords
+;;       (error "dlambda doesn't accept lambda list keyword ~A." (car keywords))))
+;;   (let ((gargs (loop repeat (length lambda-list)
+;;                      collect (gensym "ARG"))))
+;;     `(lambda ,gargs
+;;        (destructuring-bind ,lambda-list (list ,@gargs)
+;;          ,@body))))
+
+(defmacro dlambda (lambda-list &body body)
+  (let ((gargs (gensym "ARGS")))
+    `(lambda (&rest ,gargs)
+       (destructuring-bind (,lambda-list) ,gargs
+         ,@body))))
+
+;; (funcall (dlambda ((a (b) c) (d . e) f)
+;;            (values a b c d e f))
+;;          '((1 (2) 3) (4 . 5) 6))
+
+;; (funcall (dlambda ((a (b) c) (d . e) &key (f -1))
+;;            (values a b c d e f))
+;;          '((1 (2) 3) (4 . 5)))
+
+;; (funcall (dlambda (x &optional y)
+;;            (values x y))
+;;          '(1 2))
+
+;; (funcall (dlambda (a &key x y z)
+;;            (values a x y z))
+;;          '(0 :z 3 :x 1 :y 2))
+
 @define-mod-operations
 ;; depends on cp/mod-inverse
 (defmacro define-mod-operations ()
