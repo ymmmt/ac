@@ -1,3 +1,25 @@
+@define-mod-operations
+;; depends on cp/mod-inverse
+(defmacro define-mod-operations ()
+  `(progn
+     ,@(mapcar (lambda (operator)
+                 `(defun ,(intern (format nil "MOD~A" (string operator)))
+                      (x y &optional (mod +mod+))
+                    (let ((a (numerator x))
+                          (b (denominator x))
+                          (c (numerator y))
+                          (d (denominator y)))
+                      (mod (,operator (* a (mod-inverse b +mod+))
+                                      (* c (mod-inverse d +mod+)))
+                           mod))))
+               '(+ -))))
+
+(define-mod-operations)
+@define-mod-operations end
+
+(defun make-fixnum-array (dimensions)
+  (make-array dimensions :element-type 'fixnum))
+
 ;; depends on cp/synced-sort
 (defun synced-sort (list order &rest lists)
   (let ((copies (mapcar (lambda (list)
