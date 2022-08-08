@@ -1,3 +1,47 @@
+@queue
+(defun make-queue ()
+  (list () ()))
+
+(defun queue-empty-p (queue)
+  (null (car queue)))
+
+(defun checkf (queue)
+  (if (null (first queue))
+      (list (reverse (second queue))
+            ())
+      queue))
+
+(defun snoc (queue object)
+  (destructuring-bind (f r) queue
+    (checkf (list f (cons object r)))))
+
+(defun head (queue)
+  (if (null (first queue))
+      (error "empty queue")
+      (car (first queue))))
+
+(defun tail (queue)
+  (if (null (first queue))
+      (error "empty queue")
+      (destructuring-bind (f r) queue
+        (checkf (list (cdr f) r)))))
+
+(defun heads (n queue)
+  (nlet rec ((n n) (queue queue) (acc nil))
+    (if (or (zerop n) (queue-empty-p queue))
+        (values (nreverse acc) queue)
+        (rec (1- n)
+             (tail queue)
+             (cons (head queue) acc)))))
+
+(defun nthtail (n queue)
+  (nth-value 1 (heads n queue)))
+
+(defun pop-all (queue)
+  (append (first queue)
+          (reverse (second queue))))
+@queue end
+
 ;; (defmacro dlambda% (lambda-list &body body)
 ;;   (let ((keywords (intersection lambda-list lambda-list-keywords)))
 ;;     (when keywords
