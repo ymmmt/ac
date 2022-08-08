@@ -1,3 +1,11 @@
+(defun iterate (n x successor)
+  (nlet rec ((n n) (x x) (acc nil))
+    (if (zerop n)
+        (nreverse acc)
+        (rec (1- n)
+             (funcall successor x)
+             (cons x acc)))))
+
 @queue
 (defun make-queue ()
   (list () ()))
