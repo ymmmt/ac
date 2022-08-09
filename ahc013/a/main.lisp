@@ -180,6 +180,17 @@
                  (nreverse acc))))
     (rec list more-lists nil)))
 
+(defmacro -> (x &rest forms)
+  (if (first forms)
+      (let* ((form (first forms))
+             (threaded (if (listp form)
+                           (if (member '% form)
+                               `(funcall (lambda (%) ,form) ,x)
+                               `(,(first form) ,x ,@(rest form)))
+                           `(,form ,x))))
+        `(-> ,threaded ,@(rest forms)))
+      x))
+
 (defmacro ->> (x &rest forms)
   (if (first forms)
       (let* ((form (first forms))
@@ -191,6 +202,36 @@
         `(->> ,threaded ,@(rest forms)))
       x))
 
+(defun random-choice (list)
+  (nth (random (length list)) list))
+
+(defun judge (probability)
+  (< (random 1.0) probability))
+
+(defun singletonp (list)
+  (and (consp list) (null (cdr list))))
+
+(defun nshuffle (vector)
+  (loop for i from (length vector) downto 2
+        do (rotatef (aref vector (random i))
+                    (aref vector (1- i))))
+  vector)
+
+(defun coerce-vector (object)
+  (coerce object 'vector))
+
+(defun coerce-list (object)
+  (coerce object 'list))
+
+;; from serapeum
+;; https://github.com/ruricolist/serapeum/blob/master/LICENSE.txt
+;; https://github.com/ruricolist/serapeum/blob/master/definitions.lisp#L129
+(defmacro defsubst (name params &body body)
+  `(progn
+     (declaim (inline ,name))
+     (defun ,name ,params
+       ,@body)))
+
 ;;;
 ;;; Body
 ;;;
@@ -198,81 +239,147 @@
 (defvar *indices*)
 (defvar *n*)
 
-(defun blankp (state i j)
-  (zerop (aref state i j)))
+(defstruct (state (:conc-name nil)
+                  (:constructor make-state
+                      (grid coms)))
+  (grid nil :type (or null (simple-array int8 (* *))))
+  (coms nil :type (or null (simple-array com (*))))
+  (conns nil :type list))
 
-(defun computerp (state i j)
-  (plusp (aref state i j)))
+(defstruct (com (:conc-name nil)
+                (:constructor make-com
+                    (com-row com-col)))
+  (com-row 0 :type uint8)
+  (com-col 0 :type uint8)
+  (u-conn nil :type (or null com))
+  (d-conn nil :type (or null com))
+  (l-conn nil :type (or null com))
+  (r-conn nil :type (or null com)))
 
-(defun connect (i j k l)
+(defsubst cablep (grid i j)
+  (= (aref grid i j) -1))
+
+(defsubst blankp (grid i j)
+  (zerop (aref grid i j)))
+
+(defsubst comp (grid i j)
+  (when (plusp (aref grid i j))
+    (aref grid i j)))
+
+(defsubst conn (i j k l)
   (list i j k l))
 
-(defun row-connects (state i)
+(defun random-conn (grid)
+  (let ((conns (if (judge 0.5)
+                   (row-conns grid (random *n*))
+                   (col-conns grid (random *n*)))))
+    (if conns
+        (random-choice conns)
+        (random-conn grid))))
+  
+(defun row-conns (grid i)
   (->> (filter-map (lambda (j)
-                     (when (computerp state i j)
-                       (cons (aref state i j) j)))
+                     (when (comp grid i j)
+                       (cons (aref grid i j) j)))
                    *indices*)
-       (map-adjacents (dlambda ((cj1 . j1) (cj2 . j2))
-                        (when (= cj1 cj2)
-                          (connect i j1 i j2))))
+       (map-adjacents (dlambda ((c1 . j1) (c2 . j2))
+                        (when (= c1 c2)
+                          (conn i j1 i j2))))
        (delete nil)))
 
-(defun col-connects (state j)
+(defun col-conns (grid j)
   (->> (filter-map (lambda (i)
-                     (when (computerp state i j)
-                       (cons (aref state i j) i)))
+                     (when (comp grid i j)
+                       (cons (aref grid i j) i)))
                    *indices*)
-       (map-adjacents (dlambda ((ci1 . i1) (ci2 . i2))
-                        (when (= ci1 ci2)
-                          (connect i1 j i2 j))))
+       (map-adjacents (dlambda ((c1 . i1) (c2 . i2))
+                        (when (= c1 c2)
+                          (conn i1 j i2 j))))
        (delete nil)))
 
-(defun delete-crosses (row-connects col-connects)
-  (nconc (delete-if (dlambda ((i j1 _ j2))
-                      (some (dlambda ((k1 l k2 _))
-                              (and (<= k1 i k2)
-                                   (<= j1 l j2)))
-                            col-connects))
-                    row-connects)
-         col-connects))
+;; (defun delete-crosses (row-conns col-conns)
+;;   (nconc (delete-if (dlambda ((i j1 _ j2))
+;;                       (some (dlambda ((k1 l k2 _))
+;;                               (and (<= k1 i k2)
+;;                                    (<= j1 l j2)))
+;;                             col-conns))
+;;                     row-conns)
+;;          col-conns))
             
-(defun connects (state)
-  (delete-crosses (mapcan (curry #'row-connects state)
-                          *indices*)
-                  (mapcan (curry #'col-connects state)
-                          *indices*)))
+(defun conns (grid)
+  (nconc (mapcan (curry #'row-conns grid)
+                 *indices*)
+         (mapcan (curry #'col-conns grid)
+                 *indices*)))
 
-(defun solve (n k state)
+(defun try-connect (grid conn)
+  (destructuring-bind (i j k l) conn
+    (cond ((= i k)
+           (when (try-row-connect grid i j l)
+             conn))
+          ((= j l)
+           (when (try-col-connect grid j i k)
+             conn))
+          (t
+           (error "invalid conn ~A" conn)))))
+
+(defun try-row-connect (grid row j1 j2)
+  (if (= (1+ j1) j2)
+      grid
+      (when (loop for j from (1+ j1) below j2
+                  always (blankp grid row j))
+        (let ((com-type (aref grid row j1)))
+          (loop for j from (1+ j1) below j2 do
+            (setf (aref grid row j) com-type))
+          grid))))
+
+(defun try-col-connect (grid col i1 i2)
+  (if (= (1+ i1) i2)
+      grid
+      (when (loop for i from (1+ i1) below i2
+                  always (blankp grid i col))
+        (let ((com-type (aref grid i1 col)))
+          (loop for i from (1+ i1) below i2 do
+            (setf (aref grid i col) com-type))
+          grid))))
+
+(defun random-connect (grid)
+  (let ((conns (-> grid conns coerce-vector nshuffle coerce-list)))
+    (filter-map (lambda (conn)
+                  (try-connect grid conn))
+                conns)))
+
+(defun solve (n k grid)
   (declare (ignore n k))
-  (let ((connects (connects state)))
-  (values 0
-          nil
-          (length connects)
-          connects)))
+  (let ((conns (random-connect grid)))
+    (values 0
+            nil
+            (length conns)
+            conns)))
           
 (defun setup-vars (n)
   (setf *indices* (range n)
         *n* n))
 
-(defun read-state (n)
-  (let ((state (make-array `(,n ,n) :element-type 'uint4)))
+(defun read-grid (n)
+  (let ((grid (make-array `(,n ,n) :element-type 'int8)))
     (dotimes (i n)
       (let ((line (read-line)))
         (dotimes (j n)
           (awhen (digit-char-p (char line j))
-            (setf (aref state i j) it)))))
-    state))
+            (setf (aref grid i j) it)))))
+    grid))
 
 (defun main ()
   (readlet (n k)
-      (setup-vars n)
-      (multiple-value-bind (x moves y connects)
-          (solve n k (read-state n))
-        (println x)
-        (dolist (m moves)
-          (join-print m))
-        (println y)
-        (dolist (c connects)
-          (join-print c)))))
+    (setup-vars n)
+    (multiple-value-bind (x moves y conns)
+        (solve n k (read-grid n))
+      (println x)
+      (dolist (m moves)
+        (join-print m))
+      (println y)
+      (dolist (c conns)
+        (join-print c)))))
 
 #-swank (main)
