@@ -155,6 +155,12 @@
       (values-list arguments)
       (values-list args))))
 
+(defmacro curry* (function &rest arguments)
+  (assert (= 1 (count '% arguments :test 'eq)))
+  (let ((g% (gensym)))
+  `(lambda (,g%)
+     (funcall ,function ,@(subst g% '% arguments)))))
+
 (defmacro awhen (test &body body)
   `(let ((it ,test))
      (when it
@@ -179,6 +185,14 @@
                             acc)))
                  (nreverse acc))))
     (rec list more-lists nil)))
+
+(defun filter (predicate sequence &key from-end (start 0) end count key)
+  (remove-if-not predicate sequence
+                 :from-end from-end
+                 :start start
+                 :end end
+                 :count count
+                 :key key))
 
 (defmacro -> (x &rest forms)
   (if (first forms)
@@ -208,6 +222,10 @@
 (defun judge (probability)
   (< (random 1.0) probability))
 
+(defun random-a-b (a b)
+  "return random integer r that satisfies A <= r < B."
+  (+ (random (- b a)) a))
+
 (defun singletonp (list)
   (and (consp list) (null (cdr list))))
 
@@ -232,15 +250,27 @@
      (defun ,name ,params
        ,@body)))
 
+(defun dist (x y)
+  (abs (- x y)))
+
 ;;;
 ;;; Body
 ;;;
 
 (defvar *indices*)
+(defvar *random-indices*)
 (defvar *n*)
 
 (defconstant +cable+ -1)
 (defconstant +blank+ 0)
+
+(defun random-indices (&optional (length *n*))
+  (let ((indices (setf *random-indices*
+                  (nshuffle *random-indices*)))
+        result)
+    (dotimes (i length)
+      (push (aref indices i) result))
+    (sort result #'<)))
 
 (defsubst cablep (grid i j)
   (= (aref grid i j) +cable+))
@@ -252,16 +282,8 @@
   (when (plusp (aref grid i j))
     (aref grid i j)))
 
-(defsubst conn (i j k l)
+(defsubst make-conn (i j k l)
   (list i j k l))
-
-(defun random-conn (grid)
-  (let ((conns (if (judge 0.5)
-                   (row-conns grid (random *n*))
-                   (col-conns grid (random *n*)))))
-    (if conns
-        (random-choice conns)
-        (random-conn grid))))
   
 (defun row-conns (grid i)
   (->> (filter-map (lambda (j)
@@ -270,7 +292,7 @@
                    *indices*)
        (map-adjacents (dlambda ((c1 . j1) (c2 . j2))
                         (when (= c1 c2)
-                          (conn i j1 i j2))))
+                          (make-conn i j1 i j2))))
        (delete nil)))
 
 (defun col-conns (grid j)
@@ -280,7 +302,7 @@
                    *indices*)
        (map-adjacents (dlambda ((c1 . i1) (c2 . i2))
                         (when (= c1 c2)
-                          (conn i1 j i2 j))))
+                          (make-conn i1 j i2 j))))
        (delete nil)))
             
 (defun conns (grid)
@@ -323,16 +345,109 @@
     (filter-map (curry #'try-connect grid)
                 conns)))
 
+(defun row-coms (grid row)
+  (filter (curry* #'comp grid row %)
+          *indices*))
+
+(defun col-coms (grid col)
+  (filter (curry* #'comp grid % col)
+          *indices*))
+
+(defun make-move (i j k l)
+  (list i j k l))
+
+(defun make-row-moves (row j1 j2)
+  (if (= j1 j2)
+      (values nil 0)
+      (values (map-adjacents (lambda (l1 l2)
+                               (make-move row l1 row l2))
+                             (if (< j1 j2)
+                                 (range j1 (1+ j2))
+                                 (nreverse (range j2 (1+ j1)))))
+              (dist j1 j2))))
+    
+(defun make-col-moves (col i1 i2)
+  (if (= i1 i2)
+      (values nil 0)
+      (values (map-adjacents (lambda (k1 k2)
+                               (make-move k1 col k2 col))
+                             (if (< i1 i2)
+                                 (range i1 (1+ i2))
+                                 (nreverse (range i2 (1+ i1)))))
+              (dist i1 i2))))
+
+(defun random-row-reposition (grid row)
+  (let ((js (row-coms grid row)))
+    (when js
+      (labels ((repos (j start end)
+                 (let ((j* (random-a-b start end)))
+                   (rotatef (aref grid row j)
+                            (aref grid row j*))
+                   j*)))
+        (nlet rec ((js (nconc js (list *n*)))
+                   (start 0)
+                   (moves-list nil)
+                   (count 0))
+          (if (singletonp js)
+              (values (apply #'nconc (nreverse moves-list))
+                      count)
+              (let ((j* (repos (first js) start (second js))))
+                (multiple-value-bind (ms c)
+                    (make-row-moves row (car js) j*)
+                  (rec (cdr js)
+                       (1+ j*)
+                       (cons ms moves-list)
+                       (+ count c))))))))))
+
+(defun random-col-reposition (grid col)
+  (let ((is (col-coms grid col)))
+    (when is
+      (labels ((repos (i start end)
+                 (let ((i* (random-a-b start end)))
+                   (rotatef (aref grid i col)
+                            (aref grid i* col))
+                   i*)))
+        (nlet rec ((is (nconc is (list *n*)))
+                   (start 0)
+                   (moves-list nil)
+                   (count 0))
+          (if (singletonp is)
+              (values (apply #'nconc (nreverse moves-list))
+                      count)
+              (let ((i* (repos (first is) start (second is))))
+                (multiple-value-bind (ms c)
+                    (make-col-moves col (car is) i*)
+                  (rec (cdr is)
+                       (1+ i*)
+                       (cons ms moves-list)
+                       (+ count c))))))))))
+    
+(defun random-reposition (grid)
+  (if (judge 0.5)
+      (random-row-reposition grid (random *n*))
+      (random-col-reposition grid (random *n*))))
+
 (defun solve (n k grid)
-  (declare (ignore n k))
-  (let ((conns (random-connect grid)))
-    (values 0
-            nil
-            (length conns)
-            conns)))
-          
+  (declare (ignore k))
+  (let ((count-limit (/ (* k 100) 2)))
+    (multiple-value-bind (moves count)
+        (nlet rec ((moves-list nil) (count 0))
+          (if (> count count-limit)
+              (values (apply #'nconc (nreverse moves-list))
+                      count)
+              (multiple-value-bind (ms c)
+                  (random-reposition grid)
+                (rec (cons ms moves-list)
+                     (+ count c)))))
+      (let ((conns (random-connect grid)))
+        (values count
+                moves
+                (length conns)
+                conns)))))
+
 (defun setup-vars (n)
   (setf *indices* (range n)
+        *random-indices* (coerce-vector (range n))
         *n* n))
 
 (defun read-grid (n)
