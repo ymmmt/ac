@@ -1,3 +1,37 @@
+(defun mapcars (function &rest lists)
+  (nlet rec ((list (car lists))
+             (lists (cdr lists))
+             (acc nil))
+    (cond (list
+           (rec (cdr list)
+                lists
+                (cons (funcall function (car list))
+                      acc)))
+          (lists
+           (rec (car lists)
+                (cdr lists)
+                acc))
+          (t
+           (nreverse acc)))))
+
+(defun vector-filter (predicate vector)
+  (let ((n (length vector)))
+    (nlet rec ((i 0) (acc nil))
+      (if (= i n)
+          (nreverse acc)
+          (rec (1+ i)
+               (aif (funcall predicate (svref vector i))
+                    (cons it acc)
+                    acc))))))
+
+(defun map-adjacents (function list)
+  (nlet rec ((list list) (acc nil))
+    (if (null (cdr list))
+        (nreverse acc)
+        (rec (cdr list)
+             (cons (funcall function (first list) (second list))
+                   acc)))))
+
 (defun iterate (n x successor)
   (nlet rec ((n n) (x x) (acc nil))
     (if (zerop n)
@@ -1800,7 +1834,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (read-char)) ; skip #\Newline
     mat))
 
-(defun read-matrix (height width &optional (read #'read-fixnum) (element-type 'fixnum))
+(defun read-matrix (height width &key (read #'read-fixnum) (element-type 'fixnum))
   (let ((mat (make-array `(,height ,width) :element-type element-type)))
     (dotimes (i height)
       (dotimes (j width)
