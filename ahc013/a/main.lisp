@@ -239,28 +239,14 @@
 (defvar *indices*)
 (defvar *n*)
 
-(defstruct (state (:conc-name nil)
-                  (:constructor make-state
-                      (grid coms)))
-  (grid nil :type (or null (simple-array int8 (* *))))
-  (coms nil :type (or null (simple-array com (*))))
-  (conns nil :type list))
-
-(defstruct (com (:conc-name nil)
-                (:constructor make-com
-                    (com-row com-col)))
-  (com-row 0 :type uint8)
-  (com-col 0 :type uint8)
-  (u-conn nil :type (or null com))
-  (d-conn nil :type (or null com))
-  (l-conn nil :type (or null com))
-  (r-conn nil :type (or null com)))
+(defconstant +cable+ -1)
+(defconstant +blank+ 0)
 
 (defsubst cablep (grid i j)
-  (= (aref grid i j) -1))
+  (= (aref grid i j) +cable+))
 
 (defsubst blankp (grid i j)
-  (zerop (aref grid i j)))
+  (= (aref grid i j) +blank+))
 
 (defsubst comp (grid i j)
   (when (plusp (aref grid i j))
@@ -296,15 +282,6 @@
                         (when (= c1 c2)
                           (conn i1 j i2 j))))
        (delete nil)))
-
-;; (defun delete-crosses (row-conns col-conns)
-;;   (nconc (delete-if (dlambda ((i j1 _ j2))
-;;                       (some (dlambda ((k1 l k2 _))
-;;                               (and (<= k1 i k2)
-;;                                    (<= j1 l j2)))
-;;                             col-conns))
-;;                     row-conns)
-;;          col-conns))
             
 (defun conns (grid)
   (nconc (mapcan (curry #'row-conns grid)
@@ -328,25 +305,22 @@
       grid
       (when (loop for j from (1+ j1) below j2
                   always (blankp grid row j))
-        (let ((com-type (aref grid row j1)))
-          (loop for j from (1+ j1) below j2 do
-            (setf (aref grid row j) com-type))
-          grid))))
+        (loop for j from (1+ j1) below j2 do
+          (setf (aref grid row j) +cable+))
+        grid)))
 
 (defun try-col-connect (grid col i1 i2)
   (if (= (1+ i1) i2)
       grid
       (when (loop for i from (1+ i1) below i2
                   always (blankp grid i col))
-        (let ((com-type (aref grid i1 col)))
-          (loop for i from (1+ i1) below i2 do
-            (setf (aref grid i col) com-type))
-          grid))))
+        (loop for i from (1+ i1) below i2 do
+          (setf (aref grid i col) +cable+))
+        grid)))
 
 (defun random-connect (grid)
   (let ((conns (-> grid conns coerce-vector nshuffle coerce-list)))
-    (filter-map (lambda (conn)
-                  (try-connect grid conn))
+    (filter-map (curry #'try-connect grid)
                 conns)))
 
 (defun solve (n k grid)
