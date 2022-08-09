@@ -968,24 +968,18 @@
     (rec destructuring-bindings)))
 @dlet end
 
-(defmacro mulf (place factor)
-  `(setf ,place
-         (* ,place ,factor)))
+(define-modify-macro mulf (&rest numbers) *)
 
-(defmacro divf (place divisor)
-  `(setf ,place
-         (/ ,place divisor)))
+(define-modify-macro divf (&rest numbers) /)
 
-@comb
-(defmacro mulf (place factor)
-  `(setf ,place
-         (* ,place ,factor)))
+@choose
+(define-modify-macro mulf (&rest numbers) *)
 
-(defmacro divf (place divisor)
-  `(setf ,place
-         (/ ,place ,divisor)))
+(define-modify-macro divf (&rest numbers) /)
 
-(defun comb (n k)
+(defun choose (n k)
+  (assert (>= n 0))
+  (assert (>= k 0))
   (cond ((and (> n k) (plusp k))
          (let ((k (min k (- n k)))
                (numer 1)
@@ -999,11 +993,11 @@
                       (divf numer d)
                       (divf denom d)))
            numer))
-        ((and (> n k) (<= k 0))
-         0)
+        ((and (> n k) (zerop k))
+         1)
         ((= n k) 1)
         ((< n k) 0)))
-@comb end
+@choose end
 
 @zip
 (defun zip (&rest lists)
