@@ -253,24 +253,23 @@
 (defun dist (x y)
   (abs (- x y)))
 
+(defun take (n list &key (step 1))
+  (if (or (zerop n) (null list))
+      nil
+      (cons (car list)
+            (take (1- n) (nthcdr step list) :step step))))
+
 ;;;
 ;;; Body
 ;;;
 
 (defvar *indices*)
-(defvar *random-indices*)
 (defvar *n*)
+(defvar *ops-count-limit*)
+(defvar *moves-count-limit*)
 
 (defconstant +cable+ -1)
 (defconstant +blank+ 0)
-
-(defun random-indices (&optional (length *n*))
-  (let ((indices (setf *random-indices*
-                  (nshuffle *random-indices*)))
-        result)
-    (dotimes (i length)
-      (push (aref indices i) result))
-    (sort result #'<)))
 
 (defsubst cablep (grid i j)
   (= (aref grid i j) +cable+))
@@ -282,76 +281,7 @@
   (when (plusp (aref grid i j))
     (aref grid i j)))
 
-(defsubst make-conn (i j k l)
-  (list i j k l))
-  
-(defun row-conns (grid i)
-  (->> (filter-map (lambda (j)
-                     (when (comp grid i j)
-                       (cons (aref grid i j) j)))
-                   *indices*)
-       (map-adjacents (dlambda ((c1 . j1) (c2 . j2))
-                        (when (= c1 c2)
-                          (make-conn i j1 i j2))))
-       (delete nil)))
-
-(defun col-conns (grid j)
-  (->> (filter-map (lambda (i)
-                     (when (comp grid i j)
-                       (cons (aref grid i j) i)))
-                   *indices*)
-       (map-adjacents (dlambda ((c1 . i1) (c2 . i2))
-                        (when (= c1 c2)
-                          (make-conn i1 j i2 j))))
-       (delete nil)))
-            
-(defun conns (grid)
-  (nconc (mapcan (curry #'row-conns grid)
-                 *indices*)
-         (mapcan (curry #'col-conns grid)
-                 *indices*)))
-
-(defun try-connect (grid conn)
-  (destructuring-bind (i j k l) conn
-    (cond ((= i k)
-           (when (try-row-connect grid i j l)
-             conn))
-          ((= j l)
-           (when (try-col-connect grid j i k)
-             conn))
-          (t
-           (error "invalid conn ~A" conn)))))
-
-(defun try-row-connect (grid row j1 j2)
-  (if (= (1+ j1) j2)
-      grid
-      (when (loop for j from (1+ j1) below j2
-                  always (blankp grid row j))
-        (loop for j from (1+ j1) below j2 do
-          (setf (aref grid row j) +cable+))
-        grid)))
-
-(defun try-col-connect (grid col i1 i2)
-  (if (= (1+ i1) i2)
-      grid
-      (when (loop for i from (1+ i1) below i2
-                  always (blankp grid i col))
-        (loop for i from (1+ i1) below i2 do
-          (setf (aref grid i col) +cable+))
-        grid)))
-
-(defun random-connect (grid)
-  (let ((conns (-> grid conns coerce-vector nshuffle coerce-list)))
-    (filter-map (curry #'try-connect grid)
-                conns)))
-
-(defun row-coms (grid row)
-  (filter (curry* #'comp grid row %)
-          *indices*))
-
-(defun col-coms (grid col)
-  (filter (curry* #'comp grid % col)
-          *indices*))
+;;; Random moves
 
 (defun make-move (i j k l)
   (list i j k l))
@@ -375,6 +305,14 @@
                                  (range i1 (1+ i2))
                                  (nreverse (range i2 (1+ i1)))))
               (dist i1 i2))))
+
+(defun row-coms (grid row)
+  (filter (curry* #'comp grid row %)
+          *indices*))
+
+(defun col-coms (grid col)
+  (filter (curry* #'comp grid % col)
+          *indices*))
 
 (defun random-row-reposition (grid row)
   (let ((js (row-coms grid row)))
@@ -427,28 +365,96 @@
       (random-row-reposition grid (random *n*))
       (random-col-reposition grid (random *n*))))
 
-(defun solve (n k grid)
-  (declare (ignore k))
-  (let ((count-limit (/ (* k 100) 2)))
-    (multiple-value-bind (moves count)
-        (nlet rec ((moves-list nil) (count 0))
-          (if (> count count-limit)
-              (values (apply #'nconc (nreverse moves-list))
-                      count)
-              (multiple-value-bind (ms c)
-                  (random-reposition grid)
-                (rec (cons ms moves-list)
-                     (+ count c)))))
-      (let ((conns (random-connect grid)))
-        (values count
-                moves
-                (length conns)
-                conns)))))
+;;; Random connections
 
-(defun setup-vars (n)
+(defsubst make-conn (i j k l)
+  (list i j k l))
+  
+(defun row-conns (grid row)
+  (->> (filter-map (lambda (j)
+                     (when (comp grid row j)
+                       (cons (aref grid row j) j)))
+                   *indices*)
+       (map-adjacents (dlambda ((c1 . j1) (c2 . j2))
+                        (when (= c1 c2)
+                          (make-conn row j1 row j2))))
+       (delete nil)))
+
+(defun col-conns (grid col)
+  (->> (filter-map (lambda (i)
+                     (when (comp grid i col)
+                       (cons (aref grid i col) i)))
+                   *indices*)
+       (map-adjacents (dlambda ((c1 . i1) (c2 . i2))
+                        (when (= c1 c2)
+                          (make-conn i1 col i2 col))))
+       (delete nil)))
+
+(defun conns (grid)
+  (nconc (mapcan (curry #'row-conns grid)
+                 *indices*)
+         (mapcan (curry #'col-conns grid)
+                 *indices*)))
+
+(defun try-connect (grid conn)
+  (destructuring-bind (i j k l) conn
+    (cond ((= i k)
+           (when (try-row-connect grid i j l)
+             conn))
+          ((= j l)
+           (when (try-col-connect grid j i k)
+             conn))
+          (t
+           (error "invalid conn ~A" conn)))))
+
+(defun try-row-connect (grid row j1 j2)
+  (if (= (1+ j1) j2)
+      grid
+      (when (loop for j from (1+ j1) below j2
+                  always (blankp grid row j))
+        (loop for j from (1+ j1) below j2 do
+          (setf (aref grid row j) +cable+))
+        grid)))
+
+(defun try-col-connect (grid col i1 i2)
+  (if (= (1+ i1) i2)
+      grid
+      (when (loop for i from (1+ i1) below i2
+                  always (blankp grid i col))
+        (loop for i from (1+ i1) below i2 do
+          (setf (aref grid i col) +cable+))
+        grid)))
+
+(defun random-connect (grid)
+  (let ((conns (-> (conns grid) coerce-vector nshuffle coerce-list)))
+    (filter-map (curry #'try-connect grid)
+                conns)))
+
+;;; Main
+
+(defun solve (n k grid)
+  (declare (ignore n k))
+  (multiple-value-bind (moves count)
+      (nlet rec ((moves-list nil) (count 0))
+            (if (>= count *moves-count-limit*)
+                (values (apply #'nconc (nreverse moves-list))
+                        count)
+                (multiple-value-bind (ms c)
+                    (random-reposition grid)
+                  (rec (cons ms moves-list)
+                       (+ count c)))))
+    (let ((conns (take (- *ops-count-limit* count)
+                       (random-connect grid))))
+      (values count
+              moves
+              (length conns)
+              conns))))
+
+(defun setup-vars (n k)
   (setf *indices* (range n)
-        *random-indices* (coerce-vector (range n))
-        *n* n))
+        *n* n
+        *ops-count-limit* (* k 100)
+        *moves-count-limit* (/ (* k 100) 2)))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
@@ -461,7 +467,7 @@
 
 (defun main ()
   (readlet (n k)
-    (setup-vars n)
+    (setup-vars n k)
     (multiple-value-bind (x moves y conns)
         (solve n k (read-grid n))
       (println x)
