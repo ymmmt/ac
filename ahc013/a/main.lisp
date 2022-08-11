@@ -73,9 +73,72 @@
                                          result))))
               (return (if minus (- result) result))))))))
 
+(defpackage :cp/disjoint-set
+  (:use :cl)
+  (:export #:disjoint-set #:make-disjoint-set #:ds-data
+           #:ds-root #:ds-unite! #:ds-connected-p #:ds-size #:ds-clear)
+  (:documentation "Provides disjoint set implementation with union by size and
+path compression."))
+(in-package :cp/disjoint-set)
+
+(defstruct (disjoint-set
+            (:constructor make-disjoint-set
+                (size &aux (data (make-array size :element-type 'fixnum :initial-element -1))))
+            (:conc-name ds-)
+            (:predicate nil)
+            (:copier nil))
+  (data nil :type (simple-array fixnum (*))))
+
+(declaim (inline ds-root))
+(defun ds-root (disjoint-set x)
+  "Returns the root of X."
+  (declare ((mod #.array-dimension-limit) x))
+  (let ((data (ds-data disjoint-set)))
+    (labels ((recur (x)
+               (if (< (aref data x) 0)
+                   x
+                   (setf (aref data x)
+                         (recur (aref data x))))))
+      (recur x))))
+
+(declaim (inline ds-unite!))
+(defun ds-unite! (disjoint-set x1 x2)
+  "Destructively unites X1 and X2 and returns true iff X1 and X2 become
+connected for the first time."
+  (let ((root1 (ds-root disjoint-set x1))
+        (root2 (ds-root disjoint-set x2)))
+    (unless (= root1 root2)
+      (let ((data (ds-data disjoint-set)))
+        ;; NOTE: If you want X1 to always be root, just delete this form. (Time
+        ;; complexity becomes worse, however.)
+        (when (> (aref data root1) (aref data root2))
+          (rotatef root1 root2))
+        (incf (aref data root1) (aref data root2))
+        (setf (aref data root2) root1)))))
+
+(declaim (inline ds-connected-p))
+(defun ds-connected-p (disjoint-set x1 x2)
+  "Returns true iff X1 and X2 have the same root."
+  (= (ds-root disjoint-set x1) (ds-root disjoint-set x2)))
+
+(declaim (inline ds-size))
+(defun ds-size (disjoint-set x)
+  "Returns the size of the connected component to which X belongs."
+  (- (aref (ds-data disjoint-set)
+           (ds-root disjoint-set x))))
+
+(declaim (inline ds-clear))
+(defun ds-clear (disjoint-set)
+  "Deletes all connections."
+  (fill (ds-data disjoint-set) -1)
+  disjoint-set)
+
 ;; BEGIN_USE_PACKAGE
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (use-package :cp/read-fixnum :cl-user))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (use-package :cp/disjoint-set :cl-user))
 
 ;;
 ;; Utility
@@ -259,17 +322,77 @@
       (cons (car list)
             (take (1- n) (nthcdr step list) :step step))))
 
+(defun scanr (function initial-value list)
+  (labels ((rec (list acc)
+             (if (null list)
+                 acc
+                 (rec (cdr list)
+                      (cons (funcall function (car list) (car acc))
+                            acc)))))
+    (rec (nreverse list) (list initial-value))))
+
+(defun row-major-index->subscripts (dimensions row-major-index)
+  (let ((a (coerce (scanr #'* 1 (copy-list dimensions)) 'vector)))
+    (loop for i from 1 below (length a)
+          collect (floor (mod row-major-index (svref a (1- i)))
+                         (svref a i)))))
+
+(defun row-major-index (i j n-cols)
+  (+ (* i n-cols) j))
+
+(defun counter (sequence &key (test 'eql) (key 'identity))
+  (let ((counter (make-hash-table :size (length sequence) :test test)))
+    (map nil (lambda (elem)
+               (let ((k (funcall key elem)))
+                 (setf (gethash k counter)
+                       (1+ (gethash k counter 0)))))
+         sequence)
+    counter))
+
+(defun compose (&rest fns)
+  (if fns
+      (let ((fn1 (car (last fns)))
+            (fns (butlast fns)))
+        #'(lambda (&rest args)
+            (reduce #'funcall fns
+                    :from-end t
+                    :initial-value (apply fn1 args))))
+      #'identity))
+
+(defmacro domatrix ((element i j matrix) &body body)
+  (let ((gmat (gensym)))
+    `(let ((,gmat ,matrix))
+       (symbol-macrolet ((,element (aref ,gmat ,i ,j))) 
+         (dotimes (,i (array-dimension ,gmat 0))
+           (dotimes (,j (array-dimension ,gmat 1))
+             ,@body))))))
+
+(defmacro collect (n expr)
+  `(loop repeat ,n
+         collect ,expr))
+
+(defun ht-keys (hash-table)
+  (loop for k being the hash-key of hash-table
+        collect k))
+
 ;;;
 ;;; Body
 ;;;
 
 (defvar *indices*)
+(defvar *indices^2*)
 (defvar *n*)
 (defvar *ops-count-limit*)
 (defvar *moves-count-limit*)
+(defvar *ds*)
 
 (defconstant +cable+ -1)
 (defconstant +blank+ 0)
+
+(defsubst make-ds ()
+  (ds-clear *ds*))
+
+;;; Predicates
 
 (defsubst cablep (grid i j)
   (= (aref grid i j) +cable+))
@@ -316,49 +439,51 @@
 
 (defun random-row-reposition (grid row)
   (let ((js (row-coms grid row)))
-    (when js
-      (labels ((repos (j start end)
-                 (let ((j* (random-a-b start end)))
-                   (rotatef (aref grid row j)
-                            (aref grid row j*))
-                   j*)))
-        (nlet rec ((js (nconc js (list *n*)))
-                   (start 0)
-                   (moves-list nil)
-                   (count 0))
-          (if (singletonp js)
-              (values (apply #'nconc (nreverse moves-list))
-                      count)
-              (let ((j* (repos (first js) start (second js))))
-                (multiple-value-bind (ms c)
-                    (make-row-moves row (car js) j*)
-                  (rec (cdr js)
-                       (1+ j*)
-                       (cons ms moves-list)
-                       (+ count c))))))))))
+    (if (null js)
+        (values nil 0)
+        (labels ((repos (j start end)
+                   (let ((j* (random-a-b start end)))
+                     (rotatef (aref grid row j)
+                              (aref grid row j*))
+                     j*)))
+          (nlet rec ((js (nconc js (list *n*)))
+                     (start 0)
+                     (moves-list nil)
+                     (count 0))
+            (if (singletonp js)
+                (values (apply #'nconc (nreverse moves-list))
+                        count)
+                (let ((j* (repos (first js) start (second js))))
+                  (multiple-value-bind (ms c)
+                      (make-row-moves row (car js) j*)
+                    (rec (cdr js)
+                         (1+ j*)
+                         (cons ms moves-list)
+                         (+ count c))))))))))
 
 (defun random-col-reposition (grid col)
   (let ((is (col-coms grid col)))
-    (when is
-      (labels ((repos (i start end)
-                 (let ((i* (random-a-b start end)))
-                   (rotatef (aref grid i col)
-                            (aref grid i* col))
-                   i*)))
-        (nlet rec ((is (nconc is (list *n*)))
-                   (start 0)
-                   (moves-list nil)
-                   (count 0))
-          (if (singletonp is)
-              (values (apply #'nconc (nreverse moves-list))
-                      count)
-              (let ((i* (repos (first is) start (second is))))
-                (multiple-value-bind (ms c)
-                    (make-col-moves col (car is) i*)
-                  (rec (cdr is)
-                       (1+ i*)
-                       (cons ms moves-list)
-                       (+ count c))))))))))
+    (if (null is)
+        (values nil 0)
+        (labels ((repos (i start end)
+                   (let ((i* (random-a-b start end)))
+                     (rotatef (aref grid i col)
+                              (aref grid i* col))
+                     i*)))
+          (nlet rec ((is (nconc is (list *n*)))
+                     (start 0)
+                     (moves-list nil)
+                     (count 0))
+            (if (singletonp is)
+                (values (apply #'nconc (nreverse moves-list))
+                        count)
+                (let ((i* (repos (first is) start (second is))))
+                  (multiple-value-bind (ms c)
+                      (make-col-moves col (car is) i*)
+                    (rec (cdr is)
+                         (1+ i*)
+                         (cons ms moves-list)
+                         (+ count c))))))))))
     
 (defun random-reposition (grid)
   (if (judge 0.5)
@@ -430,19 +555,36 @@
     (filter-map (curry #'try-connect grid)
                 conns)))
 
+;;; Cost
+
+(defun cpower (cluster-size)
+  (/ (* cluster-size (1- cluster-size))
+     2))
+
+(defun cost (conns)
+  (let ((ds (make-ds)))
+    (mapc (dlambda ((i j k l))
+            (ds-unite! ds
+                       (row-major-index i j *n*)
+                       (row-major-index k l *n*)))
+          conns)
+    (let ((roots (counter (mapcar (curry #'ds-root ds)
+                                  *indices^2*))))
+      (reduce #'+ (ht-keys roots)
+              :key (compose #'cpower (curry #'ds-size ds))))))
+
 ;;; Main
 
-(defun solve (n k grid)
-  (declare (ignore n k))
+(defun random-generate (grid)
   (multiple-value-bind (moves count)
       (nlet rec ((moves-list nil) (count 0))
-            (if (>= count *moves-count-limit*)
-                (values (apply #'nconc (nreverse moves-list))
-                        count)
-                (multiple-value-bind (ms c)
-                    (random-reposition grid)
-                  (rec (cons ms moves-list)
-                       (+ count c)))))
+        (if (>= count *moves-count-limit*)
+            (values (apply #'nconc (nreverse moves-list))
+                    count)
+            (multiple-value-bind (ms c)
+                (random-reposition grid)
+              (rec (cons ms moves-list)
+                   (+ count c)))))
     (let ((conns (take (- *ops-count-limit* count)
                        (random-connect grid))))
       (values count
@@ -450,11 +592,21 @@
               (length conns)
               conns))))
 
+(defun solve (n k grid)
+  (declare (ignore n k))
+  (-> (collect 300
+        (multiple-value-list (random-generate (copy grid))))
+      (sort #'> :key (compose #'cost #'fourth))
+      car
+      values-list))
+
 (defun setup-vars (n k)
   (setf *indices* (range n)
+        *indices^2* (range (* n n))
         *n* n
         *ops-count-limit* (* k 100)
-        *moves-count-limit* (/ (* k 100) 2)))
+        *moves-count-limit* (/ (* k 100) 2)
+        *ds* (make-disjoint-set (* *n* *n*))))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
@@ -465,6 +617,13 @@
             (setf (aref grid i j) it)))))
     grid))
 
+(defun copy (grid)
+  (let ((copy (make-array `(,*n* ,*n*) :element-type 'int8)))
+    (domatrix (gij i j grid)
+      (setf (aref copy i j)
+            (the int8 gij)))
+    copy))
+  
 (defun main ()
   (readlet (n k)
     (setup-vars n k)
