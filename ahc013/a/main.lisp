@@ -431,7 +431,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *indices^2*)
 (defvar *n*)
 (defvar *ops-count-limit*)
-(defvar *random-reposition-moves-count*)
+(defvar *random-repositions-moves-count*)
 (defvar *moves-count-limit*)
 (defvar *ds*)
 (defvar *best-conns-tries-count*)
@@ -542,6 +542,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (random-row-reposition grid (random *n*))
       (random-col-reposition grid (random *n*))))
 
+(defun random-repositions (grid)
+  (nlet rec ((moves-list nil) (count 0))
+    (if (>= count *random-repositions-moves-count*)
+        (values (apply #'nconc (nreverse moves-list))
+                count)
+        (multiple-value-bind (ms c)
+            (random-reposition grid)
+          (rec (cons ms moves-list)
+               (+ count c))))))
+
 ;;; Random connections
 
 (defsubst make-conn (i j k l)
@@ -635,16 +645,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Main
 
-(defun random-repositions (grid)
-  (nlet rec ((moves-list nil) (count 0))
-    (if (>= count *random-reposition-moves-count*)
-        (values (apply #'nconc (nreverse moves-list))
-                count)
-        (multiple-value-bind (ms c)
-            (random-reposition grid)
-          (rec (cons ms moves-list)
-               (+ count c))))))
-
 (defstruct (state (:constructor state
                       (cost grid moves-list moves-count conns)))
   (cost 0 :type fixnum)
@@ -658,11 +658,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (let ((states (collect *search-width*
                     (let ((copy (copy grid)))
                       (multiple-value-bind (ms c)
-                          (random-repositions grid)
+                          (random-repositions copy)
                         (multiple-value-bind (conns cost)
-                            (search-best-conns grid (+ moves-count c))
+                            (search-best-conns copy (+ moves-count c))
                           (state cost
-                                 grid
+                                 copy
                                  (cons ms moves-list)
                                  (+ moves-count c)
                                  conns)))))))
@@ -678,14 +678,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun beam-search (states)
   (apply-n (floor *moves-count-limit*
-                  *random-reposition-moves-count*)
+                  *random-repositions-moves-count*)
            (curry #'mapcar #'search-and-select-best)
            states))
 
 (defun formatize (state)
   (with-slots (moves-list moves-count conns) state
     (values moves-count
-            (apply #'nconc (nreverse moves-list))
+            (apply #'append (reverse moves-list))
             (length conns)
             conns)))
 
@@ -702,11 +702,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *indices^2* (range (* n n))
         *n* n
         *ops-count-limit* (* k 100)
-        *random-reposition-moves-count* k
-        *moves-count-limit* (/ (* k 100) 10)
+        *random-repositions-moves-count* k
+        *moves-count-limit* (* k 10)
         *ds* (make-disjoint-set (* *n* *n*))
         *best-conns-tries-count* 20
-        *search-width* 5
+        *search-width* (nth k '(_ _ 4 3 2 2))
         *beam-search-width* 10))
 
 (defun read-grid (n)
