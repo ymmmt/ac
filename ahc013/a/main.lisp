@@ -605,7 +605,7 @@ connected for the first time."
         *indices^2* (range (* n n))
         *n* n
         *ops-count-limit* (* k 100)
-        *moves-count-limit* (/ (* k 100) 2)
+        *moves-count-limit* (/ (* k 100) 10)
         *ds* (make-disjoint-set (* *n* *n*))))
 
 (defun read-grid (n)
