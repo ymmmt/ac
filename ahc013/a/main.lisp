@@ -375,6 +375,54 @@ connected for the first time."
   (loop for k being the hash-key of hash-table
         collect k))
 
+(defun mvfoldl (function list initial-value &rest initial-args)
+  "Generalization of FOLDL.
+(FUNCTION item acc arg1 arg2 ... argN) => new-acc, new-arg1, new-arg2,..., new-argN
+LIST -- list of items
+INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
+  (declare (optimize (speed 3) (debug 1)))
+  (declare (function function))
+  (if (null list)
+      (apply #'values initial-value initial-args)
+      (multiple-value-call #'mvfoldl
+        function
+        (cdr list)
+        (apply function (car list) initial-value initial-args))))
+           
+(defun best (function list)
+  (assert (consp list))
+  (mvfoldl (lambda (item argmax max)
+             (let ((value (funcall function item)))
+               (if (> value max)
+                   (values item value)
+                   (values argmax max))))
+           (cdr list)
+           (car list)
+           (funcall function (car list))))
+
+(defun apply-n (n f x)
+  (if (zerop n)
+      x
+      (funcall f (apply-n (1- n) f x))))
+
+(defun applier (fn)
+  (lambda (args)
+    (apply fn args)))
+
+(defun zip (&rest lists)
+  (when lists
+    (apply #'zip-with #'list lists)))
+
+(defun zip-with (fn &rest lists)
+  (when lists
+    (labels ((rec (lists acc)
+               (if (some #'null lists)
+                   (nreverse acc)
+                   (rec (mapcar #'cdr lists)
+                        (cons (apply fn (mapcar #'car lists))
+                              acc)))))
+      (rec lists nil))))
+
 ;;;
 ;;; Body
 ;;;
@@ -383,15 +431,19 @@ connected for the first time."
 (defvar *indices^2*)
 (defvar *n*)
 (defvar *ops-count-limit*)
+(defvar *random-reposition-moves-count*)
 (defvar *moves-count-limit*)
 (defvar *ds*)
+(defvar *best-conns-tries-count*)
+(defvar *search-width*)
+(defvar *beam-search-width*)
 
 (defconstant +cable+ -1)
 (defconstant +blank+ 0)
 
 (defsubst make-ds ()
   (ds-clear *ds*))
-
+   
 ;;; Predicates
 
 (defsubst cablep (grid i j)
@@ -406,7 +458,7 @@ connected for the first time."
 
 ;;; Random moves
 
-(defun make-move (i j k l)
+(defsubst make-move (i j k l)
   (list i j k l))
 
 (defun make-row-moves (row j1 j2)
@@ -429,11 +481,11 @@ connected for the first time."
                                  (nreverse (range i2 (1+ i1)))))
               (dist i1 i2))))
 
-(defun row-coms (grid row)
+(defsubst row-coms (grid row)
   (filter (curry* #'comp grid row %)
           *indices*))
 
-(defun col-coms (grid col)
+(defsubst col-coms (grid col)
   (filter (curry* #'comp grid % col)
           *indices*))
 
@@ -494,7 +546,7 @@ connected for the first time."
 
 (defsubst make-conn (i j k l)
   (list i j k l))
-  
+
 (defun row-conns (grid row)
   (->> (filter-map (lambda (j)
                      (when (comp grid row j)
@@ -551,17 +603,18 @@ connected for the first time."
         grid)))
 
 (defun random-connect (grid)
-  (let ((conns (-> (conns grid) coerce-vector nshuffle coerce-list)))
-    (filter-map (curry #'try-connect grid)
+  (let ((copy (copy grid))
+        (conns (-> (conns grid) coerce-vector nshuffle coerce-list)))
+    (filter-map (curry #'try-connect copy)
                 conns)))
 
 ;;; Cost
 
-(defun cpower (cluster-size)
+(defsubst cpower (cluster-size)
   (/ (* cluster-size (1- cluster-size))
      2))
 
-(defun cost (conns)
+(defun conns-cost (conns)
   (let ((ds (make-ds)))
     (mapc (dlambda ((i j k l))
             (ds-unite! ds
@@ -573,40 +626,88 @@ connected for the first time."
       (reduce #'+ (ht-keys roots)
               :key (compose #'cpower (curry #'ds-size ds))))))
 
+(defun search-best-conns (grid moves-count)
+  (let* ((copy (copy grid))
+         (list-of-conns (collect *best-conns-tries-count*
+                          (take (- *ops-count-limit* moves-count)
+                                (random-connect copy)))))
+    (best #'conns-cost list-of-conns)))
+
 ;;; Main
 
-(defun random-generate (grid)
-  (multiple-value-bind (moves count)
-      (nlet rec ((moves-list nil) (count 0))
-        (if (>= count *moves-count-limit*)
-            (values (apply #'nconc (nreverse moves-list))
-                    count)
-            (multiple-value-bind (ms c)
-                (random-reposition grid)
-              (rec (cons ms moves-list)
-                   (+ count c)))))
-    (let ((conns (take (- *ops-count-limit* count)
-                       (random-connect grid))))
-      (values count
-              moves
-              (length conns)
-              conns))))
+(defun random-repositions (grid)
+  (nlet rec ((moves-list nil) (count 0))
+    (if (>= count *random-reposition-moves-count*)
+        (values (apply #'nconc (nreverse moves-list))
+                count)
+        (multiple-value-bind (ms c)
+            (random-reposition grid)
+          (rec (cons ms moves-list)
+               (+ count c))))))
+
+(defstruct (state (:constructor state
+                      (cost grid moves-list moves-count conns)))
+  (cost 0 :type fixnum)
+  (grid nil :type (or null (simple-array int8 (* *))))
+  (moves-list nil :type list)
+  (moves-count 0 :type uint16)
+  (conns nil :type list))
+
+(defun search-and-select-best (state)
+  (with-slots (grid moves-list moves-count) state
+    (let ((states (collect *search-width*
+                    (let ((copy (copy grid)))
+                      (multiple-value-bind (ms c)
+                          (random-repositions grid)
+                        (multiple-value-bind (conns cost)
+                            (search-best-conns grid (+ moves-count c))
+                          (state cost
+                                 grid
+                                 (cons ms moves-list)
+                                 (+ moves-count c)
+                                 conns)))))))
+      (best #'state-cost states))))
+    
+(defun initialize-states (grid)
+  (collect *beam-search-width*
+    (state 0
+           (copy grid)
+           nil
+           0
+           nil)))
+
+(defun beam-search (states)
+  (apply-n (floor *moves-count-limit*
+                  *random-reposition-moves-count*)
+           (curry #'mapcar #'search-and-select-best)
+           states))
+
+(defun formatize (state)
+  (with-slots (moves-list moves-count conns) state
+    (values moves-count
+            (apply #'nconc (nreverse moves-list))
+            (length conns)
+            conns)))
 
 (defun solve (n k grid)
   (declare (ignore n k))
-  (-> (collect 300
-        (multiple-value-list (random-generate (copy grid))))
-      (sort #'> :key (compose #'cost #'fourth))
+  (-> (initialize-states grid)
+      beam-search
+      (sort #'> :key #'state-cost)
       car
-      values-list))
+      formatize))
 
 (defun setup-vars (n k)
   (setf *indices* (range n)
         *indices^2* (range (* n n))
         *n* n
         *ops-count-limit* (* k 100)
+        *random-reposition-moves-count* k
         *moves-count-limit* (/ (* k 100) 10)
-        *ds* (make-disjoint-set (* *n* *n*))))
+        *ds* (make-disjoint-set (* *n* *n*))
+        *best-conns-tries-count* 20
+        *search-width* 5
+        *beam-search-width* 10))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
