@@ -902,11 +902,20 @@
                          (cons (car rest) temp-acc))))))
     (rec list)))
 
+;; depends on scanr
 (defun row-major-index->subscripts (dimensions row-major-index)
   (let ((a (coerce (scanr #'* 1 (copy-list dimensions)) 'vector)))
     (loop for i from 1 below (length a)
           collect (floor (mod row-major-index (svref a (1- i)))
                          (svref a i)))))
+
+;; (define-compiler-macro row-major-index->subscripts (&whole form dimensions row-major-index)
+;;   (if (and (eq (car dimensions) 'quote)
+;;            (plusp (length (second dimensions)))
+;;            (every #'integerp (second dimensions))
+;;            (integerp row-major-index))
+;;       `(,@(row-major-index->subscripts (second dimensions) row-major-index))
+;;       form))
 
 (defun mappend (function list &rest lists)
   (loop for l in (apply #'mapcar function list lists)
@@ -1200,8 +1209,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (reduce (lambda (acc d) (+ (* acc base) d))
           digits))
 
-(defun row-major-index (i j n-rows)
-  (+ (* i n-rows) j))
+(defun row-major-index (i j n-cols)
+  (+ (* i n-cols) j))
 
 (defun manhattan (u v w z)
   (+ (abs (- u w))
