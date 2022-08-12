@@ -335,12 +335,6 @@ connected for the first time."
                             acc)))))
     (rec (nreverse list) (list initial-value))))
 
-(defun row-major-index->subscripts (dimensions row-major-index)
-  (let ((a (coerce (scanr #'* 1 (copy-list dimensions)) 'vector)))
-    (loop for i from 1 below (length a)
-          collect (floor (mod row-major-index (svref a (1- i)))
-                         (svref a i)))))
-
 (defsubst row-major-index (i j n-cols)
   (+ (* i n-cols) j))
 
