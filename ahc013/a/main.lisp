@@ -649,7 +649,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                  (cons ms moves-list)
                                  (+ moves-count c)
                                  conns)))))))
-      (best #'state-cost states))))
+      (best #'state-cost (cons state states)))))
     
 (defun initialize-states (grid)
   (collect *beam-search-width*
