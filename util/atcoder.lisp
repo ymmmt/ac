@@ -24,12 +24,21 @@
                     (cons it acc)
                     acc))))))
 
-(defun map-adjacents (function list)
+(defun map-adjacents% (function list)
   (nlet rec ((list list) (acc nil))
     (if (null (cdr list))
         (nreverse acc)
         (rec (cdr list)
              (cons (funcall function (first list) (second list))
+                   acc)))))
+
+;; depends on take
+(defun map-adjacents (function list &optional (k 2))
+  (nlet rec ((list list) (acc nil))
+    (if (null (nthcdr (1- k) list))
+        (nreverse acc)
+        (rec (cdr list)
+             (cons (apply function (take k list))
                    acc)))))
 
 (defun iterate (n x successor)
