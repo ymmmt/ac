@@ -229,12 +229,13 @@ connected for the first time."
      (when it
        ,@body)))
 
-(defun map-adjacents (function list)
+;; depends on take
+(defun map-adjacents (function list &optional (k 2))
   (nlet rec ((list list) (acc nil))
-    (if (null (cdr list))
+    (if (null (nthcdr (1- k) list))
         (nreverse acc)
         (rec (cdr list)
-             (cons (funcall function (first list) (second list))
+             (cons (apply function (take k list))
                    acc)))))
 
 (defun filter-map (f list &rest more-lists)
@@ -489,66 +490,54 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (filter (curry* #'comp grid % col)
           *indices*))
 
-(defun random-row-reposition (grid row)
+(defun random-row-reposition! (grid row)
   (let ((js (row-coms grid row)))
     (if (null js)
         (values nil 0)
-        (labels ((repos (j start end)
-                   (let ((j* (random-a-b start end)))
-                     (rotatef (aref grid row j)
-                              (aref grid row j*))
-                     j*)))
-          (nlet rec ((js (nconc js (list *n*)))
-                     (start 0)
-                     (moves-list nil)
-                     (count 0))
-            (if (singletonp js)
-                (values (apply #'nconc (nreverse moves-list))
-                        count)
-                (let ((j* (repos (first js) start (second js))))
-                  (multiple-value-bind (ms c)
-                      (make-row-moves row (car js) j*)
-                    (rec (cdr js)
-                         (1+ j*)
-                         (cons ms moves-list)
-                         (+ count c))))))))))
+        (destructuring-bind (l j r)
+            (-> js
+                (nconc (list -1)
+                       %
+                       (list *n*))
+                (map-adjacents (lambda (&rest args)
+                                 args)
+                               % 3)
+                random-choice)
+          (let ((j* (random-a-b (1+ l) r)))
+            (rotatef (aref grid row j)
+                     (aref grid row j*))
+            (make-row-moves row j j*))))))
 
-(defun random-col-reposition (grid col)
+(defun random-col-reposition! (grid col)
   (let ((is (col-coms grid col)))
     (if (null is)
         (values nil 0)
-        (labels ((repos (i start end)
-                   (let ((i* (random-a-b start end)))
-                     (rotatef (aref grid i col)
-                              (aref grid i* col))
-                     i*)))
-          (nlet rec ((is (nconc is (list *n*)))
-                     (start 0)
-                     (moves-list nil)
-                     (count 0))
-            (if (singletonp is)
-                (values (apply #'nconc (nreverse moves-list))
-                        count)
-                (let ((i* (repos (first is) start (second is))))
-                  (multiple-value-bind (ms c)
-                      (make-col-moves col (car is) i*)
-                    (rec (cdr is)
-                         (1+ i*)
-                         (cons ms moves-list)
-                         (+ count c))))))))))
-    
-(defun random-reposition (grid)
-  (if (judge 0.5)
-      (random-row-reposition grid (random *n*))
-      (random-col-reposition grid (random *n*))))
+        (destructuring-bind (l i r)
+            (-> is
+                (nconc (list -1)
+                       %
+                       (list *n*))
+                (map-adjacents (lambda (&rest args)
+                                 args)
+                               % 3)
+                random-choice)
+          (let ((i* (random-a-b (1+ l) r)))
+            (rotatef (aref grid i col)
+                     (aref grid i* col))
+            (make-col-moves col i i*))))))
 
-(defun random-repositions (grid)
+(defun random-reposition! (grid)
+  (if (judge 0.5)
+      (random-row-reposition! grid (random *n*))
+      (random-col-reposition! grid (random *n*))))
+
+(defun random-repositions! (grid)
   (nlet rec ((moves-list nil) (count 0))
     (if (>= count *random-repositions-moves-count*)
         (values (apply #'nconc (nreverse moves-list))
                 count)
         (multiple-value-bind (ms c)
-            (random-reposition grid)
+            (random-reposition! grid)
           (rec (cons ms moves-list)
                (+ count c))))))
 
@@ -583,18 +572,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (mapcan (curry #'col-conns grid)
                  *indices*)))
 
-(defun try-connect (grid conn)
+(defun try-connect! (grid conn)
   (destructuring-bind (i j k l) conn
     (cond ((= i k)
-           (when (try-row-connect grid i j l)
+           (when (try-row-connect! grid i j l)
              conn))
           ((= j l)
-           (when (try-col-connect grid j i k)
+           (when (try-col-connect! grid j i k)
              conn))
           (t
            (error "invalid conn ~A" conn)))))
 
-(defun try-row-connect (grid row j1 j2)
+(defun try-row-connect! (grid row j1 j2)
   (if (= (1+ j1) j2)
       grid
       (when (loop for j from (1+ j1) below j2
@@ -603,7 +592,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (setf (aref grid row j) +cable+))
         grid)))
 
-(defun try-col-connect (grid col i1 i2)
+(defun try-col-connect! (grid col i1 i2)
   (if (= (1+ i1) i2)
       grid
       (when (loop for i from (1+ i1) below i2
@@ -612,10 +601,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (setf (aref grid i col) +cable+))
         grid)))
 
-(defun random-connect (grid)
+(defun random-connect! (grid)
   (let ((copy (copy grid))
         (conns (-> (conns grid) coerce-vector nshuffle coerce-list)))
-    (filter-map (curry #'try-connect copy)
+    (filter-map (curry #'try-connect! copy)
                 conns)))
 
 ;;; Cost
@@ -640,7 +629,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (let* ((copy (copy grid))
          (list-of-conns (collect *best-conns-tries-count*
                           (take (- *ops-count-limit* moves-count)
-                                (random-connect copy)))))
+                                (random-connect! copy)))))
     (best #'conns-cost list-of-conns)))
 
 ;;; Main
@@ -658,7 +647,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (let ((states (collect *search-width*
                     (let ((copy (copy grid)))
                       (multiple-value-bind (ms c)
-                          (random-repositions copy)
+                          (random-repositions! copy)
                         (multiple-value-bind (conns cost)
                             (search-best-conns copy (+ moves-count c))
                           (state cost
