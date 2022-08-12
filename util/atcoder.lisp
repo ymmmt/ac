@@ -1218,7 +1218,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (assert (>= x 0))
   (if (= base 2)
       (integer-length x)
-      (ceiling (log (1+ x) base))))
+      (if (zerop x)
+          1
+          (nlet rec ((x x) (acc 0))
+            (if (zerop x)
+                acc
+                (rec (floor x base)
+                     (1+ acc)))))))
 
 (defun num->digits (num &optional (base 10))
   (nreverse 
