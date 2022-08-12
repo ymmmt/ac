@@ -1,3 +1,11 @@
+;; depends on apply-n
+(defun zoro (x n-digits &optional (base 10))
+  (assert (plusp n-digits))
+  (apply-n (1- n-digits)
+           (lambda (y)
+             (+ (* y base) x))
+           x))
+
 ;; from serapeum
 ;; https://github.com/ruricolist/serapeum/blob/master/LICENSE.txt
 ;; https://github.com/ruricolist/serapeum/blob/master/definitions.lisp#L129
