@@ -162,6 +162,15 @@ connected for the first time."
 
 ;; from serapeum
 ;; https://github.com/ruricolist/serapeum/blob/master/LICENSE.txt
+;; https://github.com/ruricolist/serapeum/blob/master/definitions.lisp#L129
+(defmacro defsubst (name params &body body)
+  `(progn
+     (declaim (inline ,name))
+     (defun ,name ,params
+       ,@body)))
+
+;; from serapeum
+;; https://github.com/ruricolist/serapeum/blob/master/LICENSE.txt
 ;; https://github.com/ruricolist/serapeum/blob/master/iter.lisp#L22
 (defmacro nlet (name bindings &body body)
   (let* ((bindings (mapcar #'ensure-list bindings))
@@ -224,6 +233,10 @@ connected for the first time."
   `(lambda (,g%)
      (funcall ,function ,@(subst g% '% arguments)))))
 
+(defmacro aif (test then &optional else)
+  `(let ((it ,test))
+     (if it ,then ,else)))
+
 (defmacro awhen (test &body body)
   `(let ((it ,test))
      (when it
@@ -238,17 +251,14 @@ connected for the first time."
              (cons (apply function (take k list))
                    acc)))))
 
-(defun filter-map (f list &rest more-lists)
-  (labels ((rec (list more-lists acc)
-             (if (and (consp list) (every #'consp more-lists))
-                 (rec (cdr list)
-                      (mapcar #'cdr more-lists)
-                      (let ((value (apply f (car list) (mapcar #'car more-lists))))
-                        (if value
-                            (cons value acc)
-                            acc)))
-                 (nreverse acc))))
-    (rec list more-lists nil)))
+(defun filter-map (function list)
+  (nlet rec ((list list) (acc nil))
+    (if (null list)
+        (nreverse acc)
+        (rec (cdr list)
+             (aif (funcall function (car list))
+                  (cons it acc)
+                  acc)))))
 
 (defun filter (predicate sequence &key from-end (start 0) end count key)
   (remove-if-not predicate sequence
@@ -280,17 +290,17 @@ connected for the first time."
         `(->> ,threaded ,@(rest forms)))
       x))
 
-(defun random-choice (list)
+(defsubst random-choice (list)
   (nth (random (length list)) list))
 
-(defun judge (probability)
+(defsubst judge (probability)
   (< (random 1.0) probability))
 
-(defun random-a-b (a b)
+(defsubst random-a-b (a b)
   "return random integer r that satisfies A <= r < B."
   (+ (random (- b a)) a))
 
-(defun singletonp (list)
+(defsubst singletonp (list)
   (and (consp list) (null (cdr list))))
 
 (defun nshuffle (vector)
@@ -299,29 +309,22 @@ connected for the first time."
                     (aref vector (1- i))))
   vector)
 
-(defun coerce-vector (object)
+(defsubst coerce-vector (object)
   (coerce object 'vector))
 
-(defun coerce-list (object)
+(defsubst coerce-list (object)
   (coerce object 'list))
 
-;; from serapeum
-;; https://github.com/ruricolist/serapeum/blob/master/LICENSE.txt
-;; https://github.com/ruricolist/serapeum/blob/master/definitions.lisp#L129
-(defmacro defsubst (name params &body body)
-  `(progn
-     (declaim (inline ,name))
-     (defun ,name ,params
-       ,@body)))
-
-(defun dist (x y)
+(defsubst dist (x y)
   (abs (- x y)))
 
 (defun take (n list &key (step 1))
-  (if (or (zerop n) (null list))
-      nil
-      (cons (car list)
-            (take (1- n) (nthcdr step list) :step step))))
+  (nlet rec ((n n) (list list) (acc nil))
+    (if (or (zerop n) (null list))
+        (nreverse acc)
+        (rec (1- n)
+             (nthcdr step list)
+             (cons (car list) acc)))))
 
 (defun scanr (function initial-value list)
   (labels ((rec (list acc)
@@ -338,7 +341,7 @@ connected for the first time."
           collect (floor (mod row-major-index (svref a (1- i)))
                          (svref a i)))))
 
-(defun row-major-index (i j n-cols)
+(defsubst row-major-index (i j n-cols)
   (+ (* i n-cols) j))
 
 (defun counter (sequence &key (test 'eql) (key 'identity))
@@ -389,7 +392,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         function
         (cdr list)
         (apply function (car list) initial-value initial-args))))
-           
+
+;; depends on mvfoldl
 (defun best (function list)
   (assert (consp list))
   (mvfoldl (lambda (item argmax max)
@@ -405,10 +409,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (if (zerop n)
       x
       (funcall f (apply-n (1- n) f x))))
-
-(defun applier (fn)
-  (lambda (args)
-    (apply fn args)))
 
 (defun zip (&rest lists)
   (when lists
@@ -671,7 +671,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (curry #'mapcar #'search-and-select-best)
            states))
 
-(defun formatize (state)
+(defun sformat (state)
   (with-slots (moves-list moves-count conns) state
     (values moves-count
             (apply #'append (reverse moves-list))
@@ -684,7 +684,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       beam-search
       (sort #'> :key #'state-cost)
       car
-      formatize))
+      sformat))
 
 (defun setup-vars (n k)
   (setf *indices* (range n)

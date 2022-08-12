@@ -1,3 +1,12 @@
+;; from serapeum
+;; https://github.com/ruricolist/serapeum/blob/master/LICENSE.txt
+;; https://github.com/ruricolist/serapeum/blob/master/definitions.lisp#L129
+(defmacro defsubst (name params &body body)
+  `(progn
+     (declaim (inline ,name))
+     (defun ,name ,params
+       ,@body)))
+
 (defun mapcars (function &rest lists)
   (nlet rec ((list (car lists))
              (lists (cdr lists))
@@ -872,11 +881,14 @@
   (< (random 1.0) probability))
 
 (defun random-a-b (a b)
-  "return random integer r that satisfies A < r < B."
-  (+ (random (- b a 1)) a 1))
+  "return random integer r that satisfies A <= r < B."
+  (+ (random (- b a)) a))
 
 (defun coerce-vector (object)
   (coerce object 'vector))
+
+(defun coerce-list (object)
+  (coerce object 'list))
 
 (defun split-at (n list)
   (labels ((rec (n list left)
@@ -1492,6 +1504,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
      `(lambda (x) (mod x ,(read stream t nil t))))))
 @readmacro end
 
+;; more general
 (defun filter-map (f list &rest more-lists)
   (labels ((rec (list more-lists acc)
              (if (and (consp list) (every #'consp more-lists))
@@ -1503,6 +1516,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                             acc)))
                  (nreverse acc))))
     (rec list more-lists nil)))
+
+(defun filter-map (function list)
+  (nlet rec ((list list) (acc nil))
+    (if (null list)
+        (nreverse acc)
+        (rec (cdr list)
+             (aif (funcall function (car list))
+                  (cons it acc)
+                  acc)))))
 
 @filter
 (setf (symbol-function 'filter)
@@ -2251,10 +2273,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (head (1- n) (cdr lst)))))
 
 (defun take (n list &key (step 1))
-  (if (or (zerop n) (null list))
-      nil
-      (cons (car list)
-            (take (1- n) (nthcdr step list) :step step))))
+  (nlet rec ((n n) (list list) (acc nil))
+    (if (or (zerop n) (null list))
+        (nreverse acc)
+        (rec (1- n)
+             (nthcdr step list)
+             (cons (car list) acc)))))
+
+;; (defun take% (n list &key (step 1))
+;;   (if (or (zerop n) (null list))
+;;       nil
+;;       (cons (car list)
+;;             (take (1- n) (nthcdr step list) :step step))))
 
 (defun merge-lists (list1 list2 &key count (order #'<))
   (labels ((rec (acc list1 list2 &optional count)
