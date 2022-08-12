@@ -688,8 +688,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *random-repositions-moves-count* k
         *moves-count-limit* (* k 10)
         *ds* (make-disjoint-set (* *n* *n*))
-        *best-conns-tries-count* 20
-        *search-width* (nth k '(_ _ 4 3 2 2))
+        *best-conns-tries-count* 5
+        *search-width* (nth k '(_ _ 12 10 8 7))
         *beam-search-width* 10))
 
 (defun read-grid (n)
