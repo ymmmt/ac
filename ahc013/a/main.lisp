@@ -432,7 +432,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *indices^2*)
 (defvar *n*)
 (defvar *ops-count-limit*)
-(defvar *coms-count*)
 (defvar *random-repositions-moves-count*)
 (defvar *moves-count-limit*)
 (defvar *ds*)
@@ -483,65 +482,62 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                  (nreverse (range i2 (1+ i1)))))
               (dist i1 i2))))
 
-(defun left-closest-com (grid row col)
-  (or (loop for j from (1- col) downto 0
-            when (comp grid row j)
-              return j)
-      -1))
+(defsubst row-coms (grid row)
+  (filter (curry* #'comp grid row %)
+          *indices*))
 
-(defun right-closest-com (grid row col)
-  (or (loop for j from (1+ col) below *n*
-            when (comp grid row j)
-              return j)
-      *n*))
+(defsubst col-coms (grid col)
+  (filter (curry* #'comp grid % col)
+          *indices*))
 
-(defun up-closest-com (grid row col)
-  (or (loop for i from (1- row) downto 0
-            when (comp grid i col)
-              return i)
-      -1))
+(defun random-row-reposition! (grid row)
+  (let ((js (row-coms grid row)))
+    (if (null js)
+        (values nil 0)
+        (destructuring-bind (l j r)
+            (-> js
+                (nconc (list -1)
+                       %
+                       (list *n*))
+                (map-adjacents (lambda (&rest args)
+                                 args)
+                               % 3)
+                random-choice)
+          (let ((j* (random-a-b (1+ l) r)))
+            (rotatef (aref grid row j)
+                     (aref grid row j*))
+            (make-row-moves row j j*))))))
 
-(defun down-closest-com (grid row col)
-  (or (loop for i from (1+ row) below *n*
-            when (comp grid i col)
-              return i)
-      *n*))
+(defun random-col-reposition! (grid col)
+  (let ((is (col-coms grid col)))
+    (if (null is)
+        (values nil 0)
+        (destructuring-bind (l i r)
+            (-> is
+                (nconc (list -1)
+                       %
+                       (list *n*))
+                (map-adjacents (lambda (&rest args)
+                                 args)
+                               % 3)
+                random-choice)
+          (let ((i* (random-a-b (1+ l) r)))
+            (rotatef (aref grid i col)
+                     (aref grid i* col))
+            (make-col-moves col i i*))))))
 
-(defun random-row-reposition! (grid coms k row col)
-  (let ((l (left-closest-com grid row col))
-        (r (right-closest-com grid row col)))
-    (let ((col* (random-a-b (1+ l) r)))
-      (rotatef (aref grid row col)
-               (aref grid row col*))
-      (setf (aref coms k)
-            (cons row col*))
-      (make-row-moves row col col*))))
+(defun random-reposition! (grid)
+  (if (judge 0.5)
+      (random-row-reposition! grid (random *n*))
+      (random-col-reposition! grid (random *n*))))
 
-(defun random-col-reposition! (grid coms k row col)
-  (let ((u (up-closest-com grid row col))
-        (d (down-closest-com grid row col)))
-    (let ((row* (random-a-b (1+ u) d)))
-      (rotatef (aref grid row col)
-               (aref grid row* col))
-      (setf (aref coms k)
-            (cons row* col))
-      (make-col-moves col row row*))))
-
-(defun random-reposition! (grid coms)
-  (declare ((simple-array cons (*)) coms))
-  (let ((k (random *coms-count*)))
-    (destructuring-bind (row . col) (aref coms k)
-      (if (judge 0.5)
-          (random-row-reposition! grid coms k row col)
-          (random-col-reposition! grid coms k row col)))))
-
-(defun random-repositions! (grid coms)
+(defun random-repositions! (grid)
   (nlet rec ((moves-list nil) (count 0))
     (if (>= count *random-repositions-moves-count*)
         (values (apply #'nconc (nreverse moves-list))
                 count)
         (multiple-value-bind (ms c)
-            (random-reposition! grid coms)
+            (random-reposition! grid)
           (rec (cons ms moves-list)
                (+ count c))))))
 
@@ -639,50 +635,35 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Main
 
 (defstruct (state (:constructor state
-                      (cost grid moves-list moves-count conns coms)))
+                      (cost grid moves-list moves-count conns)))
   (cost 0 :type fixnum)
   (grid nil :type (or null (simple-array int8 (* *))))
   (moves-list nil :type list)
   (moves-count 0 :type uint16)
-  (conns nil :type list)
-  (coms nil :type (or null (simple-array cons (*)))))
+  (conns nil :type list))
 
-(defun coms (grid)
-  (make-array *coms-count*
-              :element-type 'cons
-              :initial-contents
-              (loop for i below *n*
-                    nconc
-                    (loop for j below *n*
-                          when (comp grid i j)
-                            collect (cons i j)))))
-                                 
 (defun search-and-select-best (state)
-  (with-slots (grid moves-list moves-count coms) state
+  (with-slots (grid moves-list moves-count) state
     (let ((states (collect *search-width*
-                    (let ((grid* (copy grid))
-                          (coms* (copy-seq coms)))
+                    (let ((copy (copy grid)))
                       (multiple-value-bind (ms c)
-                          (random-repositions! grid* coms*)
+                          (random-repositions! copy)
                         (multiple-value-bind (conns cost)
-                            (search-best-conns grid* (+ moves-count c))
+                            (search-best-conns copy (+ moves-count c))
                           (state cost
-                                 grid*
+                                 copy
                                  (cons ms moves-list)
                                  (+ moves-count c)
-                                 conns
-                                 coms*)))))))
+                                 conns)))))))
       (best #'state-cost states))))
     
 (defun initialize-states (grid)
-  (let ((coms (coms grid)))
-    (collect *beam-search-width*
-      (state 0
-             (copy grid)
-             nil
-             0
-             nil
-             (copy-seq coms)))))
+  (collect *beam-search-width*
+    (state 0
+           (copy grid)
+           nil
+           0
+           nil)))
 
 (defun beam-search (states)
   (apply-n (floor *moves-count-limit*
@@ -710,7 +691,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *indices^2* (range (* n n))
         *n* n
         *ops-count-limit* (* k 100)
-        *coms-count* (* k 100)
         *random-repositions-moves-count* k
         *moves-count-limit* (* k 10)
         *ds* (make-disjoint-set (* *n* *n*))
