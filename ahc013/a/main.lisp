@@ -613,8 +613,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                        (row-major-index i j *n*)
                        (row-major-index k l *n*)))
           conns)
-    (let ((roots (counter (mapcar (curry #'ds-root ds)
-                                  *indices^2*))))
+    (let ((roots (counter (filter-map (lambda (i)
+                                        (when (>= (ds-size ds i) 2)
+                                          (ds-root ds i)))
+                                      *indices^2*))))
       (reduce #'+ (ht-keys roots)
               :key (compose #'cpower (curry #'ds-size ds))))))
 
@@ -674,8 +676,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (declare (ignore n k))
   (-> (initialize-states grid)
       beam-search
-      (sort #'> :key #'state-cost)
-      car
+      (best #'state-cost %)
       sformat))
 
 (defun setup-vars (n k)
@@ -683,11 +684,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *indices^2* (range (* n n))
         *n* n
         *ops-count-limit* (* k 100)
-        *random-repositions-moves-count* (* k 3)
-        *moves-count-limit* (* k 12)
+        *random-repositions-moves-count* k
+        *moves-count-limit* (* k 10)
         *ds* (make-disjoint-set (* *n* *n*))
         *best-conns-tries-count* 5
-        *search-width* (nth k '(_ _ 28 23 20 18))
+        *search-width* (nth k '(_ _ 23 19 16 14))
         *beam-search-width* 10))
 
 (defun read-grid (n)
