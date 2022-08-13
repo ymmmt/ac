@@ -1,3 +1,22 @@
+(defun join-with (item list-of-lists)
+  (when list-of-lists
+    (reduce (lambda (l1 l2) (append l1 (list item) l2))
+            list-of-lists)))
+
+;; depends on split
+(defun words (string &key (separator #\Space))
+  (mapcar (lambda (cs) (coerce cs 'string))
+          (split separator (coerce string 'list)
+                 :test #'char=
+                 :omit-nulls t)))
+
+;; depends on join-with
+(defun unwords (strings)
+  (coerce (join-with #\Space
+                     (mapcar (lambda (s) (coerce s 'list))
+                             strings))
+          'string))
+
 ;; depends on apply-n
 (defun zoro (x n-digits &optional (base 10))
   (assert (plusp n-digits))
