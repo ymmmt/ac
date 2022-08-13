@@ -596,9 +596,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         grid)))
 
 (defun random-connect! (grid)
-  (let ((copy (copy grid))
-        (conns (-> (conns grid) coerce-vector nshuffle coerce-list)))
-    (filter-map (curry #'try-connect! copy)
+  (let ((conns (-> (conns grid) coerce-vector nshuffle coerce-list)))
+    (filter-map (curry #'try-connect! grid)
                 conns)))
 
 ;;; Cost
@@ -620,10 +619,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               :key (compose #'cpower (curry #'ds-size ds))))))
 
 (defun search-best-conns (grid moves-count)
-  (let* ((copy (copy grid))
-         (list-of-conns (collect *best-conns-tries-count*
-                          (take (- *ops-count-limit* moves-count)
-                                (random-connect! copy)))))
+  (let ((list-of-conns (collect *best-conns-tries-count*
+                         (take (- *ops-count-limit* moves-count)
+                               (random-connect! (copy grid))))))
     (best #'conns-cost list-of-conns)))
 
 ;;; Main
