@@ -650,7 +650,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                  (+ moves-count c)
                                  conns)))))))
       (best #'state-cost (cons state states)))))
-    
+
 (defun initialize-states (grid)
   (collect *beam-search-width*
     (state 0
@@ -685,11 +685,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *indices^2* (range (* n n))
         *n* n
         *ops-count-limit* (* k 100)
-        *random-repositions-moves-count* k
-        *moves-count-limit* (* k 10)
+        *random-repositions-moves-count* (* k 3)
+        *moves-count-limit* (* k 12)
         *ds* (make-disjoint-set (* *n* *n*))
         *best-conns-tries-count* 5
-        *search-width* (nth k '(_ _ 12 10 8 7))
+        *search-width* (nth k '(_ _ 28 23 20 18))
         *beam-search-width* 10))
 
 (defun read-grid (n)
