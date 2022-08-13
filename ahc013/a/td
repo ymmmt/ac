@@ -1,4 +1,6 @@
 #!/bin/bash
+# td: testdir
+
 
 dir="$1"
 oj t -c 'sbcl --script main.lisp' -d $dir
