@@ -423,6 +423,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *temperature-decrease-start-time*)
 (defvar *temperature-decrease-ratio*)
 
+(defconstant +epsilon+ 1)
 (defconstant +cable+ -1)
 (defconstant +blank+ 0)
 
@@ -656,22 +657,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   temperature))))
 
 (defun terminatep (temperature state)
-  (declare (ignore temperature))
-  (>= (state-moves-count state)
-      *moves-count-limit*))
-  
+  (or (< temperature +epsilon+)
+      (>= (state-moves-count state)
+          *moves-count-limit*)))
+
 (defun metropolis (grid)  
-  (nlet rec ((time 0)
-             (temperature *initial-temperature*)
+  (nlet rec ((temperature *initial-temperature*)
              (state (initialize-state grid)))
-    ;;    (dbg time temperature state)
-    (let* ((cost (state-cost state))
+;;    (dbg temperature state)
+    (let* ((time (state-moves-count state))
+           (cost (state-cost state))
            (state* (random-neighbor state))
            (cost* (state-cost state*)))
       (if (terminatep temperature state)
           state
-          (rec (1+ time)
-               (temp-dec temperature time)
+          (rec (temp-dec temperature time)
                (if (or (<= cost cost*)
                        (judge (prob cost cost* temperature)))
                    state*
@@ -689,7 +689,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (timed-loop 2
       (push (metropolis grid)
             cands))
-;;    (dbg cands)
     (sformat (best #'state-cost cands))))
 
 (defun initialize-vars (n k)
@@ -702,10 +701,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *ds* (make-disjoint-set (* *n* *n*))
         *best-conns-tries-count* 5
         *initial-temperature* 1000
-        *temperature-decrease-start-time* (floor (/ *moves-count-limit*
-                                                    *random-repositions-moves-count*)
-                                                 3)
-        *temperature-decrease-ratio* 0.99))
+        *temperature-decrease-start-time* (floor *moves-count-limit* 3)
+        *temperature-decrease-ratio* 0.9))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
