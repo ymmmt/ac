@@ -679,7 +679,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (best #'state-cost %)
       sformat))
 
-(defun setup-vars (n k)
+(defun initialize-vars (n k)
   (setf *indices* (range n)
         *indices^2* (range (* n n))
         *n* n
@@ -709,7 +709,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   
 (defun main ()
   (readlet (n k)
-    (setup-vars n k)
+    (initialize-vars n k)
     (multiple-value-bind (x moves y conns)
         (solve n k (read-grid n))
       (println x)
