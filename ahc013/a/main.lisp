@@ -465,7 +465,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                  (range j1 (1+ j2))
                                  (nreverse (range j2 (1+ j1)))))
               (dist j1 j2))))
-    
+
 (defun make-col-moves (col i1 i2)
   (if (= i1 i2)
       (values nil 0)
