@@ -399,24 +399,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (car list)
            (funcall function (car list))))
 
-(defun apply-n (n f x)
-  (if (zerop n)
-      x
-      (funcall f (apply-n (1- n) f x))))
-
-(defun zip (&rest lists)
-  (when lists
-    (apply #'zip-with #'list lists)))
-
-(defun zip-with (fn &rest lists)
-  (when lists
-    (labels ((rec (lists acc)
-               (if (some #'null lists)
-                   (nreverse acc)
-                   (rec (mapcar #'cdr lists)
-                        (cons (apply fn (mapcar #'car lists))
-                              acc)))))
-      (rec lists nil))))
+(defmacro timed-loop (seconds &body body)
+  `(let* ((start-time (get-internal-real-time))
+          (end-time (+ start-time
+                       (* ,seconds
+                          internal-time-units-per-second))))
+     (loop while (< (get-internal-real-time) end-time)
+           do ,@body)))
 
 ;;;
 ;;; Body
@@ -430,8 +419,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *moves-count-limit*)
 (defvar *ds*)
 (defvar *best-conns-tries-count*)
-(defvar *search-width*)
-(defvar *beam-search-width*)
+(defvar *initial-temperature*)
+(defvar *temperature-decrease-start-time*)
+(defvar *temperature-decrease-ratio*)
 
 (defconstant +cable+ -1)
 (defconstant +blank+ 0)
@@ -636,34 +626,56 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (moves-count 0 :type uint16)
   (conns nil :type list))
 
-(defun search-and-select-best (state)
+(defun initialize-state (grid)
+  (state 0
+         (copy grid)
+         nil
+         0
+         nil))
+
+(defun random-neighbor (state)
   (with-slots (grid moves-list moves-count) state
-    (let ((states (collect *search-width*
-                    (let ((copy (copy grid)))
-                      (multiple-value-bind (ms c)
-                          (random-repositions! copy)
-                        (multiple-value-bind (conns cost)
-                            (search-best-conns copy (+ moves-count c))
-                          (state cost
-                                 copy
-                                 (cons ms moves-list)
-                                 (+ moves-count c)
-                                 conns)))))))
-      (best #'state-cost (cons state states)))))
+    (let ((copy (copy grid)))
+      (multiple-value-bind (ms c)
+          (random-repositions! copy)
+        (multiple-value-bind (conns cost)
+            (search-best-conns copy (+ moves-count c))
+          (state cost
+                 copy
+                 (cons ms moves-list)
+                 (+ moves-count c)
+                 conns))))))
 
-(defun initialize-states (grid)
-  (collect *beam-search-width*
-    (state 0
-           (copy grid)
-           nil
-           0
-           nil)))
+(defsubst temp-dec (temperature time)
+  (if (<= time *temperature-decrease-start-time*)
+      temperature
+      (* *temperature-decrease-ratio* temperature)))
 
-(defun beam-search (states)
-  (apply-n (floor *moves-count-limit*
-                  *random-repositions-moves-count*)
-           (curry #'mapcar #'search-and-select-best)
-           states))
+(defsubst prob (cost neighbor-cost temperature)
+  (expt 2.7 (- (/ (- cost neighbor-cost)
+                  temperature))))
+
+(defun terminatep (temperature state)
+  (declare (ignore temperature))
+  (>= (state-moves-count state)
+      *moves-count-limit*))
+  
+(defun metropolis (grid)  
+  (nlet rec ((time 0)
+             (temperature *initial-temperature*)
+             (state (initialize-state grid)))
+    ;;    (dbg time temperature state)
+    (let* ((cost (state-cost state))
+           (state* (random-neighbor state))
+           (cost* (state-cost state*)))
+      (if (terminatep temperature state)
+          state
+          (rec (1+ time)
+               (temp-dec temperature time)
+               (if (or (<= cost cost*)
+                       (judge (prob cost cost* temperature)))
+                   state*
+                   state))))))
 
 (defun sformat (state)
   (with-slots (moves-list moves-count conns) state
@@ -671,25 +683,29 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (apply #'append (reverse moves-list))
             (length conns)
             conns)))
-
-(defun solve (n k grid)
-  (declare (ignore n k))
-  (-> (initialize-states grid)
-      beam-search
-      (best #'state-cost %)
-      sformat))
+  
+(defun solve (grid)
+  (let (cands)
+    (timed-loop 2
+      (push (metropolis grid)
+            cands))
+;;    (dbg cands)
+    (sformat (best #'state-cost cands))))
 
 (defun initialize-vars (n k)
   (setf *indices* (range n)
         *indices^2* (range (* n n))
         *n* n
-        *ops-count-limit* (* k 100)
+        *ops-count-limit* (* 100 k)
         *random-repositions-moves-count* k
-        *moves-count-limit* (* k 10)
+        *moves-count-limit* (* 40 k)
         *ds* (make-disjoint-set (* *n* *n*))
         *best-conns-tries-count* 5
-        *search-width* (nth k '(_ _ 23 19 16 14))
-        *beam-search-width* 10))
+        *initial-temperature* 1000
+        *temperature-decrease-start-time* (floor (/ *moves-count-limit*
+                                                    *random-repositions-moves-count*)
+                                                 3)
+        *temperature-decrease-ratio* 0.99))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
@@ -711,7 +727,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (readlet (n k)
     (initialize-vars n k)
     (multiple-value-bind (x moves y conns)
-        (solve n k (read-grid n))
+        (solve (read-grid n))
       (println x)
       (dolist (m moves)
         (join-print m))
