@@ -1,3 +1,33 @@
+;; depends on split-at
+;; https://kira000.hatenadiary.jp/entry/2019/02/23/053917
+(defun inversion-number (list > &optional (n (length list)))
+  (if (<= n 1)
+      (values 0 list)
+      (let ((l (ceiling n 2))
+            (r (floor n 2)))
+        (multiple-value-bind (left split) (right-at l list)
+          (multiple-value-bind (acc1 m1) (inversion-number left > l)
+            (multiple-value-bind (acc2 m2) (inversion-number right > r)
+              (nlet rec ((m1 m1) (l1 l)
+                         (m2 m2) (l2 r)
+                         (merged nil)
+                         (acc (+ acc1 acc2)))
+                (cond ((or (null m1) (null m2))
+                       (values acc
+                               (append (nreverse merged) m1 m2)))
+                      ((funcall > (car m1) (car m2))
+                       ;; (every (curry% > % (car m2)) m1) == t
+                       (rec m1 l1
+                            (cdr m2) (1- l2)
+                            (cons (car m2) merged)
+                            (+ acc l1)))
+                      (t
+                       ;; (funcall > (car m2) (car m1))
+                       (rec (cdr m1) (1- l1)
+                            m2 l2
+                            (cons (car m1) merged)
+                            acc))))))))))
+
 (defun join-with (item list-of-lists)
   (when list-of-lists
     (reduce (lambda (l1 l2) (append l1 (list item) l2))
