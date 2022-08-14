@@ -5,7 +5,7 @@
       (values 0 list)
       (let ((l (ceiling n 2))
             (r (floor n 2)))
-        (multiple-value-bind (left split) (right-at l list)
+        (multiple-value-bind (left right) (split-at l list)
           (multiple-value-bind (acc1 m1) (inversion-number left > l)
             (multiple-value-bind (acc2 m2) (inversion-number right > r)
               (nlet rec ((m1 m1) (l1 l)
@@ -16,7 +16,7 @@
                        (values acc
                                (append (nreverse merged) m1 m2)))
                       ((funcall > (car m1) (car m2))
-                       ;; (every (curry% > % (car m2)) m1) == t
+                       ;; (every (curry* > % (car m2)) m1) == t
                        (rec m1 l1
                             (cdr m2) (1- l2)
                             (cons (car m2) merged)
