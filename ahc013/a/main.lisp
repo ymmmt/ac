@@ -611,6 +611,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (reduce #'+ (ht-keys roots)
               :key (compose #'cpower (curry #'ds-size ds))))))
 
+;; (defun conns-cost (conns)
+;;   (length conns))
+
 (defun search-best-conns (grid moves-count)
   (let ((list-of-conns (collect *best-conns-tries-count*
                          (take (- *ops-count-limit* moves-count)
