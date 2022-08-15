@@ -657,17 +657,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun undo-reposition! (state)
   (when (plusp (state-moves-count state))
-    (with-slots (cost grid moves-list moves-count) state
-      (mapc (dlambda ((i j k l))
-              (rotatef (aref grid k l)
-                       (aref grid i j)))
-            (reverse (car moves-list)))
-      (decf moves-count
-            (length (car moves-list)))
-      (setf moves-list (cdr moves-list)
-            cost (nth-value 1 (search-best-conns grid moves-count)))))
+    (with-slots (cost grid moves-list moves-count conns) state
+      (destructuring-bind (i j _ _) (first (car moves-list))
+        (destructuring-bind (_ _ k l) (last1 (car moves-list))
+          (rotatef (aref grid i j)
+                   (aref grid k l))))
+      (decf moves-count (length (car moves-list)))
+      (setf moves-list (cdr moves-list))
+      (setf (values conns cost)
+            (search-best-conns grid moves-count))))
   state)
-
+        
 (defun undo-repositions! (state count)
   (apply-n count #'undo-reposition! state))
 
@@ -705,41 +705,40 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (time 0)
                (state (initialize-state grid))
                (from-last-improve 0))
-;;      (dbg temperature time state)
+      ;;(dbg temperature time (state-cost state) (state-moves-count state) from-last-improve)
       (let* ((cost (state-cost state))
              (state* (random-neighbor state))
              (cost* (state-cost state*)))
         (cond ((or (terminatep temperature from-last-improve)
                    (time-up-p))
-               ;; (dbg 1)
+               ;;(dbg 1)
                state)
               ((>= (state-moves-count state) *moves-count-limit*)
                ;;(dbg 'undo)
-               ;; (rec (temp-dec temperature time)
-               ;;      (1+ time)
-               ;;      (undo-repositions! state *no-improve-undo-threshold*)
-               ;;      0))
-               state)
+               (rec (temp-dec temperature time)
+                    (1+ time)
+                    (undo-repositions! state *no-improve-undo-threshold*)
+                    0))
               ((<= cost cost*)
-               ;; (dbg 2)
+               ;;(dbg 2)
                (rec (temp-dec temperature time)
                     (1+ time)
                     state*
                     0))
-              ;; ((>= (1+ from-last-improve) *no-improve-undo-threshold*)
-              ;;  ;; (dbg 3)
-              ;;  (rec (temp-dec temperature time)
-              ;;       (1+ time)
-              ;;       (undo-repositions! state *no-improve-undo-threshold*)
-              ;;       0))
+              ((>= (1+ from-last-improve) *no-improve-undo-threshold*)
+               ;;(dbg 3)
+               (rec (temp-dec temperature time)
+                    (1+ time)
+                    (undo-repositions! state *no-improve-undo-threshold*)
+                    0))
               ((judge (prob cost cost* temperature))
-               ;; (dbg 4)
+               ;;(dbg 4)
                (rec (temp-dec temperature time)
                     (1+ time)
                     state*
                     (1+ from-last-improve)))
               (t
-               ;; (dbg 5)
+               ;;(dbg 5)
                (rec (temp-dec temperature time)
                     (1+ time)
                     state
@@ -763,14 +762,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;        *random-repositions-moves-count* k
         *moves-count-limit* (* 40 k)
         *ds* (make-disjoint-set (* *n* *n*))
-        *best-conns-tries-count* 5
+        *best-conns-tries-count* 10
         *initial-temperature* 1000
         *temperature-decrease-start-time* (floor *moves-count-limit* 3)
         *temperature-decrease-ratio* 0.99
         *no-improve-undo-threshold* 3
         *no-improve-terminate-threshold* 5))
         
-
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
     (dotimes (i n)
