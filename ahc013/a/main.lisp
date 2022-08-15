@@ -399,13 +399,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (car list)
            (funcall function (car list))))
 
-(defmacro timed-loop (seconds &body body)
-  `(let* ((start-time (get-internal-real-time))
-          (end-time (+ start-time
-                       (* ,seconds
-                          internal-time-units-per-second))))
-     (loop while (< (get-internal-real-time) end-time)
-           do ,@body)))
+(defmacro with-timelimit ((seconds) &body body)
+  (let ((gstart (gensym "START-TIME"))
+        (gend (gensym "END-TIME")))
+    `(let* ((,gstart (get-internal-real-time))
+            (,gend (+ ,gstart
+                      (* ,seconds
+                         internal-time-units-per-second))))
+       (labels ((time-up-p ()
+                  (>= (get-internal-real-time) ,gend)))
+         ,@body))))
+
+(defun apply-n (n f x)
+  (if (zerop n)
+      x
+      (funcall f (apply-n (1- n) f x))))
 
 ;;;
 ;;; Body
@@ -422,6 +430,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *initial-temperature*)
 (defvar *temperature-decrease-start-time*)
 (defvar *temperature-decrease-ratio*)
+(defvar *undo-threshold*)
 
 (defconstant +epsilon+ 1)
 (defconstant +cable+ -1)
@@ -630,12 +639,36 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (moves-count 0 :type uint16)
   (conns nil :type list))
 
+(defmethod print-object ((object state) stream)
+  (print-unreadable-object (object stream :type t)
+    (with-slots (cost moves-list moves-count) object
+      (format stream ":cost ~A :moves-count ~A"
+              cost
+              moves-count))))
+
 (defun initialize-state (grid)
   (state 0
          (copy grid)
          nil
          0
          nil))
+
+(defun undo-reposition! (state)
+  (if (plusp (state-moves-count state))
+      (with-slots (cost grid moves-list moves-count conns) state
+        (decf moves-count
+              (length (car moves-list)))
+        (mapc (dlambda ((i j k l))
+                (rotatef (aref grid k l)
+                         (aref grid i j)))
+              (nreverse (car moves-list)))
+        (setf moves-list (cdr moves-list)
+              cost (nth-value 1 (search-best-conns grid moves-count)))
+        state)
+      state))
+
+(defun undo-repositions! (state count)
+  (apply-n count #'undo-reposition! state))
 
 (defun random-neighbor (state)
   (with-slots (grid moves-list moves-count) state
@@ -660,25 +693,52 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   temperature))))
 
 (defun terminatep (temperature state)
-  (or (< temperature +epsilon+)
-      (>= (state-moves-count state)
-          *moves-count-limit*)))
+  (< temperature +epsilon+))
 
-(defun metropolis (grid)  
-  (nlet rec ((temperature *initial-temperature*)
-             (state (initialize-state grid)))
-;;    (dbg temperature state)
-    (let* ((time (state-moves-count state))
-           (cost (state-cost state))
-           (state* (random-neighbor state))
-           (cost* (state-cost state*)))
-      (if (terminatep temperature state)
-          state
-          (rec (temp-dec temperature time)
-               (if (or (<= cost cost*)
-                       (judge (prob cost cost* temperature)))
-                   state*
-                   state))))))
+(defun metropolis (grid)
+  (with-timelimit (200)
+    (nlet rec ((temperature *initial-temperature*)
+               (time 0)
+               (state (initialize-state grid))
+               (from-last-improve 0))
+      (dbg temperature time state)
+      (let* ((cost (state-cost state))
+             (state* (random-neighbor state))
+             (cost* (state-cost state*)))
+        (cond ((or (terminatep temperature state)
+                   (time-up-p))
+               (dbg 1)
+               state)
+              ((>= (state-moves-count state) *moves-count-limit*)
+               (dbg 'undo)
+               (rec (temp-dec temperature time)
+                    (1+ time)
+                    (undo-repositions! state *undo-threshold*)
+                    0))
+              ((<= cost cost*)
+               (dbg 2)
+               (rec (temp-dec temperature time)
+                    (1+ time)
+                    state*
+                    0))
+              ((>= from-last-improve *undo-threshold*)
+               (dbg 3)
+               (rec (temp-dec temperature time)
+                    (1+ time)
+                    (undo-repositions! state *undo-threshold*)
+                    (- from-last-improve *undo-threshold*)))
+              ((judge (prob cost cost* temperature))
+               (dbg 4)
+               (rec (temp-dec temperature time)
+                    (1+ time)
+                    state*
+                    (1+ from-last-improve)))
+              (t
+               (dbg 5)
+               (rec (temp-dec temperature time)
+                    (1+ time)
+                    state
+                    (1+ from-last-improve))))))))
 
 (defun sformat (state)
   (with-slots (moves-list moves-count conns) state
@@ -688,11 +748,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             conns)))
   
 (defun solve (grid)
-  (let (cands)
-    (timed-loop 2
-      (push (metropolis grid)
-            cands))
-    (sformat (best #'state-cost cands))))
+  (sformat (metropolis grid)))
 
 (defun initialize-vars (n k)
   (setf *indices* (range n)
@@ -705,7 +761,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *best-conns-tries-count* 5
         *initial-temperature* 1000
         *temperature-decrease-start-time* (floor *moves-count-limit* 3)
-        *temperature-decrease-ratio* 0.9))
+        *temperature-decrease-ratio* 0.99
+        *undo-threshold* 5))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
