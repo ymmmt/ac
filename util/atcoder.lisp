@@ -2350,12 +2350,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun randoma-b (a b)
   (+ a (random (1+ (- b a)))))
 
-(defun head (n lst)
-  (if (zerop n)
-      nil
-      (cons (car lst)
-            (head (1- n) (cdr lst)))))
-
 (defun take (n list &key (step 1))
   (nlet rec ((n n) (list list) (acc nil))
     (if (or (zerop n) (null list))
