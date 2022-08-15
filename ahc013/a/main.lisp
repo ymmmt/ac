@@ -700,10 +700,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *random-repositions-moves-count* (* k 3)
         *moves-count-limit* (* k 12)
         *ds* (make-disjoint-set (* *n* *n*))
-        *best-conns-tries-count* 10
+        *best-conns-tries-count* 5
         ;;        *search-width* (nth k '(_ _ 28 23 20 18))
-        *search-width* 10
-        *beam-search-width* 30))
+        *search-width* 30
+        *beam-search-width* 10))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
