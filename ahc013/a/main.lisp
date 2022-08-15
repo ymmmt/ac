@@ -614,8 +614,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Cost
 
 (defsubst cpower (cluster-size)
-  (/ (* cluster-size (1- cluster-size))
-     2))
+  (ash (* cluster-size (1- cluster-size))
+       -1))
 
 (defun conns-cost (conns)
   (let ((ds (make-ds)))
@@ -624,8 +624,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                        (row-major-index i j *n*)
                        (row-major-index k l *n*)))
           conns)
-    (let ((roots (counter (mapcar (curry #'ds-root ds)
-                                  *indices^2*))))
+    (let ((roots (counter (filter-map (lambda (i)
+                                        (when (>= (ds-size ds i) 2)
+                                          (ds-root ds i)))
+                                      *indices^2*))))
       (reduce #'+ (ht-keys roots)
               :key (compose #'cpower (curry #'ds-size ds))))))
 
@@ -698,10 +700,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *random-repositions-moves-count* (* k 3)
         *moves-count-limit* (* k 12)
         *ds* (make-disjoint-set (* *n* *n*))
-        *best-conns-tries-count* 5
+        *best-conns-tries-count* 10
         ;;        *search-width* (nth k '(_ _ 28 23 20 18))
-        *search-width* 30
-        *beam-search-width* 10))
+        *search-width* 10
+        *beam-search-width* 30))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
