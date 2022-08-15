@@ -418,6 +418,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                               acc)))))
       (rec lists nil))))
 
+(defmacro with-timelimit ((seconds) &body body)
+  (let ((gstart (gensym "START-TIME"))
+        (gend (gensym "END-TIME")))
+    `(let* ((,gstart (get-internal-real-time))
+            (,gend (+ ,gstart
+                      (* ,seconds
+                         internal-time-units-per-second))))
+       (labels ((time-up-p ()
+                  (>= (get-internal-real-time) ,gend)))
+         ,@body))))
+
 ;;;
 ;;; Body
 ;;;
@@ -658,10 +669,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            nil)))
 
 (defun beam-search (states)
-  (apply-n (floor *moves-count-limit*
-                  *random-repositions-moves-count*)
-           (curry #'mapcar #'search-and-select-best)
-           states))
+  (with-timelimit (2)
+    (nlet rec ((states states))
+      (if (time-up-p)
+          states
+          (rec (mapcar #'search-and-select-best
+                       states))))))
 
 (defun sformat (state)
   (with-slots (moves-list moves-count conns) state
@@ -674,8 +687,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (declare (ignore n k))
   (-> (initialize-states grid)
       beam-search
-      (sort #'> :key #'state-cost)
-      car
+      (best #'state-cost %)
       sformat))
 
 (defun initialize-vars (n k)
@@ -687,7 +699,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *moves-count-limit* (* k 12)
         *ds* (make-disjoint-set (* *n* *n*))
         *best-conns-tries-count* 5
-        *search-width* (nth k '(_ _ 28 23 20 18))
+        ;;        *search-width* (nth k '(_ _ 28 23 20 18))
+        *search-width* 30
         *beam-search-width* 10))
 
 (defun read-grid (n)
