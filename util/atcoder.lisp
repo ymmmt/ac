@@ -1,3 +1,9 @@
+@mksym
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun mksym (control-string &rest format-arguments)
+    (intern (apply #'format nil control-string format-arguments))))
+@mksym end
+
 (defmacro with-timelimit ((seconds) &body body)
   (let ((gstart (gensym "START-TIME"))
         (gend (gensym "END-TIME")))
