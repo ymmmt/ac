@@ -1,3 +1,7 @@
+(defun circular-list (list)
+  (setf (cdr (last list)) list)
+  list)
+
 @mksym
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun mksym (control-string &rest format-arguments)
