@@ -651,7 +651,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (neighbor-states state i j))))
 
 (defun latest-reposition (state)
-  (assert (plusp (state-moves-count state)))
   (let ((last-move (last1 (car (state-moves-list state)))))
     (values (third last-move)
             (fourth last-move))))
@@ -665,10 +664,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             state
             (destructuring-bind (i . j) (svref coms x)
               (let ((state* (enumerate-and-select-best state i j)))
-                (multiple-value-bind (k l) (latest-reposition state*)
-                  (setf (svref coms x) (cons k l))
-                  (rec state*
-                       (mod (1+ x) *coms-count*))))))))))
+                (unless (eq state state*)
+                  (multiple-value-bind (k l) (latest-reposition state*)
+                    (setf (svref coms x) (cons k l))))
+                (rec state*
+                     (mod (1+ x) *coms-count*)))))))))
 
 (defun sformat (state)
   (with-slots (moves-list moves-count conns) state
