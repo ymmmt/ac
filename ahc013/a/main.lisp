@@ -242,6 +242,13 @@ connected for the first time."
      (when it
        ,@body)))
 
+(defmacro aand (&rest args)
+  (cond ((null args) t)
+        ((null (cdr args)) (car args))
+        (t `(let ((it ,(car args)))
+              (when it
+                (aand ,@(cdr args)))))))
+
 ;; depends on take
 (defun map-adjacents (function list &optional (k 2))
   (nlet rec ((list list) (acc nil))
@@ -418,6 +425,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun last1 (list)
   (car (last list)))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun mksym (control-string &rest format-arguments)
+    (intern (apply #'format nil control-string format-arguments))))
+
+(defun applier (fn)
+  (lambda (args)
+    (apply fn args)))
+
 ;;;
 ;;; Body
 ;;;
@@ -425,6 +440,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *indices*)
 (defvar *indices^2*)
 (defvar *n*)
+(defvar *coms-count*)
 (defvar *ops-count-limit*)
 ;; (defvar *random-repositions-moves-count*)
 (defvar *moves-count-limit*)
@@ -445,8 +461,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
    
 ;;; Predicates
 
+(defsubst invalid-subscripts-p (i j)
+  (or (< i 0) (>= i *n*)
+      (< j 0) (>= j *n*)))
+      
 (defsubst cablep (grid i j)
-  (= (aref grid i j) +cable+))
+  (minusp (aref grid i j)))
 
 (defsubst blankp (grid i j)
   (= (aref grid i j) +blank+))
@@ -455,30 +475,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (when (plusp (aref grid i j))
     (aref grid i j)))
 
-;;; Moves
+(defsubst type-com-p (com-type grid i j)
+  (= com-type (aref grid i j)))
 
-(defsubst make-move (i j k l)
-  (list i j k l))
-
-(defun make-row-moves (row j1 j2)
-  (if (= j1 j2)
-      (values nil 0)
-      (values (map-adjacents (lambda (l1 l2)
-                               (make-move row l1 row l2))
-                             (if (< j1 j2)
-                                 (range j1 (1+ j2))
-                                 (nreverse (range j2 (1+ j1)))))
-              (dist j1 j2))))
-
-(defun make-col-moves (col i1 i2)
-  (if (= i1 i2)
-      (values nil 0)
-      (values (map-adjacents (lambda (k1 k2)
-                               (make-move k1 col k2 col))
-                             (if (< i1 i2)
-                                 (range i1 (1+ i2))
-                                 (nreverse (range i2 (1+ i1)))))
-              (dist i1 i2))))
+;;; Coms
 
 (defsubst row-coms (grid row)
   (filter (curry* #'comp grid row %)
@@ -488,46 +488,90 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (filter (curry* #'comp grid % col)
           *indices*))
 
-(defun random-row-reposition! (grid row)
-  (let ((js (row-coms grid row)))
-    (if (null js)
-        (values nil 0)
-        (destructuring-bind (l j r)
-            (-> js
-                (nconc (list -1)
-                       %
-                       (list *n*))
-                (map-adjacents (lambda (&rest args)
-                                 args)
-                               % 3)
-                random-choice)
-          (let ((j* (random-a-b (1+ l) r)))
-            (rotatef (aref grid row j)
-                     (aref grid row j*))
-            (make-row-moves row j j*))))))
+(defun coms (grid)
+  (mapcan (lambda (row)
+            (mapcar (curry #'cons row)
+                    (row-coms grid row)))
+          *indices*))
 
-(defun random-col-reposition! (grid col)
-  (let ((is (col-coms grid col)))
-    (if (null is)
-        (values nil 0)
-        (destructuring-bind (l i r)
-            (-> is
-                (nconc (list -1)
-                       %
-                       (list *n*))
-                (map-adjacents (lambda (&rest args)
-                                 args)
-                               % 3)
-                random-choice)
-          (let ((i* (random-a-b (1+ l) r)))
-            (rotatef (aref grid i col)
-                     (aref grid i* col))
-            (make-col-moves col i i*))))))
+;;; Moves
 
-(defun random-reposition! (grid)
-  (if (judge 0.5)
-      (random-row-reposition! grid (random *n*))
-      (random-col-reposition! grid (random *n*))))
+(defsubst make-move (r1 c1 r2 c2)
+  (list r1 c1 r2 c2))
+
+(defun make-row-moves (row c1 c2)
+  (if (= c1 c2)
+      (values nil 0)
+      (values (map-adjacents (lambda (j1 j2)
+                               (make-move row j1 row j2))
+                             (if (< c1 c2)
+                                 (range c1 (1+ c2))
+                                 (nreverse (range c2 (1+ c1)))))
+              (dist c1 c2))))
+
+(defun make-col-moves (col r1 r2)
+  (if (= r1 r2)
+      (values nil 0)
+      (values (map-adjacents (lambda (i1 i2)
+                               (make-move i1 col i2 col))
+                             (if (< r1 r2)
+                                 (range r1 (1+ r2))
+                                 (nreverse (range r2 (1+ r1)))))
+              (dist r1 r2))))
+
+(defun make-moves (r1 c1 r2 c2)
+  (cond ((= r1 r2)
+         (make-row-moves r1 c1 c2))
+        ((= c1 c2)
+         (make-col-moves c1 r1 r2))
+        (t
+         (error "make-moves: invalid args"))))
+
+(defun reposition! (grid r1 c1 r2 c2)
+  (assert (or (= r1 r2) (= c1 c2)))
+  (rotatef (aref grid r1 c1)
+           (aref grid r2 c2)))
+
+;; (defun random-row-reposition! (grid row)
+;;   (let ((js (row-coms grid row)))
+;;     (if (null js)
+;;         (values nil 0)
+;;         (destructuring-bind (l j r)
+;;             (-> js
+;;                 (nconc (list -1)
+;;                        %
+;;                        (list *n*))
+;;                 (map-adjacents (lambda (&rest args)
+;;                                  args)
+;;                                % 3)
+;;                 random-choice)
+;;           (let ((j* (random-a-b (1+ l) r)))
+;;             (rotatef (aref grid row j)
+;;                      (aref grid row j*))
+;;             (make-row-moves row j j*))))))
+
+;; (defun random-col-reposition! (grid col)
+;;   (let ((is (col-coms grid col)))
+;;     (if (null is)
+;;         (values nil 0)
+;;         (destructuring-bind (l i r)
+;;             (-> is
+;;                 (nconc (list -1)
+;;                        %
+;;                        (list *n*))
+;;                 (map-adjacents (lambda (&rest args)
+;;                                  args)
+;;                                % 3)
+;;                 random-choice)
+;;           (let ((i* (random-a-b (1+ l) r)))
+;;             (rotatef (aref grid i col)
+;;                      (aref grid i* col))
+;;             (make-col-moves col i i*))))))
+
+;; (defun random-reposition! (grid)
+;;   (if (judge 0.5)
+;;       (random-row-reposition! grid (random *n*))
+;;       (random-col-reposition! grid (random *n*))))
 
 ;; (defun random-repositions! (grid)
 ;;   (nlet rec ((moves-list nil) (count 0))
@@ -541,8 +585,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Connections
 
-(defsubst make-conn (i j k l)
-  (list i j k l))
+(defsubst make-conn (r1 c1 r2 c2)
+  (list r1 c1 r2 c2))
 
 (defun row-conns (grid row)
   (->> (filter-map (lambda (j)
@@ -570,39 +614,44 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (mapcan (curry #'col-conns grid)
                  *indices*)))
 
-(defun try-connect! (grid conn)
-  (destructuring-bind (i j k l) conn
-    (cond ((= i k)
-           (when (try-row-connect! grid i j l)
-             conn))
-          ((= j l)
-           (when (try-col-connect! grid j i k)
-             conn))
-          (t
-           (error "invalid conn ~A" conn)))))
-
-(defun try-row-connect! (grid row j1 j2)
-  (if (= (1+ j1) j2)
+(defun try-row-connect! (grid row c1 c2)
+  (if (= (1+ c1) c2)
       grid
-      (when (loop for j from (1+ j1) below j2
+      (when (loop for j from (1+ c1) below c2
                   always (blankp grid row j))
-        (loop for j from (1+ j1) below j2 do
+        (loop for j from (1+ c1) below c2 do
           (setf (aref grid row j) +cable+))
         grid)))
 
-(defun try-col-connect! (grid col i1 i2)
-  (if (= (1+ i1) i2)
+(defun try-col-connect! (grid col r1 r2)
+  (if (= (1+ r1) r2)
       grid
-      (when (loop for i from (1+ i1) below i2
+      (when (loop for i from (1+ r1) below r2
                   always (blankp grid i col))
-        (loop for i from (1+ i1) below i2 do
+        (loop for i from (1+ r1) below r2 do
           (setf (aref grid i col) +cable+))
         grid)))
 
+(defun try-connect! (grid r1 c1 r2 c2)
+  (cond ((= r1 r2)
+         (when (try-row-connect! grid r1 c1 c2)
+           (make-conn r1 c1 r2 c2)))
+        ((= c1 c2)
+         (when (try-col-connect! grid c1 r1 r2)
+           (make-conn r1 c1 r2 c2)))
+        (t
+         (error "try-connect!: invalid conn"))))
+
 (defun random-connect! (grid)
   (let ((conns (-> (conns grid) coerce-vector nshuffle coerce-list)))
-    (filter-map (curry #'try-connect! grid)
+    (filter-map (applier (curry #'try-connect! grid))
                 conns)))
+
+(defun search-best-conns (grid moves-count)
+  (let ((list-of-conns (collect *best-conns-tries-count*
+                         (take (- *ops-count-limit* moves-count)
+                               (random-connect! (copy grid))))))
+    (best #'conns-cost list-of-conns)))
 
 ;;; Cost
 
@@ -623,12 +672,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                       *indices^2*))))
       (reduce #'+ (ht-keys roots)
               :key (compose #'cpower (curry #'ds-size ds))))))
-
-(defun search-best-conns (grid moves-count)
-  (let ((list-of-conns (collect *best-conns-tries-count*
-                         (take (- *ops-count-limit* moves-count)
-                               (random-connect! (copy grid))))))
-    (best #'conns-cost list-of-conns)))
 
 ;;; Main
 
@@ -655,109 +698,147 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          0
          nil))
 
-(defun undo-reposition! (state)
-  (when (plusp (state-moves-count state))
-    (with-slots (cost grid moves-list moves-count conns) state
-      (destructuring-bind (i j _ _) (first (car moves-list))
-        (destructuring-bind (_ _ k l) (last1 (car moves-list))
-          (rotatef (aref grid i j)
-                   (aref grid k l))))
-      (decf moves-count (length (car moves-list)))
-      (setf moves-list (cdr moves-list))
-      (setf (values conns cost)
-            (search-best-conns grid moves-count))))
-  state)
+;; (defun undo-reposition! (state)
+;;   (when (plusp (state-moves-count state))
+;;     (with-slots (cost grid moves-list moves-count conns) state
+;;       (destructuring-bind (i j _ _) (first (car moves-list))
+;;         (destructuring-bind (_ _ k l) (last1 (car moves-list))
+;;           (rotatef (aref grid i j)
+;;                    (aref grid k l))))
+;;       (decf moves-count (length (car moves-list)))
+;;       (setf moves-list (cdr moves-list))
+;;       (setf (values conns cost)
+;;             (search-best-conns grid moves-count))))
+;;   state)
         
-(defun undo-repositions! (state count)
-  (apply-n count #'undo-reposition! state))
+;; (defun undo-repositions! (state count)
+;;   (apply-n count #'undo-reposition! state))
 
-(defun random-neighbor (state)
-  (with-slots (grid moves-list moves-count) state
-    (let ((copy (copy grid)))
-      (multiple-value-bind (ms c)
-          (random-reposition! copy)
-        (multiple-value-bind (conns cost)
-            (search-best-conns copy (+ moves-count c))
-          (state cost
-                 copy
-                 (if ms
-                     (cons ms moves-list)
-                     moves-list)
-                 (+ moves-count c)
-                 conns))))))
+(defmacro define-com-searches ()
+  `(progn
+     ,@(mapcar (lambda (dir di dj)
+                 `(defun ,(mksym "~AWARD-COM-SEARCH" dir) (com-type grid row col)
+                    (nlet rec ((i (+ row ,di))
+                               (j (+ col ,dj)))
+                      (cond ((invalid-subscripts-p i j) nil)
+                            ((cablep grid i j) nil)
+                            ((type-com-p com-type grid i j)
+                             (values i j))
+                            ((comp grid i j) nil)
+                            (t
+                             (rec (+ i ,di) (+ j ,dj)))))))
+               '(up down left right)
+               '(-1 1 0 0)
+               '(0 0 -1 1))))
 
-(defsubst temp-dec (temperature time)
-  (if (<= time *temperature-decrease-start-time*)
-      temperature
-      (* *temperature-decrease-ratio* temperature)))
+(define-com-searches)
 
-(defsubst prob (cost neighbor-cost temperature)
-  (expt 2.7 (- (/ (- cost neighbor-cost)
-                  temperature))))
+(defmacro define-connection-searches ()
+  `(progn
+     ,@(mapcar (lambda (dir rowcol subdir1 subdir2 di dj)
+                 `(defun ,(mksym "~AWARD-~A-CONNECTION-SEARCH" rowcol dir)
+                      (grid row col)
+                    (aand (comp grid row col)
+                          (let ((com-type it))
+                            (nlet rec ((i (+ row ,di))
+                                       (j (+ col ,dj)))
+                              (cond ((invalid-subscripts-p i j) nil)
+                                    ((comp grid i j) nil)
+                                    ((,(mksym "~AWARD-COM-SEARCH" subdir1) com-type grid i j)
+                                     (cons i j))
+                                    ((,(mksym "~AWARD-COM-SEARCH" subdir2) com-type grid i j)
+                                     (cons i j))
+                                    (t
+                                     (rec (+ i ,di) (+ j ,dj)))))))))
+               '(row row col col)
+               '(up down left right)
+               '(left left up up)
+               '(right right down down)
+               '(-1 1 0 0)
+               '(0 0 -1 1))))
 
-(defun terminatep (temperature from-last-improve)
-  (or (< temperature +epsilon+)
-      (>= from-last-improve *no-improve-terminate-threshold*)))
+(define-connection-searches)
 
-(defun metropolis (grid)
-  (with-timelimit (2)
-    (nlet rec ((temperature *initial-temperature*)
-               (time 0)
-               (state (initialize-state grid))
-               (from-last-improve 0))
-      ;;(dbg temperature time (state-cost state) (state-moves-count state) from-last-improve)
-      (let* ((cost (state-cost state))
-             (state* (random-neighbor state))
-             (cost* (state-cost state*)))
-        (cond ((or (terminatep temperature from-last-improve)
-                   (time-up-p))
-               ;;(dbg 1)
-               state)
-              ((>= (state-moves-count state) *moves-count-limit*)
-               ;;(dbg 'undo)
-               (rec (temp-dec temperature time)
-                    (1+ time)
-                    (undo-repositions! state *no-improve-undo-threshold*)
-                    0))
-              ((<= cost cost*)
-               ;;(dbg 2)
-               (rec (temp-dec temperature time)
-                    (1+ time)
-                    state*
-                    0))
-              ((>= (1+ from-last-improve) *no-improve-undo-threshold*)
-               ;;(dbg 3)
-               (rec (temp-dec temperature time)
-                    (1+ time)
-                    (undo-repositions! state *no-improve-undo-threshold*)
-                    0))
-              ((judge (prob cost cost* temperature))
-               ;;(dbg 4)
-               (rec (temp-dec temperature time)
-                    (1+ time)
-                    state*
-                    (1+ from-last-improve)))
-              (t
-               ;;(dbg 5)
-               (rec (temp-dec temperature time)
-                    (1+ time)
-                    state
-                    (1+ from-last-improve))))))))
+;; (defun connectable-row-search (grid start-row col)
+;;   (and (comp (aref grid start-row col))
+;;        (let ((com-type it))
+;;          (or (nlet upward ((i (1- start-row)))
+;;                (cond ((minusp i) nil)
+;;                      ((comp grid i col) nil)
+;;                      (t
+;;                       (or (leftward-search grid i col)
+;;                           (rightward-search grid i col)
+;;                           (upward (1- i))))))
+;;              (nlet downward ((i (1+ start-row)))
+;;                (cond ((>= i *n*) nil)
+;;                      ((comp grid i col) nil)
+;;                      (t
+;;                       (or (leftward-search grid i col)
+;;                           (rightward-search grid i col)
+;;                           (upward (1+ i))))))))))
 
-(defun sformat (state)
-  (with-slots (moves-list moves-count conns) state
-    (values moves-count
-            (apply #'append (reverse moves-list))
-            (length conns)
-            conns)))
+;; (defun connectable-col-search (grid row start-col)
+;;   (assert (comp (aref grid row start-col)))
+;;   (let ((com-type (aref grid row start-col)))
+;;     (or (nlet leftward ((j (1- start-col)))
+;;           (cond ((minusp j) nil)
+;;                 ((type-com-p com-type grid row j) j)
+;;                 ((comp grid row j) nil)
+;;                 (t
+;;                  (leftward (1- j)))))
+;;         (nlet rightward ((j (1+ start-col)))
+;;           (cond ((= j *n*) nil)
+;;                 ((type-com-p com-type grid row j) j)
+;;                 ((comp grid row j) nil)
+;;                 (t
+;;                  (rightward (1+ j))))))))
+
+(defun connection-search (grid row col)
+  (or (upward-row-connection-search grid row col)
+      (downward-row-connection-search grid row col)
+      (leftward-col-connection-search grid row col)
+      (rightward-col-connection-search grid row col)))
   
+(defsubst inc (x)
+  (mod (1+ x) *coms-count*))
+
+(defun random-moves! (grid)
+  (let ((coms (-> (coms grid) coerce-vector nshuffle)))
+    (with-timelimit (2)
+      (nlet rec ((x 0)
+                 (moves-count 0)
+                 (moves-list nil))
+        (cond ((or (>= moves-count *moves-count-limit*)
+                   (time-up-p))
+               (values moves-count
+                       (apply #'nconc (nreverse moves-list))))
+              (t
+               (destructuring-bind (i . j) (aref coms x)
+                 (aif (connection-search grid i j)
+                      (destructuring-bind (i* . j*) it
+                        (reposition! grid i j i* j*)
+                        (multiple-value-bind (ms c) (make-moves i j i* j*)
+                          (rec (inc x)
+                               (+ moves-count c)
+                               (cons ms moves-list))))
+                      (rec (inc x)
+                           moves-count
+                           moves-list)))))))))
+
 (defun solve (grid)
-  (sformat (metropolis grid)))
+  (multiple-value-bind (moves-count moves)
+      (random-moves! grid)
+    (let ((conns (search-best-conns grid moves-count)))
+      (values moves-count
+              moves
+              (length conns)
+              conns))))
 
 (defun initialize-vars (n k)
   (setf *indices* (range n)
         *indices^2* (range (* n n))
         *n* n
+        *coms-count* (* 100 k)
         *ops-count-limit* (* 100 k)
 ;;        *random-repositions-moves-count* k
         *moves-count-limit* (* 40 k)
