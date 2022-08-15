@@ -1,3 +1,14 @@
+(defmacro with-timelimit ((seconds) &body body)
+  (let ((gstart (gensym "START-TIME"))
+        (gend (gensym "END-TIME")))
+    `(let* ((,gstart (get-internal-real-time))
+            (,gend (+ ,gstart
+                      (* ,seconds
+                         internal-time-units-per-second))))
+       (labels ((time-up-p ()
+                  (>= (get-internal-real-time) ,gend)))
+         ,@body))))
+
 ;; depends on split-at
 ;; https://kira000.hatenadiary.jp/entry/2019/02/23/053917
 (defun inversion-number (list > &optional (n (length list)))
