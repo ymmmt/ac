@@ -9,6 +9,16 @@
                   (>= (get-internal-real-time) ,gend)))
          ,@body))))
 
+(defmacro timed-loop (seconds &body body)
+  (let ((gstart (gensym "START-TIME"))
+        (gend (gensym "END-TIME")))
+    `(let* ((,gstart (get-internal-real-time))
+            (,gend (+ ,gstart
+                       (* ,seconds
+                          internal-time-units-per-second))))
+     (loop while (< (get-internal-real-time) ,gend)
+           do ,@body))))
+
 ;; depends on split-at
 ;; https://kira000.hatenadiary.jp/entry/2019/02/23/053917
 (defun inversion-number (list > &optional (n (length list)))
