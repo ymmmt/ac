@@ -414,8 +414,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *ops-count-limit*)
 (defvar *moves-count-limit*)
 (defvar *ds*)
-(defvar *best-conns-tries-count*)
 (defvar *initial-temperature*)
+(defvar *connection-search-duration*)
 
 (defconstant +epsilon+ 1)
 (defconstant +cable+ -1)
@@ -561,11 +561,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (filter-map (applier (curry #'try-connect! grid))
                 conns)))
 
-(defun search-best-conns (grid moves-count)
-  (let ((list-of-conns (collect *best-conns-tries-count*
-                         (take (- *ops-count-limit* moves-count)
-                               (random-connect! (copy grid))))))
-    (best #'conns-cost list-of-conns)))
+(defun search-best-conns (grid moves-count timelimit)
+  (with-timelimit (timelimit)
+    (nlet rec ((cands nil))
+      (if (time-up-p)
+          (best #'conns-cost cands)
+          (rec (cons (take (- *ops-count-limit* moves-count)
+                           (random-connect! (copy grid)))
+                     cands))))))
 
 ;;; Cost
 
@@ -645,31 +648,31 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun random-moves! (grid)
   (let ((coms (-> (coms grid) coerce-vector nshuffle)))
-    (with-timelimit (2)
-      (nlet rec ((x 0)
-                 (moves-count 0)
-                 (moves-list nil))
-        (cond ((or (>= moves-count *moves-count-limit*)
-                   (time-up-p))
-               (values moves-count
-                       (apply #'nconc (nreverse moves-list))))
-              (t
-               (destructuring-bind (i . j) (aref coms x)
-                 (aif (connection-search grid i j)
-                      (destructuring-bind (i* . j*) it
-                        (reposition! grid i j i* j*)
-                        (multiple-value-bind (ms c) (make-moves i j i* j*)
-                          (rec (inc x)
-                               (+ moves-count c)
-                               (cons ms moves-list))))
-                      (rec (inc x)
-                           moves-count
-                           moves-list)))))))))
+    (nlet rec ((x 0)
+               (moves-count 0)
+               (moves-list nil))
+      (cond ((>= moves-count *moves-count-limit*)
+             (values moves-count
+                     (apply #'nconc (nreverse moves-list))))
+            (t
+             (destructuring-bind (i . j) (aref coms x)
+               (aif (connection-search grid i j)
+                    (destructuring-bind (i* . j*) it
+                      (reposition! grid i j i* j*)
+                      (multiple-value-bind (ms c) (make-moves i j i* j*)
+                        (rec (inc x)
+                             (+ moves-count c)
+                             (cons ms moves-list))))
+                    (rec (inc x)
+                         moves-count
+                         moves-list))))))))
 
 (defun solve (grid)
   (multiple-value-bind (moves-count moves)
       (random-moves! grid)
-    (let ((conns (search-best-conns grid moves-count)))
+    (let ((conns (search-best-conns grid
+                                    moves-count
+                                    *connection-search-duration*)))
       (values moves-count
               moves
               (length conns)
@@ -683,8 +686,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *ops-count-limit* (* 100 k)
         *moves-count-limit* (* 40 k)
         *ds* (make-disjoint-set (* *n* *n*))
-        *best-conns-tries-count* 300))
-        
+        *connection-search-duration* 1.7))
+
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
     (dotimes (i n)
