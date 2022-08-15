@@ -423,14 +423,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *indices^2*)
 (defvar *n*)
 (defvar *ops-count-limit*)
-(defvar *random-repositions-moves-count*)
+;; (defvar *random-repositions-moves-count*)
 (defvar *moves-count-limit*)
 (defvar *ds*)
 (defvar *best-conns-tries-count*)
 (defvar *initial-temperature*)
 (defvar *temperature-decrease-start-time*)
 (defvar *temperature-decrease-ratio*)
-(defvar *undo-threshold*)
+(defvar *no-improve-undo-threshold*)
+(defvar *no-improve-terminate-threshold*)
 
 (defconstant +epsilon+ 1)
 (defconstant +cable+ -1)
@@ -525,15 +526,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (random-row-reposition! grid (random *n*))
       (random-col-reposition! grid (random *n*))))
 
-(defun random-repositions! (grid)
-  (nlet rec ((moves-list nil) (count 0))
-    (if (>= count *random-repositions-moves-count*)
-        (values (apply #'nconc (nreverse moves-list))
-                count)
-        (multiple-value-bind (ms c)
-            (random-reposition! grid)
-          (rec (cons ms moves-list)
-               (+ count c))))))
+;; (defun random-repositions! (grid)
+;;   (nlet rec ((moves-list nil) (count 0))
+;;     (if (>= count *random-repositions-moves-count*)
+;;         (values (apply #'nconc (nreverse moves-list))
+;;                 count)
+;;         (multiple-value-bind (ms c)
+;;             (random-reposition! grid)
+;;           (rec (cons ms moves-list)
+;;                (+ count c))))))
 
 ;;; Random connections
 
@@ -642,8 +643,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defmethod print-object ((object state) stream)
   (print-unreadable-object (object stream :type t)
     (with-slots (cost moves-list moves-count) object
-      (format stream ":cost ~A :moves-count ~A"
+      (format stream ":cost ~A :moves-list ~A :moves-count ~A"
               cost
+              moves-list
               moves-count))))
 
 (defun initialize-state (grid)
@@ -654,18 +656,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          nil))
 
 (defun undo-reposition! (state)
-  (if (plusp (state-moves-count state))
-      (with-slots (cost grid moves-list moves-count conns) state
-        (decf moves-count
-              (length (car moves-list)))
-        (mapc (dlambda ((i j k l))
-                (rotatef (aref grid k l)
-                         (aref grid i j)))
-              (nreverse (car moves-list)))
-        (setf moves-list (cdr moves-list)
-              cost (nth-value 1 (search-best-conns grid moves-count)))
-        state)
-      state))
+  (when (plusp (state-moves-count state))
+    (with-slots (cost grid moves-list moves-count) state
+      (decf moves-count
+            (length (car moves-list)))
+      (mapc (dlambda ((i j k l))
+              (rotatef (aref grid k l)
+                       (aref grid i j)))
+            (reverse (car moves-list)))
+      (setf moves-list (cdr moves-list)
+            cost (nth-value 1 (search-best-conns grid moves-count)))))
+  state)
 
 (defun undo-repositions! (state count)
   (apply-n count #'undo-reposition! state))
@@ -674,12 +675,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (with-slots (grid moves-list moves-count) state
     (let ((copy (copy grid)))
       (multiple-value-bind (ms c)
-          (random-repositions! copy)
+          (random-reposition! copy)
         (multiple-value-bind (conns cost)
             (search-best-conns copy (+ moves-count c))
           (state cost
                  copy
-                 (cons ms moves-list)
+                 (if ms
+                     (cons ms moves-list)
+                     moves-list)
                  (+ moves-count c)
                  conns))))))
 
@@ -692,8 +695,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (expt 2.7 (- (/ (- cost neighbor-cost)
                   temperature))))
 
-(defun terminatep (temperature state)
-  (< temperature +epsilon+))
+(defun terminatep (temperature from-last-improve)
+  (or (< temperature +epsilon+)
+      (>= from-last-improve *no-improve-terminate-threshold*)))
 
 (defun metropolis (grid)
   (with-timelimit (200)
@@ -701,40 +705,40 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (time 0)
                (state (initialize-state grid))
                (from-last-improve 0))
-      (dbg temperature time state)
+;;      (dbg temperature time state)
       (let* ((cost (state-cost state))
              (state* (random-neighbor state))
              (cost* (state-cost state*)))
-        (cond ((or (terminatep temperature state)
+        (cond ((or (terminatep temperature from-last-improve)
                    (time-up-p))
-               (dbg 1)
+               ;; (dbg 1)
                state)
               ((>= (state-moves-count state) *moves-count-limit*)
-               (dbg 'undo)
+               ;;(dbg 'undo)
                (rec (temp-dec temperature time)
                     (1+ time)
-                    (undo-repositions! state *undo-threshold*)
+                    (undo-repositions! state *no-improve-undo-threshold*)
                     0))
               ((<= cost cost*)
-               (dbg 2)
+               ;; (dbg 2)
                (rec (temp-dec temperature time)
                     (1+ time)
                     state*
                     0))
-              ((>= from-last-improve *undo-threshold*)
-               (dbg 3)
+              ((>= (1+ from-last-improve) *no-improve-undo-threshold*)
+               ;; (dbg 3)
                (rec (temp-dec temperature time)
                     (1+ time)
-                    (undo-repositions! state *undo-threshold*)
-                    (- from-last-improve *undo-threshold*)))
+                    (undo-repositions! state *no-improve-undo-threshold*)
+                    0))
               ((judge (prob cost cost* temperature))
-               (dbg 4)
+               ;; (dbg 4)
                (rec (temp-dec temperature time)
                     (1+ time)
                     state*
                     (1+ from-last-improve)))
               (t
-               (dbg 5)
+               ;; (dbg 5)
                (rec (temp-dec temperature time)
                     (1+ time)
                     state
@@ -755,14 +759,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *indices^2* (range (* n n))
         *n* n
         *ops-count-limit* (* 100 k)
-        *random-repositions-moves-count* k
+;;        *random-repositions-moves-count* k
         *moves-count-limit* (* 40 k)
         *ds* (make-disjoint-set (* *n* *n*))
         *best-conns-tries-count* 5
         *initial-temperature* 1000
         *temperature-decrease-start-time* (floor *moves-count-limit* 3)
         *temperature-decrease-ratio* 0.99
-        *undo-threshold* 5))
+        *no-improve-undo-threshold* 3
+        *no-improve-terminate-threshold* 5))
+        
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
