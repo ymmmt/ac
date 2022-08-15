@@ -326,15 +326,6 @@ connected for the first time."
              (nthcdr step list)
              (cons (car list) acc)))))
 
-(defun scanr (function initial-value list)
-  (labels ((rec (list acc)
-             (if (null list)
-                 acc
-                 (rec (cdr list)
-                      (cons (funcall function (car list) (car acc))
-                            acc)))))
-    (rec (nreverse list) (list initial-value))))
-
 (defsubst row-major-index (i j n-cols)
   (+ (* i n-cols) j))
 
@@ -399,25 +390,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (car list)
            (funcall function (car list))))
 
-(defun apply-n (n f x)
-  (if (zerop n)
-      x
-      (funcall f (apply-n (1- n) f x))))
-
-(defun zip (&rest lists)
-  (when lists
-    (apply #'zip-with #'list lists)))
-
-(defun zip-with (fn &rest lists)
-  (when lists
-    (labels ((rec (lists acc)
-               (if (some #'null lists)
-                   (nreverse acc)
-                   (rec (mapcar #'cdr lists)
-                        (cons (apply fn (mapcar #'car lists))
-                              acc)))))
-      (rec lists nil))))
-
 (defmacro with-timelimit ((seconds) &body body)
   (let ((gstart (gensym "START-TIME"))
         (gend (gensym "END-TIME")))
@@ -433,6 +405,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (defun mksym (control-string &rest format-arguments)
     (intern (apply #'format nil control-string format-arguments))))
 
+(defun last1 (list)
+  (car (last list)))
+
 ;;;
 ;;; Body
 ;;;
@@ -440,11 +415,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *indices*)
 (defvar *indices^2*)
 (defvar *n*)
+(defvar *coms-count*)
 (defvar *ops-count-limit*)
 (defvar *moves-count-limit*)
 (defvar *ds*)
 (defvar *best-conns-tries-count*)
-(defvar *beam-search-width*)
 
 (defconstant +cable+ -1)
 (defconstant +blank+ 0)
@@ -478,13 +453,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (filter (curry* #'comp grid % col)
           *indices*))
 
-(defun random-com (grid)
-  (let ((i (random *n*))
-        (j (random *n*)))
-    (if (comp grid i j)
-        (values i j)
-        (random-com grid))))
-
+(defun random-order-coms-vector (grid)
+  (-> (mapcan (lambda (row)
+                (mapcar (curry #'cons row)
+                        (row-coms grid row)))
+              *indices*)
+      coerce-vector
+      nshuffle))
+  
 ;;; Moves
 
 (defsubst make-move (i j k l)
@@ -662,30 +638,37 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (enumerate-states-leftward state i j)
          (enumerate-states-rightward state i j)))
 
-(defun random-neighbor-states (state)
-  (multiple-value-bind (i j) (random-com (state-grid state))
-    (neighbor-states state i j)))
+(defun initialize-state (grid)
+  (state 0
+         (copy grid)
+         nil
+         0
+         nil))
 
-(defun enumerate-and-select-best (state)
+(defun enumerate-and-select-best (state i j)
   (best #'state-cost
         (cons state
-              (random-neighbor-states state))))
+              (neighbor-states state i j))))
 
-(defun initialize-states (grid)
-  (collect *beam-search-width*
-    (state 0
-           (copy grid)
-           nil
-           0
-           nil)))
+(defun latest-reposition (state)
+  (assert (plusp (state-moves-count state)))
+  (let ((last-move (last1 (car (state-moves-list state)))))
+    (values (third last-move)
+            (fourth last-move))))
 
-(defun beam-search (states)
-  (with-timelimit (2)
-    (nlet rec ((states states))
-      (if (time-up-p)
-          states
-          (rec (mapcar #'enumerate-and-select-best
-                       states))))))
+(defun kernighan-lin (grid)
+  (let ((coms (random-order-coms-vector grid)))
+    (with-timelimit (2)
+      (nlet rec ((state (initialize-state grid))
+                 (x 0))
+        (if (time-up-p)
+            state
+            (destructuring-bind (i . j) (svref coms x)
+              (let ((state* (enumerate-and-select-best state i j)))
+                (multiple-value-bind (k l) (latest-reposition state*)
+                  (setf (svref coms x) (cons k l))
+                  (rec state*
+                       (mod (1+ x) *coms-count*))))))))))
 
 (defun sformat (state)
   (with-slots (moves-list moves-count conns) state
@@ -696,20 +679,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun solve (n k grid)
   (declare (ignore n k))
-  (-> (initialize-states grid)
-      beam-search
-      (best #'state-cost %)
-      sformat))
+  (sformat (kernighan-lin grid)))
 
 (defun initialize-vars (n k)
   (setf *indices* (range n)
         *indices^2* (range (* n n))
         *n* n
+        *coms-count* (* k 100)
         *ops-count-limit* (* k 100)
         *moves-count-limit* (* k 50)
         *ds* (make-disjoint-set (* *n* *n*))
-        *best-conns-tries-count* 5
-        *beam-search-width* 5))
+        *best-conns-tries-count* 5))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
