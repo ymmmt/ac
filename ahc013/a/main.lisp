@@ -415,6 +415,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       x
       (funcall f (apply-n (1- n) f x))))
 
+(defun last1 (list)
+  (car (last list)))
+
 ;;;
 ;;; Body
 ;;;
@@ -452,7 +455,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (when (plusp (aref grid i j))
     (aref grid i j)))
 
-;;; Random moves
+;;; Moves
 
 (defsubst make-move (i j k l)
   (list i j k l))
@@ -536,7 +539,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;           (rec (cons ms moves-list)
 ;;                (+ count c))))))
 
-;;; Random connections
+;;; Connections
 
 (defsubst make-conn (i j k l)
   (list i j k l))
@@ -621,9 +624,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (reduce #'+ (ht-keys roots)
               :key (compose #'cpower (curry #'ds-size ds))))))
 
-;; (defun conns-cost (conns)
-;;   (length conns))
-
 (defun search-best-conns (grid moves-count)
   (let ((list-of-conns (collect *best-conns-tries-count*
                          (take (- *ops-count-limit* moves-count)
@@ -658,12 +658,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun undo-reposition! (state)
   (when (plusp (state-moves-count state))
     (with-slots (cost grid moves-list moves-count) state
-      (decf moves-count
-            (length (car moves-list)))
       (mapc (dlambda ((i j k l))
               (rotatef (aref grid k l)
                        (aref grid i j)))
             (reverse (car moves-list)))
+      (decf moves-count
+            (length (car moves-list)))
       (setf moves-list (cdr moves-list)
             cost (nth-value 1 (search-best-conns grid moves-count)))))
   state)
@@ -700,7 +700,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (>= from-last-improve *no-improve-terminate-threshold*)))
 
 (defun metropolis (grid)
-  (with-timelimit (200)
+  (with-timelimit (2)
     (nlet rec ((temperature *initial-temperature*)
                (time 0)
                (state (initialize-state grid))
@@ -715,22 +715,23 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                state)
               ((>= (state-moves-count state) *moves-count-limit*)
                ;;(dbg 'undo)
-               (rec (temp-dec temperature time)
-                    (1+ time)
-                    (undo-repositions! state *no-improve-undo-threshold*)
-                    0))
+               ;; (rec (temp-dec temperature time)
+               ;;      (1+ time)
+               ;;      (undo-repositions! state *no-improve-undo-threshold*)
+               ;;      0))
+               state)
               ((<= cost cost*)
                ;; (dbg 2)
                (rec (temp-dec temperature time)
                     (1+ time)
                     state*
                     0))
-              ((>= (1+ from-last-improve) *no-improve-undo-threshold*)
-               ;; (dbg 3)
-               (rec (temp-dec temperature time)
-                    (1+ time)
-                    (undo-repositions! state *no-improve-undo-threshold*)
-                    0))
+              ;; ((>= (1+ from-last-improve) *no-improve-undo-threshold*)
+              ;;  ;; (dbg 3)
+              ;;  (rec (temp-dec temperature time)
+              ;;       (1+ time)
+              ;;       (undo-repositions! state *no-improve-undo-threshold*)
+              ;;       0))
               ((judge (prob cost cost* temperature))
                ;; (dbg 4)
                (rec (temp-dec temperature time)
