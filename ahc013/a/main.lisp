@@ -709,7 +709,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *moves-count-limit* (* k 50)
         *ds* (make-disjoint-set (* *n* *n*))
         *best-conns-tries-count* 5
-        *beam-search-width* 10))
+        *beam-search-width* 5))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
