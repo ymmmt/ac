@@ -297,19 +297,6 @@ connected for the first time."
         `(->> ,threaded ,@(rest forms)))
       x))
 
-(defsubst random-choice (list)
-  (nth (random (length list)) list))
-
-(defsubst judge (probability)
-  (< (random 1.0) probability))
-
-(defsubst random-a-b (a b)
-  "return random integer r that satisfies A <= r < B."
-  (+ (random (- b a)) a))
-
-(defsubst singletonp (list)
-  (and (consp list) (null (cdr list))))
-
 (defun nshuffle (vector)
   (loop for i from (length vector) downto 2
         do (rotatef (aref vector (random i))
@@ -332,15 +319,6 @@ connected for the first time."
         (rec (1- n)
              (nthcdr step list)
              (cons (car list) acc)))))
-
-(defun scanr (function initial-value list)
-  (labels ((rec (list acc)
-             (if (null list)
-                 acc
-                 (rec (cdr list)
-                      (cons (funcall function (car list) (car acc))
-                            acc)))))
-    (rec (nreverse list) (list initial-value))))
 
 (defsubst row-major-index (i j n-cols)
   (+ (* i n-cols) j))
@@ -417,14 +395,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (>= (get-internal-real-time) ,gend)))
          ,@body))))
 
-(defun apply-n (n f x)
-  (if (zerop n)
-      x
-      (funcall f (apply-n (1- n) f x))))
-
-(defun last1 (list)
-  (car (last list)))
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun mksym (control-string &rest format-arguments)
     (intern (apply #'format nil control-string format-arguments))))
@@ -442,15 +412,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *n*)
 (defvar *coms-count*)
 (defvar *ops-count-limit*)
-;; (defvar *random-repositions-moves-count*)
 (defvar *moves-count-limit*)
 (defvar *ds*)
 (defvar *best-conns-tries-count*)
 (defvar *initial-temperature*)
-(defvar *temperature-decrease-start-time*)
-(defvar *temperature-decrease-ratio*)
-(defvar *no-improve-undo-threshold*)
-(defvar *no-improve-terminate-threshold*)
 
 (defconstant +epsilon+ 1)
 (defconstant +cable+ -1)
@@ -531,57 +496,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (assert (or (= r1 r2) (= c1 c2)))
   (rotatef (aref grid r1 c1)
            (aref grid r2 c2)))
-
-;; (defun random-row-reposition! (grid row)
-;;   (let ((js (row-coms grid row)))
-;;     (if (null js)
-;;         (values nil 0)
-;;         (destructuring-bind (l j r)
-;;             (-> js
-;;                 (nconc (list -1)
-;;                        %
-;;                        (list *n*))
-;;                 (map-adjacents (lambda (&rest args)
-;;                                  args)
-;;                                % 3)
-;;                 random-choice)
-;;           (let ((j* (random-a-b (1+ l) r)))
-;;             (rotatef (aref grid row j)
-;;                      (aref grid row j*))
-;;             (make-row-moves row j j*))))))
-
-;; (defun random-col-reposition! (grid col)
-;;   (let ((is (col-coms grid col)))
-;;     (if (null is)
-;;         (values nil 0)
-;;         (destructuring-bind (l i r)
-;;             (-> is
-;;                 (nconc (list -1)
-;;                        %
-;;                        (list *n*))
-;;                 (map-adjacents (lambda (&rest args)
-;;                                  args)
-;;                                % 3)
-;;                 random-choice)
-;;           (let ((i* (random-a-b (1+ l) r)))
-;;             (rotatef (aref grid i col)
-;;                      (aref grid i* col))
-;;             (make-col-moves col i i*))))))
-
-;; (defun random-reposition! (grid)
-;;   (if (judge 0.5)
-;;       (random-row-reposition! grid (random *n*))
-;;       (random-col-reposition! grid (random *n*))))
-
-;; (defun random-repositions! (grid)
-;;   (nlet rec ((moves-list nil) (count 0))
-;;     (if (>= count *random-repositions-moves-count*)
-;;         (values (apply #'nconc (nreverse moves-list))
-;;                 count)
-;;         (multiple-value-bind (ms c)
-;;             (random-reposition! grid)
-;;           (rec (cons ms moves-list)
-;;                (+ count c))))))
 
 ;;; Connections
 
@@ -675,45 +589,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Main
 
-(defstruct (state (:constructor state
-                      (cost grid moves-list moves-count conns)))
-  (cost 0 :type fixnum)
-  (grid nil :type (or null (simple-array int8 (* *))))
-  (moves-list nil :type list)
-  (moves-count 0 :type uint16)
-  (conns nil :type list))
-
-(defmethod print-object ((object state) stream)
-  (print-unreadable-object (object stream :type t)
-    (with-slots (cost moves-list moves-count) object
-      (format stream ":cost ~A :moves-list ~A :moves-count ~A"
-              cost
-              moves-list
-              moves-count))))
-
-(defun initialize-state (grid)
-  (state 0
-         (copy grid)
-         nil
-         0
-         nil))
-
-;; (defun undo-reposition! (state)
-;;   (when (plusp (state-moves-count state))
-;;     (with-slots (cost grid moves-list moves-count conns) state
-;;       (destructuring-bind (i j _ _) (first (car moves-list))
-;;         (destructuring-bind (_ _ k l) (last1 (car moves-list))
-;;           (rotatef (aref grid i j)
-;;                    (aref grid k l))))
-;;       (decf moves-count (length (car moves-list)))
-;;       (setf moves-list (cdr moves-list))
-;;       (setf (values conns cost)
-;;             (search-best-conns grid moves-count))))
-;;   state)
-        
-;; (defun undo-repositions! (state count)
-;;   (apply-n count #'undo-reposition! state))
-
 (defmacro define-com-searches ()
   `(progn
      ,@(mapcar (lambda (dir di dj)
@@ -759,46 +634,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (define-connection-searches)
 
-;; (defun connectable-row-search (grid start-row col)
-;;   (and (comp (aref grid start-row col))
-;;        (let ((com-type it))
-;;          (or (nlet upward ((i (1- start-row)))
-;;                (cond ((minusp i) nil)
-;;                      ((comp grid i col) nil)
-;;                      (t
-;;                       (or (leftward-search grid i col)
-;;                           (rightward-search grid i col)
-;;                           (upward (1- i))))))
-;;              (nlet downward ((i (1+ start-row)))
-;;                (cond ((>= i *n*) nil)
-;;                      ((comp grid i col) nil)
-;;                      (t
-;;                       (or (leftward-search grid i col)
-;;                           (rightward-search grid i col)
-;;                           (upward (1+ i))))))))))
-
-;; (defun connectable-col-search (grid row start-col)
-;;   (assert (comp (aref grid row start-col)))
-;;   (let ((com-type (aref grid row start-col)))
-;;     (or (nlet leftward ((j (1- start-col)))
-;;           (cond ((minusp j) nil)
-;;                 ((type-com-p com-type grid row j) j)
-;;                 ((comp grid row j) nil)
-;;                 (t
-;;                  (leftward (1- j)))))
-;;         (nlet rightward ((j (1+ start-col)))
-;;           (cond ((= j *n*) nil)
-;;                 ((type-com-p com-type grid row j) j)
-;;                 ((comp grid row j) nil)
-;;                 (t
-;;                  (rightward (1+ j))))))))
-
 (defun connection-search (grid row col)
   (or (upward-row-connection-search grid row col)
       (downward-row-connection-search grid row col)
       (leftward-col-connection-search grid row col)
       (rightward-col-connection-search grid row col)))
-  
+
 (defsubst inc (x)
   (mod (1+ x) *coms-count*))
 
@@ -840,15 +681,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *n* n
         *coms-count* (* 100 k)
         *ops-count-limit* (* 100 k)
-;;        *random-repositions-moves-count* k
         *moves-count-limit* (* 40 k)
         *ds* (make-disjoint-set (* *n* *n*))
-        *best-conns-tries-count* 10
-        *initial-temperature* 1000
-        *temperature-decrease-start-time* (floor *moves-count-limit* 3)
-        *temperature-decrease-ratio* 0.99
-        *no-improve-undo-threshold* 3
-        *no-improve-terminate-threshold* 5))
+        *best-conns-tries-count* 300))
         
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
