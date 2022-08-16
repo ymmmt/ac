@@ -420,6 +420,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *moves-count-limit*)
 (defvar *ds*)
 (defvar *best-conns-tries-count*)
+(defvar *kernighan-lin-seconds*)
+(defvar *search-best-conns-timelimit-seconds*)
 
 (defconstant +cable+ -1)
 (defconstant +blank+ 0)
@@ -590,6 +592,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                (random-connect! (copy grid))))))
     (best #'conns-cost list-of-conns)))
 
+(defun search-best-conns-timelimit (grid moves-count)
+  (labels ((r-connect! ()
+             (take (- *ops-count-limit* moves-count)
+                   (random-connect! (copy grid)))))
+    (with-timelimit (*search-best-conns-timelimit-seconds*)
+      (nlet rec ((list-of-conns (list (r-connect!))))
+        (if (time-up-p)
+            (best #'conns-cost list-of-conns)
+            (rec (cons (r-connect!)
+                       list-of-conns)))))))
+
 ;;; Main
 
 (defstruct (state (:constructor state
@@ -657,7 +670,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun kernighan-lin (grid)
   (let ((coms (random-order-coms-vector grid)))
-    (with-timelimit (2)
+    (with-timelimit (*kernighan-lin-seconds*)
       (nlet rec ((state (initialize-state grid))
                  (x 0))
         (if (time-up-p)
@@ -679,7 +692,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun solve (n k grid)
   (declare (ignore n k))
-  (sformat (kernighan-lin grid)))
+  (let ((best (kernighan-lin grid)))
+    (with-slots (grid moves-list moves-count) best
+      (multiple-value-bind (conns cost)
+          (search-best-conns-timelimit grid moves-count)
+        (sformat (state cost
+                        grid
+                        moves-list
+                        moves-count
+                        conns))))))
 
 (defun initialize-vars (n k)
   (setf *indices* (range n)
@@ -689,7 +710,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *ops-count-limit* (* k 100)
         *moves-count-limit* (* k 50)
         *ds* (make-disjoint-set (* *n* *n*))
-        *best-conns-tries-count* 5))
+        *best-conns-tries-count* 1
+        *kernighan-lin-seconds* 2
+        *search-best-conns-timelimit-seconds* 0.3))
 
 (defun read-grid (n)
   (let ((grid (make-array `(,n ,n) :element-type 'int8)))
