@@ -155,19 +155,58 @@
   (+ (abs (- u w))
      (abs (- v z))))
 
-(defun make-adj-array (&optional (length 0))
-  (make-array length :fill-pointer 0 :adjustable t))
+;; paip ch9
+(defun memo (fn &key (key #'first) (test #'eql) name)
+  (let ((table (make-hash-table :test test)))
+    (setf (get name 'memo) table)
+    #'(lambda (&rest args)
+        (let ((k (funcall key args)))
+          (multiple-value-bind (val found-p)
+              (gethash k table)
+            (if found-p val
+                (setf (gethash k table) (apply fn args))))))))
+
+(defun memoize (fn-name &key (key #'first) (test #'eql))
+  (clear-memoize fn-name)
+  (setf (symbol-function fn-name)
+        (memo (symbol-function fn-name)
+              :name fn-name :key key :test test)))
+
+(defun clear-memoize (fn-name)
+  (let ((table (get fn-name 'memo)))
+    (when table (clrhash table))))
+
+(defun curry (function &rest arguments)
+  (lambda (&rest args)
+    (multiple-value-call function
+      (values-list arguments)
+      (values-list args))))
 
 ;;;
 ;;; Body
 ;;;
 
-(defun cost (d coord i)
-  (if (zerop i)
+(defun cost (d coord l r)
+  (assert (<= l r))
+  (if (= l r)
       0
-      (destructuring-bind (u . v) (aref coord i)
-        (destructuring-bind (w . z) (aref coord (+ i d))
-          (manhattan u v w z)))))
+      (let ((m (if (zerop (mod l d))
+                   d
+                   (mod l d))))
+        (- (cum-cost d coord m r)
+           (cum-cost d coord m l)))))
+
+(defun cum-cost (d coord m r)
+  (if (= m r)
+      0
+      (+ (cum-cost d coord m (- r d))
+         (destructuring-bind (i . j) (aref coord (- r d))
+           (destructuring-bind (k . l) (aref coord r)
+             (manhattan i j k l))))))
+
+(memoize 'cum-cost
+         :key (curry #'nthcdr 2)
+         :test #'equal)
 
 (defun solve (h w d a q lrs)
   (declare (ignore q))
@@ -176,21 +215,9 @@
       (dotimes (j w)
         (setf (aref coord (aref a i j))
               (cons i j))))
-    ;; ;; (cum-costs i 0) == 0
-    ;; ;; (cum-costs i j) == (+ (cost i (+ i d)) (cost (+ i d) (+ i 2d)) ... (cost (+ i (* d (1- j))) (+ i (* d j))))
-    (let ((cum-costs (make-array `(,d ,(1+ (ceiling (* h w) d))))))
-      (loop for i from 1 to d do
-        (loop for y from i to (- (* h w) d) by d do
-          (setf (aref cum-costs (mod i d) (floor (+ y d) d))
-                (+ (aref cum-costs (mod i d) (floor y d))
-                   (cost d coord y)))))
-      (mapcar (dlambda ((l . r))
-                (let ((i (mod l d))
-                      (jl (floor l d))
-                      (jr (floor r d)))
-                  (- (aref cum-costs i jr)
-                     (aref cum-costs i jl))))
-              lrs))))
+    (mapcar (dlambda ((l . r))
+              (cost d coord l r))
+            lrs)))
 
 (defun main ()
   (readlet (h w d)
