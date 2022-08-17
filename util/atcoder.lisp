@@ -287,11 +287,24 @@
                     test)))
 
 ;; depends on range, cp/disjoint-set, delete-dups, curry
-(defun disjoint-set-roots (disjoint-set)
+(defun ds-roots (disjoint-set)
   (let ((n (length (ds-data disjoint-set))))
     (delete-dups (mapcar (curry #'ds-root disjoint-set)
                          (range n))
                  #'< #'=)))
+
+;; depends on cp/disjoint-set
+(defun ds-count (disjoint-set)
+  (length (ds-data disjoint-set)))
+
+;; depends on range, cp/disjoint-set, ht-keys, counter
+(defun ds-roots-size>=2 (disjoint-set)
+  (let ((n (length (ds-data disjoint-set))))
+    (ht-keys
+     (counter (filter-map (lambda (i)
+                            (when (>= (ds-size disjoint-set i) 2)
+                              (ds-root disjoint-set i)))
+                          (range n))))))
 
 (defun remove-head (item list &key (test 'eql))
   (cond ((null list) nil)
@@ -1608,6 +1621,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  (nreverse acc))))
     (rec list more-lists nil)))
 
+;; depends on aif
 (defun filter-map (function list)
   (nlet rec ((list list) (acc nil))
     (if (null list)
