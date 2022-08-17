@@ -380,9 +380,6 @@
          when ,test
            return (return ,var)))
 
-(defun palindrome-p (string)
-  (equal string (reverse string)))
-
 (defun last1 (sequence)
   (etypecase sequence
     (list (car (last sequence)))
@@ -2333,10 +2330,23 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (define-modify-macro maxf (&rest more-numbers) max)
 
-(defun palindrome-p (s)
-  (let ((n (length s)))
-    (loop for i from 0 below n
-          always (char= (char s i) (char s (- n i 1))))))
+;; (defun palindrome-p (s)
+;;   (let ((n (length s)))
+;;     (loop for i from 0 below (floor n 2)
+;;           always (char= (char s i) (char s (- n i 1))))))
+
+(defun palindrome-p (string)
+  (equal string (reverse string)))
+
+(defun almost-palindrome-p (string)
+  (let* ((k (floor (length string) 2))
+         (s (coerce string 'list))
+         (left (take k s))
+         (right (take k (reverse s)))
+         (bs (mapcar #'char/= left right))
+         (i (position t bs)))
+    (when (= (count t bs) 1)
+      i)))
 
 (defun digit-ref (x index &key (base 10) (from-right nil))
   (let ((digits (ceiling (log x base))))
