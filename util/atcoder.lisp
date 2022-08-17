@@ -260,13 +260,13 @@
                            (coerce vec 'list))
                          copies))))
 
-;; depends on ranks, mapper
+;; depends on rank, mapper
 (defun coordinate-compress (list &key (test '<) (index-base 0))
-  (mapcar (mapper (ranks list :test test :rank-base index-base))
+  (mapcar (mapper (rank list :test test :rank-base index-base))
           list))
 
 ;; depends on range
-(defun ranks (sequence &key (test '<) (rank-base 0))
+(defun rank (sequence &key (test '<) (rank-base 0))
   (let ((map (make-hash-table)))
     (map nil (lambda (item rank)
                  (unless (gethash item map)
@@ -1326,7 +1326,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun manhattan (u v w z)
   (+ (abs (- u w))
-      (abs (- v z))))
+     (abs (- v z))))
 
 (defmacro delete-when (clauses sequence)
   (labels ((rec (clauses)
