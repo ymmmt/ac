@@ -1,3 +1,31 @@
+;; ;; depends on with-gensyms
+;; (defmacro with-memoized% (((name &key (key ''first) (test ''eql)) lambda-list &body definition) &body body)
+;;   (with-gensyms (table args k val found-p)
+;;     `(let ((,table (make-hash-table :test ,test)))
+;;        (labels ((,name (&rest ,args)
+;;                   (let ((,k (funcall ,key ,args)))
+;;                     (multiple-value-bind (,val ,found-p)
+;;                         (gethash ,k ,table)
+;;                       (if ,found-p ,val
+;;                           (setf (gethash ,k ,table)
+;;                                 (destructuring-bind ,lambda-list ,args
+;;                                   ,@definition)))))))
+;;          ,@body))))
+
+;; depends on with-gensyms
+(defmacro with-memoized ((name lambda-list &body definition) &body body)
+  (with-gensyms (table args val found-p)
+    `(let ((,table (make-hash-table :test 'equal)))
+       (labels ((,name (&rest ,args)
+                  (multiple-value-bind (,val ,found-p)
+                      (gethash ,args ,table)
+                    (if ,found-p ,val
+                        (setf (gethash ,args ,table)
+                              (destructuring-bind ,lambda-list ,args
+                                ,@definition))))))
+         ,@body))))
+
+;; depends on with-gensyms
 (defmacro defmemo ((name &key (key ''first) (test ''eql)) lambda-list &body body)
   (with-gensyms (table args k val found-p)
     `(let ((,table (make-hash-table :test ,test)))
