@@ -89,6 +89,33 @@
           vars)
      ,@body))
 
+(defmacro with-gensyms (syms &body body)
+  `(let ,(mapcar #'(lambda (s)
+                     `(,s (gensym)))
+          syms)
+     ,@body))
+
+;; from serapeum
+;; https://github.com/ruricolist/serapeum/blob/master/LICENSE.txt
+;; https://github.com/ruricolist/serapeum/blob/master/definitions.lisp#L129
+(defmacro defsubst (name params &body body)
+  `(progn
+     (declaim (inline ,name))
+     (defun ,name ,params
+       ,@body)))
+
+(defmacro defmemo ((name &key (key ''first) (test ''eql)) lambda-list &body body)
+  (with-gensyms (table args k val found-p)
+    `(let ((,table (make-hash-table :test ,test)))
+       (defun ,name (&rest ,args)
+         (let ((,k (funcall ,key ,args)))
+           (multiple-value-bind (,val ,found-p)
+               (gethash ,k ,table)
+             (if ,found-p ,val
+                 (setf (gethash ,k ,table)
+                       (destructuring-bind ,lambda-list ,args
+                         ,@body)))))))))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun ensure-list (x)
     (if (listp x)
