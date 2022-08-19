@@ -41,7 +41,7 @@
   ) ; eval-when
 
 (defmacro with-memoized ((fn &key (key ''first) (test ''eql)) &body (labels-form))
-  "Overrides definitions of FN in labels form to memoized definition.
+  "Overrides definitions of FN in labels form.
 Asserts the direct child form is labels form."
   (assert (eq 'labels (first labels-form)))
   (with-gensyms (table)
