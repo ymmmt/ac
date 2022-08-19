@@ -1,3 +1,15 @@
+(defmacro defmemo ((name &key (key ''first) (test ''eql)) lambda-list &body body)
+  (with-gensyms (table args k val found-p)
+    `(let ((,table (make-hash-table :test ,test)))
+       (defun ,name (&rest ,args)
+         (let ((,k (funcall ,key ,args)))
+           (multiple-value-bind (,val ,found-p)
+               (gethash ,k ,table)
+             (if ,found-p ,val
+                 (setf (gethash ,k ,table)
+                       (destructuring-bind ,lambda-list ,args
+                         ,@body)))))))))
+
 @with-memoized
 (defmacro with-gensyms (syms &body body)
   `(let ,(mapcar #'(lambda (s)
