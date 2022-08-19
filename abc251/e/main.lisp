@@ -147,66 +147,45 @@
           syms)
      ,@body))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun tree-find-if (predicate tree &key (key #'identity))
-    (labels ((rec (tree)
-               (cond ((funcall predicate (funcall key tree))
-                      (return-from tree-find-if tree))
-                     ((consp tree)
-                      (rec (car tree))
-                      (rec (cdr tree))))))
-      (rec tree)))
-
-  (defun apply-form-predicate (operator)
-    (lambda (tree)
-      (and (consp tree)
-           (eq (car tree) operator))))
-
-  (defun labels-definitions->memoized-definitions (fn key table definitions)
-    (let ((fn-definition (tree-find-if (apply-form-predicate fn)
-                                       definitions)))
-      (assert fn-definition)
-      (let ((fn (first fn-definition))
-            (lambda-list (second fn-definition))
-            (body (nthcdr 2 fn-definition)))
-        (subst-if (with-gensyms (k val found-p)
-                    `(,fn (&rest args)
-                          (let ((,k (funcall ,key args)))
-                            (multiple-value-bind (,val ,found-p)
-                                (gethash ,k ,table)
-                              (if ,found-p ,val
-                                  (setf (gethash ,k ,table)
-                                        (destructuring-bind ,lambda-list args
-                                          ,@body)))))))
-                  (apply-form-predicate fn)
-                  definitions))))
-  ) ; eval-when
-
-(defmacro with-memoized ((fn &key (key ''first) (test ''eql)) &body (labels-form))
-  "Overrides definitions of FN in labels form to memoized definition.
-Asserts the direct child form is labels form."
-  (assert (eq 'labels (first labels-form)))
-  (with-gensyms (table)
+(defmacro with-memoized% (((name &key (key ''first) (test ''eql)) lambda-list &body definition) &body body)
+  (with-gensyms (table args k val found-p)
     `(let ((,table (make-hash-table :test ,test)))
-       (labels ,(labels-definitions->memoized-definitions
-                 fn key table (second labels-form))
-         ,@(nthcdr 2 labels-form)))))
+       (labels ((,name (&rest ,args)
+                  (let ((,k (funcall ,key ,args)))
+                    (multiple-value-bind (,val ,found-p)
+                        (gethash ,k ,table)
+                      (if ,found-p ,val
+                          (setf (gethash ,k ,table)
+                                (destructuring-bind ,lambda-list ,args
+                                  ,@definition)))))))
+         ,@body))))
+
+(defmacro with-memoized ((name lambda-list &body definition) &body body)
+  (with-gensyms (table args val found-p)
+    `(let ((,table (make-hash-table :test 'equal)))
+       (labels ((,name (&rest ,args)
+                  (multiple-value-bind (,val ,found-p)
+                      (gethash ,args ,table)
+                    (if ,found-p ,val
+                        (setf (gethash ,args ,table)
+                              (destructuring-bind ,lambda-list ,args
+                                ,@definition))))))
+         ,@body))))
 
 ;;;
 ;;; Body
 ;;;
 
 (defun solve (n a)
-  (with-memoized (rec :key 'identity :test 'equal)
-    (labels ((cost (i)
-               (svref a (mod i n)))
-             (rec (i last)
-               (if (> i last)
-                   0
-                   (min (+ (cost (1- i))
-                           (rec (+ i 1) last))
-                        (+ (cost i)
-                           (rec (+ i 2) last))))))
+  (labels ((cost (i)
+             (svref a (mod i n))))
+    (with-memoized (rec (i last)
+                     (if (> i last)
+                         0
+                         (min (+ (cost (1- i))
+                                 (rec (+ i 1) last))
+                              (+ (cost i)
+                                 (rec (+ i 2) last)))))
       (min (rec 0 (1- n))
            (+ (cost (1- n))
               (rec 1 (- n 2)))))))
