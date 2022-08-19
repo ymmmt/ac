@@ -116,6 +116,18 @@
                        (destructuring-bind ,lambda-list ,args
                          ,@body)))))))))
 
+(defmacro with-memo ((name lambda-list &body definition) &body body)
+  (with-gensyms (table args val found-p)
+    `(let ((,table (make-hash-table :test 'equal)))
+       (labels ((,name (&rest ,args)
+                  (multiple-value-bind (,val ,found-p)
+                      (gethash ,args ,table)
+                    (if ,found-p ,val
+                        (setf (gethash ,args ,table)
+                              (destructuring-bind ,lambda-list ,args
+                                ,@definition))))))
+         ,@body))))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun ensure-list (x)
     (if (listp x)
