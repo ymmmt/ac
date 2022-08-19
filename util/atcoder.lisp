@@ -1,3 +1,82 @@
+@with-memoized
+(defmacro with-gensyms (syms &body body)
+  `(let ,(mapcar #'(lambda (s)
+                     `(,s (gensym (string ',s))))
+          syms)
+     ,@body))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun tree-find-if (predicate tree &key (key #'identity))
+    (labels ((rec (tree)
+               (cond ((funcall predicate (funcall key tree))
+                      (return-from tree-find-if tree))
+                     ((consp tree)
+                      (rec (car tree))
+                      (rec (cdr tree))))))
+      (rec tree)))
+
+  (defun apply-form-predicate (operator)
+    (lambda (tree)
+      (and (consp tree)
+           (eq (car tree) operator))))
+
+  (defun labels-definitions->memoized-definitions (fn key table definitions)
+    (let ((fn-definition (tree-find-if (apply-form-predicate fn)
+                                       definitions)))
+      (assert fn-definition)
+      (let ((fn (first fn-definition))
+            (lambda-list (second fn-definition))
+            (body (nthcdr 2 fn-definition)))
+        (subst-if (with-gensyms (k val found-p)
+                    `(,fn (&rest args)
+                          (let ((,k (funcall ,key args)))
+                            (multiple-value-bind (,val ,found-p)
+                                (gethash ,k ,table)
+                              (if ,found-p ,val
+                                  (setf (gethash ,k ,table)
+                                        (destructuring-bind ,lambda-list args
+                                          ,@body)))))))
+                  (apply-form-predicate fn)
+                  definitions))))
+  ) ; eval-when
+
+(defmacro with-memoized ((fn &key (key ''first) (test ''eql)) &body (labels-form))
+  "Overrides definitions of FN in labels form to memoized definition.
+Asserts the direct child form is labels form."
+  (assert (eq 'labels (first labels-form)))
+  (with-gensyms (table)
+    `(let ((,table (make-hash-table :test ,test)))
+       (labels ,(labels-definitions->memoized-definitions
+                 fn key table (second labels-form))
+         ,@(nthcdr 2 labels-form)))))
+@with-memoized end
+
+(defun tree-find (item tree &key (test #'eql) (key #'identity))
+  (labels ((rec (tree)
+             (cond ((funcall test item (funcall key tree))
+                    (return-from tree-find tree))
+                   ((consp tree)
+                    (rec (car tree))
+                    (rec (cdr tree))))))
+    (rec tree)))
+
+(defun tree-find-if (predicate tree &key (key #'identity))
+  (labels ((rec (tree)
+             (cond ((funcall predicate (funcall key tree))
+                    (return-from tree-find-if tree))
+                   ((consp tree)
+                    (rec (car tree))
+                    (rec (cdr tree))))))
+    (rec tree)))
+
+(defun ensure-form (body)
+  (cond ((null body)
+         nil)
+        ((= (length body) 1)
+         (car body))
+        (t
+         `(progn ,@body))))
+
 (defun circular-list (list)
   (setf (cdr (last list)) list)
   list)
@@ -2012,7 +2091,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defmacro with-gensyms (syms &body body)
   `(let ,(mapcar #'(lambda (s)
-                     `(,s (gensym)))
+                     `(,s (gensym (string ',s))))
           syms)
      ,@body))
 
