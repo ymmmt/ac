@@ -1,5 +1,5 @@
 ;; ;; depends on with-gensyms
-;; (defmacro with-memoized% (((name &key (key ''first) (test ''eql)) lambda-list &body definition) &body body)
+;; (defmacro with-memo% (((name &key (key ''first) (test ''eql)) lambda-list &body definition) &body body)
 ;;   (with-gensyms (table args k val found-p)
 ;;     `(let ((,table (make-hash-table :test ,test)))
 ;;        (labels ((,name (&rest ,args)
@@ -13,7 +13,7 @@
 ;;          ,@body))))
 
 ;; depends on with-gensyms
-(defmacro with-memoized ((name lambda-list &body definition) &body body)
+(defmacro with-memo ((name lambda-list &body definition) &body body)
   (with-gensyms (table args val found-p)
     `(let ((,table (make-hash-table :test 'equal)))
        (labels ((,name (&rest ,args)
@@ -38,7 +38,7 @@
                        (destructuring-bind ,lambda-list ,args
                          ,@body)))))))))
 
-@with-memoized
+@with-memo
 (defmacro with-gensyms (syms &body body)
   `(let ,(mapcar #'(lambda (s)
                      `(,s (gensym (string ',s))))
@@ -80,7 +80,7 @@
                   definitions))))
   ) ; eval-when
 
-(defmacro with-memoized ((fn &key (key ''first) (test ''eql)) &body (labels-form))
+(defmacro with-memo ((fn &key (key ''first) (test ''eql)) &body (labels-form))
   "Overrides definitions of FN in labels form.
 Asserts the direct child form is labels form."
   (assert (eq 'labels (first labels-form)))
@@ -89,7 +89,7 @@ Asserts the direct child form is labels form."
        (labels ,(labels-definitions->memoized-definitions
                  fn key table (second labels-form))
          ,@(nthcdr 2 labels-form)))))
-@with-memoized end
+@with-memo end
 
 (defun tree-find (item tree &key (test #'eql) (key #'identity))
   (labels ((rec (tree)
