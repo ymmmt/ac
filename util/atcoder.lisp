@@ -915,6 +915,11 @@ Asserts the direct child form is labels form."
            (or count (length list))
            nil))))
 
+(defmacro curry (fn &rest args)
+  (with-gensyms (%)
+    `(lambda (,%)
+       (,fn ,@args ,%))))
+
 (defun curry (function &rest arguments)
   (lambda (&rest args)
     (multiple-value-call function
