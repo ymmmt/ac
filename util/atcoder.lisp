@@ -2022,8 +2022,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (values (make-array dimensions)
                   nil)))))
 
-(defun make-bit-array (dimensions)
-  (make-array dimensions :element-type 'bit :initial-element 0))
+(defun make-bit-array (dimensions &rest args)
+  (apply #'make-array dimensions :element-type 'bit args))
 
 (defmacro decfs (&rest places)
   `(progn
