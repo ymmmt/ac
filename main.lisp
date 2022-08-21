@@ -12,6 +12,17 @@
                    "--script" ,(namestring *load-pathname*))
                  :output t :error t :input t))))
 
+;;; BEGIN_INSERTED_CONTENTS
+
+;;; BEGIN_USE_PACKAGE
+
+;; (eval-when (:compile-toplevel :load-toplevel :execute)
+;;   (use-package :cp/ :cl-user))
+
+;;; Utilities
+
+(in-package :cl-user)
+
 (macrolet ((def (b)
              `(progn (deftype ,(intern (format nil "UINT~A" b)) () '(unsigned-byte ,b))
                      (deftype ,(intern (format nil "INT~A" b)) () '(signed-byte ,b))))
@@ -23,61 +34,6 @@
   (if (= (length forms) 1)
       `(format t "~A => ~A~%" ',(car forms) ,(car forms))
       `(format t "~A => ~A~%" ',forms `(,,@forms))))
-
-(defmethod print-object ((object hash-table) stream)
-  (print-unreadable-object (object stream :type t)
-    (format stream ":count ~A :test ~A"
-            (hash-table-count object)
-            (hash-table-test object))
-    (loop for k being the hash-key of object
-          do (format stream "~%[~A] ~A" k (gethash k object)))))
-
-(declaim (inline println printlns))
-(defun println (obj &optional (stream *standard-output*))
-  (let ((*read-default-float-format*
-          (if (typep obj 'double-float) 'double-float *read-default-float-format*)))
-    (prog1 (princ obj stream) (terpri stream))))
-
-(defun printlns (lst)
-  (format t "~{~A~%~}" lst))
-
-;;; BEGIN_INSERTED_CONTENTS
-(defpackage :cp/read-fixnum
-  (:use :cl)
-  (:export #:read-fixnum))
-(in-package :cp/read-fixnum)
-
-(declaim (ftype (function * (values fixnum &optional)) read-fixnum))
-(defun read-fixnum (&optional (in *standard-input*))
-  "NOTE: cannot read -2^62"
-  (macrolet ((%read-byte ()
-               `(the (unsigned-byte 8)
-                     #+swank (char-code (read-char in nil #\Nul))
-                     #-swank (sb-impl::ansi-stream-read-byte in nil #.(char-code #\Nul) nil))))
-    (let* ((minus nil)
-           (result (loop (let ((byte (%read-byte)))
-                           (cond ((<= 48 byte 57)
-                                  (return (- byte 48)))
-                                 ((zerop byte) ; #\Nul
-                                  (error "Read EOF or #\Nul."))
-                                 ((= byte #.(char-code #\-))
-                                  (setq minus t)))))))
-      (declare ((integer 0 #.most-positive-fixnum) result))
-      (loop
-        (let* ((byte (%read-byte)))
-          (if (<= 48 byte 57)
-              (setq result (+ (- byte 48)
-                              (* 10 (the (integer 0 #.(floor most-positive-fixnum 10))
-                                         result))))
-              (return (if minus (- result) result))))))))
-
-;;; BEGIN_USE_PACKAGE
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (use-package :cp/read-fixnum :cl-user))
-
-;;; Utilities
-
-(in-package :cl-user)
 
 (defmacro readlet (vars &body body)
   `(let ,(mapcar (lambda (v)
@@ -232,6 +188,30 @@
 
 ;;; IO
 
+(declaim (ftype (function * (values fixnum &optional)) read-fixnum))
+(defun read-fixnum (&optional (in *standard-input*))
+  "NOTE: cannot read -2^62"
+  (macrolet ((%read-byte ()
+               `(the (unsigned-byte 8)
+                     #+swank (char-code (read-char in nil #\Nul))
+                     #-swank (sb-impl::ansi-stream-read-byte in nil #.(char-code #\Nul) nil))))
+    (let* ((minus nil)
+           (result (loop (let ((byte (%read-byte)))
+                           (cond ((<= 48 byte 57)
+                                  (return (- byte 48)))
+                                 ((zerop byte) ; #\Nul
+                                  (error "Read EOF or #\Nul."))
+                                 ((= byte #.(char-code #\-))
+                                  (setq minus t)))))))
+      (declare ((integer 0 #.most-positive-fixnum) result))
+      (loop
+        (let* ((byte (%read-byte)))
+          (if (<= 48 byte 57)
+              (setq result (+ (- byte 48)
+                              (* 10 (the (integer 0 #.(floor most-positive-fixnum 10))
+                                         result))))
+              (return (if minus (- result) result))))))))
+
 (defmacro collect (n expr)
   `(loop repeat ,n
          collect ,expr))
@@ -271,6 +251,22 @@
         (unless directed
           (push (1- u) (aref graph (1- v))))))
     graph))
+
+(defmethod print-object ((object hash-table) stream)
+  (print-unreadable-object (object stream :type t)
+    (format stream ":count ~A :test ~A"
+            (hash-table-count object)
+            (hash-table-test object))
+    (loop for k being the hash-key of object
+          do (format stream "~%[~A] ~A" k (gethash k object)))))
+
+(defun println (obj &optional (stream *standard-output*))
+  (let ((*read-default-float-format*
+          (if (typep obj 'double-float) 'double-float *read-default-float-format*)))
+    (prog1 (princ obj stream) (terpri stream))))
+
+(defun printlns (lst)
+  (format t "~{~A~%~}" lst))
 
 (defmacro bulk-stdout (&body body)
   `(write-string
