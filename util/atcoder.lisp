@@ -869,6 +869,14 @@ Asserts the direct child form is labels form."
                     (rec (cdr l1) (cdr l2))))))
     (rec list1 list2)))
 
+(defun length<= (n list)
+  (cond ((null list)
+         (>= n 0))
+        ((zerop n)
+         nil)
+        (t
+         (length<= (1- n) (cdr list)))))
+
 ;; depends on length>=
 (defun prefixp% (list prefix &key (test 'eql))
   (if (and (consp list) (consp prefix))
