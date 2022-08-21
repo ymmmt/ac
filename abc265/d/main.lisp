@@ -209,7 +209,7 @@
 
 (defun find-xyzw (subarray-sum-fn i n p q r)
   (labels ((bsearch (i sum)
-             (binary-search i n
+             (binary-search i (1+ n)
                             (lambda (j)
                               (<= (funcall subarray-sum-fn i (1- j))
                                   sum))))
@@ -223,13 +223,10 @@
           (let ((z (bsearch y q)))
             (when (and (< y z n)
                        (subsum= y z q))
-              (let ((w (if (= z (1- n))
-                           n
-                           (bsearch z r))))
+              (let ((w (bsearch z r)))
                 (and (< z w)
-                     (or (subsum= z w r)
-                         (subsum= z n r)))))))))))
-                     
+                     (subsum= z w r))))))))))
+
 (defun solve (n p q r as)
   (label-subarray-sum (as (coerce as 'vector))
     (loop for i from 0 to (- n 3)
