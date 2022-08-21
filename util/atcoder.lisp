@@ -1,3 +1,22 @@
+(defun solve-linear-eqs (a b c d p q)
+  "Solve 
+ax + by = p
+cx + dy = q"
+  (let ((det (- (* a d) (* b c))))
+    (if (= det 0)
+        (values nil nil)
+        (values (/ (- (* d p) (* b q))
+                   det)
+                (/ (- (* a q) (* c p))
+                   det)))))
+
+(defun alist->ht (alist &key (test #'eql))
+  (let ((ht (make-hash-table :test test)))
+    (mapc (dlambda ((k . v))
+            (setf (gethash k ht) v))
+          alist)
+    ht))
+
 ;; ;; depends on with-gensyms
 ;; (defmacro with-memo% (((name &key (key ''first) (test ''eql)) lambda-list &body definition) &body body)
 ;;   (with-gensyms (table args k val found-p)
