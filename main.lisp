@@ -417,7 +417,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         ((or (functionp sym-or-func)
              (and (consp sym-or-func) (eq (car sym-or-func) 'lambda)))
          sym-or-func)
-        (t (error "~A is not symbol or function" sym-or-func)))))
+        (t (error "~A is not symbol or function" sym-or-func))))
 
 (defun disjoin (predicate &rest more-predicates)
   (declare (optimize (speed 3) (safety 1) (debug 1)))
@@ -856,7 +856,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (zerop i))))
 
 (defun splice-replace (new old list &key (test 'eql) count)
-  (declare (optimize (speed 3) (debug 1)))
   (let ((old-len (length old))
         (new-rev (reverse new)))
     (labels ((rec (list count acc)
