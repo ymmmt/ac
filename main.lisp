@@ -35,6 +35,18 @@
       `(format t "~A => ~A~%" ',(car forms) ,(car forms))
       `(format t "~A => ~A~%" ',forms `(,,@forms))))
 
+(defmacro mvbind (vars value-form &body body)
+  `(multiple-value-bind ,vars ,value-form ,@body))
+
+(defmacro mvcall (function arg &rest arguments)
+  `(multiple-value-call ,function ,arg ,@arguments))
+
+(defmacro mvlist (value-form)
+  `(multiple-value-list ,value-form))
+
+(defmacro dbind (lambda-list expression &body body)
+  `(destructuring-bind ,lambda-list ,expression ,@body))
+
 (defmacro readlet (vars &body body)
   `(let ,(mapcar (lambda (v)
                    `(,v (read-fixnum)))
@@ -61,22 +73,22 @@
     `(let ((,table (make-hash-table :test ,test)))
        (defun ,name (&rest ,args)
          (let ((,k (funcall ,key ,args)))
-           (multiple-value-bind (,val ,found-p)
+           (mvbind (,val ,found-p)
                (gethash ,k ,table)
              (if ,found-p ,val
                  (setf (gethash ,k ,table)
-                       (destructuring-bind ,lambda-list ,args
+                       (dbind ,lambda-list ,args
                          ,@body)))))))))
 
 (defmacro with-memo ((name lambda-list &body definition) &body body)
   (with-gensyms (table args val found-p)
     `(let ((,table (make-hash-table :test 'equal)))
        (labels ((,name (&rest ,args)
-                  (multiple-value-bind (,val ,found-p)
+                  (mvbind (,val ,found-p)
                       (gethash ,args ,table)
                     (if ,found-p ,val
                         (setf (gethash ,args ,table)
-                              (destructuring-bind ,lambda-list ,args
+                              (dbind ,lambda-list ,args
                                 ,@definition))))))
          ,@body))))
 
@@ -114,20 +126,8 @@
 (defmacro dlambda (lambda-list &body body)
   (let ((gargs (gensym "ARGS")))
     `(lambda (&rest ,gargs)
-       (destructuring-bind ,lambda-list ,gargs
+       (dbind ,lambda-list ,gargs
          ,@body))))
-
-(defmacro mvbind (vars value-form &body body)
-  `(multiple-value-bind ,vars ,value-form ,@body))
-
-(defmacro mvcall (function arg &rest arguments)
-  `(multiple-value-call ,function ,arg ,@arguments))
-
-(defmacro mvlist (value-form)
-  `(multiple-value-list ,value-form))
-
-(defmacro dbind (lambda-list expression &body body)
-  `(destructuring-bind ,lambda-list ,expression ,@body))
 
 (defmacro aif (test then &optional else)
   `(let ((it ,test))
@@ -260,12 +260,12 @@
     (loop for k being the hash-key of object
           do (format stream "~%[~A] ~A" k (gethash k object)))))
 
-(defun println (obj &optional (stream *standard-output*))
+(defsubst println (obj &optional (stream *standard-output*))
   (let ((*read-default-float-format*
           (if (typep obj 'double-float) 'double-float *read-default-float-format*)))
     (prog1 (princ obj stream) (terpri stream))))
 
-(defun printlns (lst)
+(defsubst printlns (lst)
   (format t "~{~A~%~}" lst))
 
 (defmacro bulk-stdout (&body body)
@@ -331,27 +331,27 @@
         `(->> ,threaded ,@(rest forms)))
       x))
 
-(defun mapper (hash-table &optional default)
+(defsubst mapper (hash-table &optional default)
   (lambda (key)
     (gethash key hash-table default)))
             
-(defun eqer (object)
+(defsubst eqer (object)
   (lambda (x)
     (eq object x)))
 
-(defun eqler (object)
+(defsubst eqler (object)
   (lambda (x)
     (eql object x)))
 
-(defun equaler (object)
+(defsubst equaler (object)
   (lambda (x)
     (equal object x)))
 
-(defun quantizer (predicate)
+(defsubst quantizer (predicate)
   (lambda (x)
     (if (funcall predicate x) 1 0)))
 
-(defun applier (fn)
+(defsubst applier (fn)
   (lambda (args)
     (apply fn args)))
 
@@ -380,10 +380,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (declare (function function))
   (if (null list)
       (apply #'values initial-value initial-args)
-      (multiple-value-call #'mvfoldl
-        function
-        (cdr list)
-        (apply function (car list) initial-value initial-args))))
+      (mvcall #'mvfoldl
+              function
+              (cdr list)
+              (apply function (car list) initial-value initial-args))))
 
 (defun scanl (function initial-value list)
   (labels ((rec (list acc)
@@ -458,19 +458,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defconstant +inf+ most-positive-fixnum)
 (defconstant +ninf+ most-negative-fixnum)
 
-(defun md (x)
+(defsubst md (x)
   (mod x +mod+))
 
-(defun ^2 (x)
+(defsubst ^2 (x)
   (expt x 2))
 
-(defun 2* (x)
+(defsubst 2* (x)
   (ash x 1))
 
-(defun dist (x y)
+(defsubst dist (x y)
   (abs (- x y)))
 
-(defun df (x)
+(defsubst df (x)
   (coerce x 'double-float))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -480,7 +480,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defmacro sortf (predicate &rest places)
   (let* ((meths (mapcar (lambda (p)
-                          (multiple-value-list
+                          (mvlist
                            (get-setf-expansion p)))
                         places))
          (temps (mappend #'third meths)))
@@ -573,12 +573,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun make-adj-array (&optional (length 0))
   (make-array length :fill-pointer 0 :adjustable t))
 
-(defun row-major-index (i j n-cols)
+(defsubst row-major-index (i j n-cols)
   (+ (* i n-cols) j))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun var-and-dimension-spec->loop (var-and-dimension-spec body)
-    (destructuring-bind (var upper-bound &key downward) var-and-dimension-spec
+    (dbind (var upper-bound &key downward) var-and-dimension-spec
       (if downward
           `(loop for ,var from (1- ,upper-bound) downto 0
                  do ,body)
@@ -633,10 +633,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (1 (let ((end (car args)))
          (loop for i below end
                collect i)))
-    (2 (destructuring-bind (start end) args
+    (2 (dbind (start end) args
          (loop for i from start below end
                collect i)))
-    (3 (destructuring-bind (start end step) args
+    (3 (dbind (start end step) args
          (loop for i from start below end by step
                collect i)))))
 
@@ -656,7 +656,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (cons (car list) acc))
         (nreverse acc))))
 
-(defun drop (n list)
+(defsubst drop (n list)
   (nthcdr n list))
 
 (defun drop-while (predicate list &key count)
@@ -673,7 +673,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (vector (when (plusp (length sequence))
               (aref sequence (1- (length sequence)))))))
 
-(defun repeat (n item)
+(defsubst repeat (n item)
   (make-list n :initial-element item))
 
 (defun zip (&rest lists)
@@ -823,7 +823,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (when (or (consp sequence) (>= (length sequence) 1))
     (nreverse
      (reduce (lambda (acc next)
-               (destructuring-bind (curr . count) (car acc)
+               (dbind (curr . count) (car acc)
                  (if (funcall test curr next)
                      (cons (cons curr (1+ count)) (cdr acc))
                      (cons (cons next 1) acc))))
@@ -868,7 +868,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                      (t
                       (let ((i (search old list :test test)))
                         (if i
-                            (multiple-value-bind (left right) (split-at i list)
+                            (mvbind (left right) (split-at i list)
                               (rec (nthcdr old-len right)
                                    (1- count)
                                    (append new-rev
