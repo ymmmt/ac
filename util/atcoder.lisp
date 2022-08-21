@@ -449,6 +449,7 @@ Asserts the direct child form is labels form."
   (lambda (x)
     (equal object x)))
 
+;; depends on ensure-function
 (defun disjoin (predicate &rest more-predicates)
   (declare (optimize (speed 3) (safety 1) (debug 1)))
   (let ((predicate (ensure-function predicate))
@@ -2282,55 +2283,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (dotimes (,j (array-dimension ,gmat 1))
              ,@body))))))
 
-;; (defun true (x)
-;;   (declare (ignore x))
-;;   t)
-
-;; (defmacro loop-acc (acc-type loop-for-clause &key (test #'true) (key #'identity))
-;;   (let ((var (second loop-for-clause)))
-;;   `(loop ,@loop-for-clause
-;;  when (funcall ,test ,var)
-;;    ,acc-type (funcall ,key ,var))))
-
-;; (defmacro sum (loop-for-clause &key (test #'true) (key #'identity))
-;;   `(loop-acc sum ,loop-for-clause :test ,test :key ,key))
-
-;; (defmacro collect (loop-for-clause &key (test #'true) (key #'identity))
-;;   `(loop-acc collect ,loop-for-clause :test ,test :key ,key))
-
-@loopacc
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun true (x)
-    (declare (ignore x))
-    t)
-  (defun ensure-function (sym-or-func)
-    (cond ((symbolp sym-or-func) `',sym-or-func)
-          ((or (functionp sym-or-func)
-               (and (consp sym-or-func) (eq (car sym-or-func) 'lambda)))
-           sym-or-func)
-          (t (error "~A is not symbol or function" sym-or-func)))))
-
-(defmacro loop-acc (acc-type loop-for-clause &key (test 'true) (key 'identity))
-  (let ((var (second loop-for-clause)))
-    `(loop ,@loop-for-clause
-           when (funcall ,test ,var)
-             ,acc-type (funcall ,key ,var))))
-
-(defmacro sum (loop-for-clause &key (test 'true) (key 'identity))
-  `(loop-acc sum ,loop-for-clause :test ,(ensure-function test) :key ,(ensure-function key)))
-
-(defmacro collect (loop-for-clause &key (test 'true) (key 'identity))
-  `(loop-acc collect ,loop-for-clause :test ,(ensure-function test) :key ,(ensure-function key)))
-
-;; (ensure-function 'sqrt)
-
-;; (sum (for i from 1 to 10) :key (lambda (x) (* 2 x)))
-;; (sum (for i from 1 to 10) :key 'sqrt)
-
-;; (collect (for i from 1 to 10))
-;; (collect (for i from 1 to 10 by 2))
-;; (collect (for cdr on '(1 2 3 4 5)))
-@loopacc end
+(defun ensure-function (sym-or-func)
+  (cond ((symbolp sym-or-func) `',sym-or-func)
+        ((or (functionp sym-or-func)
+             (and (consp sym-or-func) (eq (car sym-or-func) 'lambda)))
+         sym-or-func)
+        (t (error "~A is not symbol or function" sym-or-func))))
 
 (defmacro collect (n expr)
   `(loop repeat ,n
