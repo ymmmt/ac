@@ -1050,12 +1050,6 @@ Asserts the direct child form is labels form."
                (> d1 d2))))))
 @dayutil end
 
-(defun alist->ht (alist &key (test 'eql))
-  (let ((ht (make-hash-table :test test)))
-    (loop for (k . v) in alist do
-      (setf (gethash k ht) v))
-    ht))
-
 (defun make-hashset (list &key (test 'eql))
   (let ((ht (make-hash-table :test test)))
     (dolist (item list ht)
@@ -1925,12 +1919,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (2 `(loop for ,var from ,(first args) below ,(second args)
               do (progn ,@body)))))
 
-(defun skip (n list)
-  (cond ((zeorp n)
-         list)
-        ((null list)
-         nil)
-        (t (skip (1- n) (cdr list)))))
+;; (defun skip (n list)
+;;   (cond ((zeorp n)
+;;          list)
+;;         ((null list)
+;;          nil)
+;;         (t (skip (1- n) (cdr list)))))
 
 (defun skip-while (predicate list &key count)
   (if (or (and count (zerop count))
@@ -2366,14 +2360,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun least (lst &optional (fn #'identity))
   (most lst (compose #'- fn)))
 
-(defun best (lst fn)
-  (if (null lst)
-      nil
-      (let ((wins (car lst)))
-        (dolist (obj (cdr lst))
-          (when (funcall fn obj wins)
-            (setf wins obj)))
-        wins)))
+;; depends on mvfoldl
+(defun best (function list)
+  (assert (consp list))
+  (mvfoldl (lambda (item argmax max)
+             (let ((value (funcall function item)))
+               (if (> value max)
+                   (values item value)
+                   (values argmax max))))
+           (cdr list)
+           (car list)
+           (funcall function (car list))))
 
 @map
 (defun map0-n (n fn)
