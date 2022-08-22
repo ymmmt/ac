@@ -145,6 +145,49 @@
               (when it
                 (aand ,@(cdr args)))))))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun extract-function-name (spec)
+    (if (and (consp spec)
+             (member (first spec) '(quote function)))
+        (second spec)
+        spec))
+
+  (defun generate-switch-body (whole object clauses test key &optional default)
+    (with-gensyms (value)
+      (setf test (extract-function-name test))
+      (setf key (extract-function-name key))
+      (when (and (consp default)
+                 (member (first default) '(error cerror)))
+        (setf default `(,@default "No keys match in SWITCH. Testing against ~S with ~S."
+                                  ,value ',test)))
+      `(let ((,value (,key ,object)))
+         (cond ,@(mapcar (lambda (clause)
+                           (if (member (first clause) '(t otherwise))
+                               (progn
+                                 (when default
+                                   (error "Multiple default clauses or illegal use of a default clause in ~S."
+                                          whole))
+                                 (setf default `(progn ,@(rest clause)))
+                                 '(()))
+                               (destructuring-bind (key-form &body forms) clause
+                                 `((,test ,value ,key-form)
+                                   ,@forms))))
+                         clauses)
+               (t ,default)))))
+  ) ; eval-when
+
+(defmacro switch (&whole whole (object &key (test 'eql) (key 'identity))
+                         &body clauses)
+  (generate-switch-body whole object clauses test key))
+
+(defmacro eswitch (&whole whole (object &key (test 'eql) (key 'identity))
+                          &body clauses)
+  (generate-switch-body whole object clauses test key '(error)))
+
+(defmacro cswitch (&whole whole (object &key (test 'eql) (key 'identity))
+                          &body clauses)
+  (generate-switch-body whole object clauses test key '(cerror "Return NIL from CSWITCH.")))
+
 ;;; Read macros
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
