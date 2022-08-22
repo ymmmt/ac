@@ -614,8 +614,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (make-array dimensions :element-type 'list
                          :initial-element nil))
 
-(defun make-fixnum-array (dimensions)
-  (make-array dimensions :element-type 'fixnum))
+(defun make-fixnum-array (dimensions &rest args)
+  (apply #'make-array dimensions :element-type 'fixnum args))
 
 (defun make-adj-array (&optional (length 0))
   (make-array length :fill-pointer 0 :adjustable t))
@@ -989,24 +989,25 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Body
 
-(defun detect-loop (initial-value successor &key (test #'eql))
-  (let ((seen (make-hash-table :test test)))
-    (setf (gethash initial-value seen) 0)
+(defun detect-loop (n initial-value successor)
+  (let ((seen (make-fixnum-array n :initial-element -1)))
+    (setf (aref seen initial-value) 0)
     (nlet rec ((i 1)
                (prev-value initial-value)
                (value (funcall successor initial-value)))
-      (aif (gethash value seen)
-           (values (- i it)          ; loop length
-                   it                ; loop start index
-                   (1- i)            ; last index before loop restarts
-                   value             ; loop start value
-                   prev-value        ; last value before loop restarts
-                   )
-           (progn
-             (setf (gethash value seen) i)
-             (rec (1+ i)
-                  value
-                  (funcall successor value)))))))
+      (let ((j (aref seen value)))
+        (if (>= j 0)
+            (values (- i j)          ; loop length
+                    j                ; loop start index
+                    (1- i)           ; last index before loop restarts
+                    value            ; loop start value
+                    prev-value       ; last value before loop restarts
+                    )
+            (progn
+              (setf (aref seen value) i)
+              (rec (1+ i)
+                   value
+                   (funcall successor value))))))))
                   
 (defun solve (n k a)
   (labels ((mod-add (x)
@@ -1030,10 +1031,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (delta 0 k))
           (t
            (mvbind (len i j xi xj)
-               (detect-loop 0 #'mod-add)
+               (detect-loop n 0 #'mod-add)
              ;; (>= j 2)
              (declare (ignore xi xj))
-             (dbg (iterate 20 0 #'mod-add))
              (mvbind (q r) (floor (- k j) len)
                (+ (delta 0 j)
                   ;; 今回スタックした部分。
