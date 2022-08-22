@@ -2022,28 +2022,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;   `(setf ,place
 ;;  (nreverse ,place)))
 
-(defun shakutori% (n predicate)
-  (loop with r = 0
-        with l = 0
-        for i below n
-        do (loop until (funcall predicate l r)
-                 do (incf r))
-        when (= r n)
-          return nil
-        sum (- n r)))
-
-(defun shakutori (lower upper predicate)
-  (loop for l from lower to upper
-        for r = lower then (max l r)
-        do
-           (loop until (or (> r upper)
-                           (funcall predicate l r))
-                 do (incf r))
-        if (<= r upper)
-          collect (cons l r) into result
-        else
-          return result))
-
 (defun n-subarray (length)
   (/ (* length (1+ length)) 2))
 
