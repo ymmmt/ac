@@ -1,3 +1,48 @@
+(defsubst arefer (array)
+  (lambda (&rest subscripts)
+    (apply #'aref array subscripts)))
+
+(defun shakutori (lower upper initial-value threshold &key (op #'+) (inverse #'-) (key #'identity) (test #'<=))
+  (nlet rec ((left lower)
+             (right lower)
+             (value (funcall op
+                             initial-value
+                             (funcall key lower)))
+             (acc nil))
+    (cond ((or (> left upper) (> right upper))
+           (nreverse acc))
+          ((> left right)
+           (rec left
+                (1+ right)
+                (funcall op
+                         value
+                         (funcall key right))
+                acc))
+          ;; (<= left right upper)
+          ((funcall test value threshold)
+           (if (= right upper)
+               (nreverse acc)
+               (rec left
+                    (1+ right)
+                    (funcall op
+                             value
+                             (funcall key (1+ right)))
+                    acc)))
+          ;; (> value threshold)
+          (t 
+           (rec (1+ left)
+                right
+                (funcall inverse
+                         value
+                         (funcall key left))
+                (if (and (< left right)
+                         (<= (funcall inverse
+                                      value
+                                      (funcall key right))
+                             threshold))
+                    (acons left (1- right) acc)
+                    acc))))))
+
 (defun solve-linear-eqs (a b c d p q)
   "Solve 
 ax + by = p
