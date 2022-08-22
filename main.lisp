@@ -614,8 +614,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (make-array dimensions :element-type 'list
                          :initial-element nil))
 
-(defun make-fixnum-array (dimensions)
-  (make-array dimensions :element-type 'fixnum))
+(defun make-fixnum-array (dimensions &rest args)
+  (apply #'make-array dimensions :element-type 'fixnum args))
 
 (defun make-adj-array (&optional (length 0))
   (make-array length :fill-pointer 0 :adjustable t))
