@@ -985,13 +985,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Body
 
-;; p,q,rを真ん中が最大になるように並び替えて
-;; 並び替えの操作とともに返す
-(defun sort-ops (p q r)
+(defun sort-op (x p q r)
   (switch ((max p q r))
-    (p (values q p r '(0)))
-    (q (values p q r '()))
-    (r (values p r q '(1)))))
+    (p (values r `(,x)))
+    (q (values r nil))
+    (r (values q `(,(1+ x))))))
 
 (defun solve (ps)
   (nlet rec ((ps ps) (x 1) (acc nil))
@@ -1002,13 +1000,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                          acc
                          (cons x acc))))
           (t
-           (mvbind (l m r ops)
-               (apply #'sort-ops (take 3 ps))
-             (rec (cons r (drop 3 ps))
+           (mvbind (right op)
+               (apply #'sort-op x (take 3 ps))
+             (rec (cons right (drop 3 ps))
                   (+ x 2)
-                  (nconc (nreverse (mapcar (lambda (a) (+ a x))
-                                           ops))
-                         acc)))))))
+                  (nconc op acc)))))))
 
 (defun main ()
   (readlet (n)
