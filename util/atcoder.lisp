@@ -1,3 +1,22 @@
+(defun detect-loop (initial-value successor &key (test #'eql))
+  (let ((seen (make-hash-table :test test)))
+    (setf (gethash initial-value seen) 0)
+    (nlet rec ((i 1)
+               (prev-value initial-value)
+               (value (funcall successor initial-value)))
+      (aif (gethash value seen)
+           (values (- i it)          ; loop length
+                   it                ; loop start index
+                   (1- i)            ; last index before loop restarts
+                   value             ; loop start value
+                   prev-value        ; last value before loop restarts
+                   )
+           (progn
+             (setf (gethash value seen) i)
+             (rec (1+ i)
+                  value
+                  (funcall successor value)))))))
+
 (defsubst arefer (array)
   (lambda (&rest subscripts)
     (apply #'aref array subscripts)))
