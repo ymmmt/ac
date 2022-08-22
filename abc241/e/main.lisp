@@ -1018,18 +1018,26 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   n))
            (add (x)
              (+ x
-                (svref a (mod x n)))))
+                (svref a (mod x n))))
+           (delta (i j)
+             ;; i回目からj回目までの追加で増える個数
+             (if (> i j)
+                 0
+                 (- (apply-n j #'add 0)
+                    (if (zerop i)
+                        0
+                        (apply-n (1- i) #'add 0))))))
     (cond ((zerop (mod (svref a 0) n))
            (* k (svref a 0)))
           ((<= k n)
-           (apply-n k #'add 0))
+           (delta 0 k))
           (t
            (mvbind (len i j xi xj)
                (detect-loop n 0 #'mod-add)
              ;; (>= j 2)
-             (declare (ignore xi))
+             (declare (ignore xi xj))
              (mvbind (q r) (floor (- k j) len)
-               (+ (apply-n j #'add 0)
+               (+ (delta 0 j)
                   ;; 今回スタックした部分。
                   ;; 最初は(* q (delta i j))としていたが、これは誤り。なぜなら、
                   ;; ループの1回目に入るときと、1回目のループから2回目のループに
@@ -1041,11 +1049,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   ;; (delta i j) と (delta (+ i len) (+ j len))の違いに相当する。
                   ;; iとjそれぞれにループの長さlenを足すことで、
                   ;; 繰り返される正しい数の並びを保証できる。
-                  (* q (- (apply-n len #'add xj)
-                          xj))
+                  (* q (delta (+ i len) (+ j len)))
                   ;; こちらも上と同様。
-                  (- (apply-n r #'add xj)
-                     xj))))))))
+                  (delta (+ i len) (+ i len r -1)))))))))
 
 (defun main ()
   (readlet (n k)
