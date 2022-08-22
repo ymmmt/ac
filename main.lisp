@@ -1,5 +1,6 @@
 (in-package :cl-user)
 
+#-swank
 (unless (member :child-sbcl *features*)
   (quit
    :recklessly-p t
