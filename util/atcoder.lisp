@@ -1,5 +1,5 @@
-(defun detect-loop (n initial-value successor)
-  (let ((seen (make-fixnum-array n :initial-element -1)))
+(defun detect-loop (initial-value max-value successor)
+  (let ((seen (make-fixnum-array (1+ max-value) :initial-element -1)))
     (setf (aref seen initial-value) 0)
     (nlet rec ((i 1)
                (prev-value initial-value)
