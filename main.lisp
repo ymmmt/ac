@@ -398,6 +398,10 @@
   (lambda (args)
     (apply fn args)))
 
+(defsubst arefer (array)
+  (lambda (&rest subscripts)
+    (apply #'aref array subscripts)))
+
 (defun foldl (function initial-value sequence)
   (reduce function sequence :initial-value initial-value))
 
