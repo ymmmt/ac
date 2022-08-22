@@ -1,0 +1,5 @@
+#!/bin/bash
+
+dir="`acc config-dir`/lisp/"
+
+cp main.lisp $dir
