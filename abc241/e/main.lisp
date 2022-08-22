@@ -348,9 +348,11 @@
             (values-list arguments))))
 
 (defun apply-n (n f x)
-  (if (zerop n)
-      x
-      (funcall f (apply-n (1- n) f x))))
+  (nlet rec ((n n) (x x))
+    (if (zerop n)
+        x
+        (rec (1- n)
+             (funcall f x)))))
 
 (defmacro -> (x &rest forms)
   (if (first forms)
