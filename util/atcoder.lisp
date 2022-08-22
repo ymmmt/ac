@@ -1,3 +1,24 @@
+(defun detect-loop (n initial-value successor)
+  (let ((seen (make-fixnum-array n :initial-element -1)))
+    (setf (aref seen initial-value) 0)
+    (nlet rec ((i 1)
+               (prev-value initial-value)
+               (value (funcall successor initial-value)))
+      (let ((j (aref seen value)))
+        (if (>= j 0)
+            (values (- i j)          ; loop length
+                    j                ; loop start index
+                    (1- i)           ; last index before loop restarts
+                    value            ; loop start value
+                    prev-value       ; last value before loop restarts
+                    )
+            (progn
+              (setf (aref seen value) i)
+              (rec (1+ i)
+                   value
+                   (funcall successor value))))))))
+
+;; more general
 (defun detect-loop (initial-value successor &key (test #'eql))
   (let ((seen (make-hash-table :test test)))
     (setf (gethash initial-value seen) 0)
