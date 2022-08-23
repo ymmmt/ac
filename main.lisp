@@ -94,6 +94,21 @@
          ,@body))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun ensure-form (body)
+    (cond ((null body)
+           nil)
+          ((= (length body) 1)
+           (car body))
+          (t
+           `(progn ,@body)))))
+
+(defmacro with-memos (definitions &body body)
+  (if (null definitions)
+      (ensure-form body)
+      `(with-memo ,(car definitions)
+         (with-memos ,(cdr definitions) ,@body))))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
   (defun ensure-list (x)
     (if (listp x)
         x
