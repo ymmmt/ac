@@ -800,13 +800,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  :key key))
 
 (defun filter-map (function list)
-  (nlet rec ((list list) (acc nil))
-    (if (null list)
-        (nreverse acc)
-        (rec (cdr list)
-             (aif (funcall function (car list))
-                  (cons it acc)
-                  acc)))))
+  (nreverse
+   (foldl (lambda (acc item)
+            (aif (funcall function item)
+                 (cons it acc)
+                 acc))
+          nil
+          list)))
 
 (defun find-if* (predicate list &key from-end (start 0) end)
   (let ((list (subseq list start end)))
