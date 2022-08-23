@@ -1042,6 +1042,26 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           :initial-value `(collecting ,(last1 var-and-args-specs)
                             ,@body)))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun loop-for-clause (var-and-args-spec)
+    (dbind (var . args) var-and-args-spec
+      (ecase (length args)
+        (1 `(loop for ,var in ,(car args)))
+        (2 `(loop for ,var from ,(first args) below ,(second args)))
+        (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)))))))
+
+(defmacro lcomp (var-and-args-specs conditions &body body)
+  (when (and (listp var-and-args-specs)
+             (>= (length var-and-args-specs) 1))
+    (labels ((rec (specs)
+               (if (singletonp specs)
+                   `(,@(loop-for-clause (car specs))
+                     when (and ,@conditions)
+                     collect ,(ensure-form body))
+                   `(,@(loop-for-clause (car specs))
+                     nconc ,(rec (cdr specs))))))
+      (rec var-and-args-specs))))
+
 (defmacro define-array-accumulations ()
   `(progn
      ,@(loop for acc in '(sum collect count nconc append some every)
@@ -1055,7 +1075,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Body
 
-(defun manhattan (u v w z)
+(defsubst manhattan (u v w z)
   (+ (abs (- u w))
      (abs (- v z))))
 
@@ -1068,20 +1088,20 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                      (cons j i))
                    ijs))))
 
-(defun bs-universal (size)
+(defsubst bs-universal (size)
   (1- (ash 1 size)))
 
-(defun bs-empty-p (bitset)
+(defsubst bs-empty-p (bitset)
   (zerop bitset))
 
-(defun bs-member-p (i bitset)
-  (plusp (logand bitset (ash 1 i))))
+(defsubst bs-member-p (i bitset)
+  (logbitp i bitset))
 
-(defun bs-add (i bitset)
+(defsubst bs-add (i bitset)
   (+ bitset
      (logxor bitset (ash 1 i))))
 
-(defun bs-remove (i bitset)
+(defsubst bs-remove (i bitset)
   (- bitset
      (logand bitset (ash 1 i))))
 
@@ -1095,12 +1115,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  (dp (i unseen)
                    (if (bs-empty-p unseen)
                        (cost i 0)
-                       (minimize (j 0 n)
-                         (if (and (/= i j)
-                                  (bs-member-p j unseen))
-                             (+ (cost i j)
-                                (dp j (bs-remove j unseen)))
-                             +inf+)))))
+                       (minimize (j (lcomp ((j 0 n))
+                                        ((/= i j)
+                                         (bs-member-p j unseen))
+                                      j))
+                         (+ (cost i j)
+                            (dp j (bs-remove j unseen)))))))
       (dp 0 (bs-remove 0 (bs-universal n))))))
 
 (defun main ()

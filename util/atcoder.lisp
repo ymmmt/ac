@@ -1,11 +1,11 @@
 @bitset
-(defun bs-universal (size)
+(defsubst bs-universal (size)
   (1- (ash 1 size)))
 
-(defun bs-empty-p (bitset)
+(defsubst bs-empty-p (bitset)
   (zerop bitset))
 
-(defun bs-member-p (i bitset)
+(defsubst bs-member-p (i bitset)
   (plusp (logand bitset (ash 1 i))))
 
 (defun bitset-members (bitset)
@@ -15,11 +15,11 @@
         when (plusp (logand bitset 2^k))
           collect i))
 
-(defun bs-add (i bitset)
+(defsubst bs-add (i bitset)
   (+ bitset
      (logxor bitset (ash 1 i))))
 
-(defun bs-remove (i bitset)
+(defsubst bs-remove (i bitset)
   (- bitset
      (logand bitset (ash 1 i))))
 @bitset end
