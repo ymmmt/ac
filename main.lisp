@@ -36,6 +36,10 @@
       `(format t "~A => ~A~%" ',(car forms) ,(car forms))
       `(format t "~A => ~A~%" ',forms `(,,@forms))))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun mksym (control-string &rest format-arguments)
+    (intern (apply #'format nil control-string format-arguments))))
+
 (defmacro mvbind (vars value-form &body body)
   `(multiple-value-bind ,vars ,value-form ,@body))
 
@@ -976,21 +980,22 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Accumulations
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun loop-for-clause (var &rest args)
+    (ecase (length args)
+      (1 `(loop for ,var in ,(car args)))
+      (2 `(loop for ,var from ,(first args) below ,(second args)))
+      (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args))))))
+
 (defmacro define-accumulations ()
   `(progn
      ,@(loop for acc in '(sum maximize minimize thereis always)
-             for fn in '(+ max min or and)
              collect
              `(defmacro ,acc ((var &rest args) &body body)
-                (ecase (length args)
-                  (1 `(reduce ',',fn ,(car args)
-                              :key (lambda (,var) ,@body)))
-                  (2 `(loop for ,var from ,(first args) below ,(second args)
-                            ,',acc ,(ensure-form body)))
-                  (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)
-                            ,',acc ,(ensure-form body)))))
+                `(,@(apply #'loop-for-clause var args)
+                  ,',acc ,(ensure-form body)))
              collect
-             `(defmacro ,(intern (format nil "~A*" acc)) (var-and-args-specs &body body)
+             `(defmacro ,(mksym "~A*" acc) (var-and-args-specs &body body)
                 (labels ((rec (specs)
                            (if (null specs)
                                (ensure-form body)
@@ -1001,13 +1006,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (define-accumulations)
 
 (defmacro counting ((var &rest args) &body body)
-  (ecase (length args)
-    (1 `(reduce (lambda (acc ,var) (+ acc (if (progn ,@body) 1 0)))
-                ,(car args) :initial-value 0))
-    (2 `(loop for ,var from ,(first args) below ,(second args)
-              count ,(ensure-form body)))
-    (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)
-              count ,(ensure-form body)))))
+  `(,@(apply #'loop-for-clause var args)
+    count ,(ensure-form body)))
 
 (defmacro counting* (var-and-args-specs &body body)
   (if (null var-and-args-specs)
@@ -1015,35 +1015,41 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (labels ((rec (specs)
                  (if (singletonp specs)
                      `(counting ,(car specs)
-                                (progn ,@body))
+                        ,(ensure-form body))
                      `(sum ,(car specs)
-                           ,(rec (cdr specs))))))
+                        ,(rec (cdr specs))))))
         (rec var-and-args-specs))))
 
+(defmacro nconcing ((var &rest args) &body body)
+  `(,@(apply #'loop-for-clause var args)
+    nconc ,(ensure-form body)))
+
 (defmacro collecting ((var &rest args) &body body)
-  (ecase (length args)
-    (1 `(mapcar (lambda (,var) ,(ensure-form body))
-                ,(car args)))
-    (2 `(loop for ,var from ,(first args) below ,(second args)
-              collect ,(ensure-form body)))
-    (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)
-              collect ,(ensure-form body)))))
+  `(,@(apply #'loop-for-clause var args)
+    collect ,(ensure-form body)))
 
 (defmacro collecting* (var-and-args-specs &body body)
-  (reduce (lambda (var-and-args-spec acc)
-            (dbind (var . args) var-and-args-spec
-              (ecase (length args)
-                (1 `(mapcan (lambda (,var)
-                              ,acc)
-                            ,(car args)))
-                (2 `(loop for ,var from ,(first args) below ,(second args)
-                          nconc ,acc))
-                (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)
-                          nconc ,acc)))))
-          (butlast var-and-args-specs)
-          :from-end t
-          :initial-value `(collecting ,(last1 var-and-args-specs)
-                            ,@body)))
+  (if (null var-and-args-specs)
+      nil
+      (labels ((rec (specs)
+                 (if (singletonp specs)
+                     `(collecting ,(car specs)
+                        ,(ensure-form body))
+                     `(nconcing ,(car specs)
+                        ,(rec (cdr specs))))))
+        (rec var-and-args-specs))))
+
+(defmacro lcomp (var-and-args-specs conditions &body body)
+  (when (and (listp var-and-args-specs)
+             (>= (length var-and-args-specs) 1))
+    (labels ((rec (specs)
+               (if (singletonp specs)
+                   `(,@(apply #'loop-for-clause (car specs))
+                     when (and ,@conditions)
+                     collect ,(ensure-form body))
+                   `(,@(apply #'loop-for-clause (car specs))
+                     nconc ,(rec (cdr specs))))))
+      (rec var-and-args-specs))))
 
 (defmacro define-array-accumulations ()
   `(progn
