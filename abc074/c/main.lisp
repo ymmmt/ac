@@ -1037,13 +1037,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Body
 
-(defun natural-number-sol (a b x)
-  "Returns P, Q that satisfy Pa + Qb = x, P >= 0, Q >= 0, P, Q <- N"
-  (let ((p (find-if (lambda (p)
-                      (zerop (mod (- x (* p a)) b)))
-                    (range 0 (1+ (floor x a))))))
-    (when p
-      (values p (/ (- x (* p a)) b)))))
+(defun natural-number-sol (a b c)
+  "Returns X, Y that satisfy aX + bY = c, X >= 0, Y >= 0, X, Y <- N"
+  (dotimes (x (1+ (floor c a)))
+    (mvbind (y r) (floor (- c (* a x)) b)
+      (when (zerop r)
+        (return-from natural-number-sol
+          (values x y))))))
 
 (defun makablep (a b c d f sugar/100g water)
   (assert (zerop (mod water 100)))

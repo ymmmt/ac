@@ -1,3 +1,11 @@
+(defun natural-number-sol (a b c)
+  "Returns X, Y that satisfy aX + bY = c, X >= 0, Y >= 0, X, Y <- N"
+  (dotimes (x (1+ (floor c a)))
+    (mvbind (y r) (floor (- c (* a x)) b)
+      (when (zerop r)
+        (return-from natural-number-sol
+          (values x y))))))
+
 (defun detect-loop (initial-value max-value successor)
   (let ((seen (make-fixnum-array (1+ max-value) :initial-element -1)))
     (setf (aref seen initial-value) 0)
