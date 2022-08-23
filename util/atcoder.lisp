@@ -1,3 +1,115 @@
+@bitset
+(defun bs-universal (size)
+  (1- (ash 1 size)))
+
+(defun bs-empty-p (bitset)
+  (zerop bitset))
+
+(defun bs-member-p (i bitset)
+  (plusp (logand bitset (ash 1 i))))
+
+(defun bitset-members (bitset)
+  (loop for 2^k = 1 then (ash 2^k 1)
+        for i from 0
+        while (<= 2^k bitset)
+        when (plusp (logand bitset 2^k))
+          collect i))
+
+(defun bs-add (i bitset)
+  (+ bitset
+     (logxor bitset (ash 1 i))))
+
+(defun bs-remove (i bitset)
+  (- bitset
+     (logand bitset (ash 1 i))))
+@bitset end
+
+@mem-usage
+(defun mem-usage ()
+  "Memory used (in bytes) by various memory spaces in a Lisp image. Returns a plist."
+  #+sbcl (list :dynamic (sb-vm::dynamic-usage)
+               :static (sb-kernel::static-space-usage)
+               :immobile (sb-kernel::immobile-space-usage))
+  #+cmu (list :dynamic (lisp::dynamic-usage)
+              :static (lisp::static-space-usage))
+  #+ccl (multiple-value-bind (usedbytes static-used staticlib-used frozen-space-size)
+            (ccl::%usedbytes)
+          (list :dynamic usedbytes
+                :static (+ static-used staticlib-used frozen-space-size)))
+  #+clisp (multiple-value-bind (used room static)
+              (sys::%room)
+            (declare (ignore room))
+            (list :dynamic used
+                  :static static)))
+
+(defun print-usage (usage stream)
+  "Prints memory usage plist returned by MEM-USAGE in a human-readable format."
+  (format stream "~&~{~{~50<~:(~A~) space usage is:~;~:D bytes.~%~>~}~}"
+          `((:dynamic ,(getf usage :dynamic 0))
+            (:static ,(getf usage :static 0))
+            (:immobile ,(getf usage :immobile 0))))
+  usage)
+
+(defun mem-difference (x y)
+  "Difference between two mem-usage records"
+  (loop
+     :for metric in '(:dynamic :static :immobile)
+     :for x-value = (getf x metric)
+     :when x-value
+     :nconc (list metric (- x-value (getf y metric)))))
+
+;; Copied from TRIVIAL-GARBAGE
+(defun run-gc (&key full verbose)
+  "Initiates a garbage collection. @code{full} forces the collection
+   of all generations, when applicable. When @code{verbose} is
+   @em{true}, diagnostic information about the collection is printed
+   if possible."
+  (declare (ignorable verbose full))
+  #+(or cmu scl) (ext:gc :verbose verbose :full full)
+  #+sbcl (sb-ext:gc :full full)
+  #+allegro (excl:gc (not (null full)))
+  #+(or abcl clisp) (ext:gc)
+  #+ecl (si:gc t)
+  #+openmcl (ccl:gc)
+  #+corman (ccl:gc (if full 3 0))
+  #+lispworks (hcl:gc-generation (if full t 0)))
+
+(defmacro mem-used ((&optional place (stream '*standard-output*)) &body forms)
+  "Prints memory allocated by running FORMS. Memory usage is recorded
+before and after FORMS are run, and the difference in usage is printed
+to STREAM.
+
+Full GC is run before and after running forms to eliminate as many
+temporary allocations as possible. Make sure to save a reference to
+the objects whose memory usage you want to measure. (If the object you
+want to measure is the last one returned, and you use this form in the
+REPL, then * and / will refer to these objects, so you don't need to
+handle this explicitly.
+
+Does not work well for small allocations. In that case, predefine a
+vector of appropriate size, make repeated allocations and insert the
+newly allocated objects in that vector.
+
+Returns the values returned by the last form.
+
+If PLACE is non-nil, nothing is printed and instead the raw
+values (see MEM-USAGE) are saved in PLACE."
+  (let ((start-usage (gensym "START-USAGE-"))
+        (diff (gensym "DIFF-")))
+    `(progn
+       (run-gc :full t)
+       (let ((,start-usage (mem-usage)))
+         (multiple-value-prog1
+             (progn ,@forms)
+           (run-gc :full t)
+           (let ((,diff (mem-difference (mem-usage) ,start-usage)))
+             ,(if place
+                  `(setf ,place ,diff)
+                  `(print-usage ,diff ,stream))))))))
+
+(mem-used () (main))
+@mem-usage end
+
 (defun natural-number-sol (a b c)
   "Returns X, Y that satisfy aX + bY = c, X >= 0, Y >= 0, X, Y <- N"
   (awhen (position-if (lambda (ax)
@@ -2148,13 +2260,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;        ,gn
 ;;        0)))
 ;;       numbers)))))
-
-(defun bitset-members (bitset)
-  (loop for 2^k = 1 then (ash 2^k 1)
-        for i from 0
-        while (<= 2^k bitset)
-        when (plusp (logand bitset 2^k))
-          collect i))
 
 (defun invert-kth-bit (k x)
   (logxor (ash 1 k) x))
