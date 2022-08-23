@@ -732,11 +732,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (drop-while predicate (cdr list)
                   :count (if count (1- count) nil))))
 
-(defun last1 (sequence)
-  (etypecase sequence
-    (list (car (last sequence)))
-    (vector (when (plusp (length sequence))
-              (aref sequence (1- (length sequence)))))))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun last1 (sequence)
+    (etypecase sequence
+      (list (car (last sequence)))
+      (vector (when (plusp (length sequence))
+                (aref sequence (1- (length sequence))))))))
 
 (defsubst repeat (n item)
   (make-list n :initial-element item))
@@ -964,12 +965,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (1 `(reduce ',',fn ,(car args)
                               :key (lambda (,var) ,@body)))
                   (2 `(loop for ,var from ,(first args) below ,(second args)
-                            ,',acc (progn ,@body)))))
+                            ,',acc ,(ensure-form body)))
+                  (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)
+                            ,',acc ,(ensure-form body)))))
              collect
              `(defmacro ,(intern (format nil "~A*" acc)) (var-and-args-specs &body body)
                 (labels ((rec (specs)
                            (if (null specs)
-                               `(progn ,@body)
+                               (ensure-form body)
                                `(,',acc ,(car specs)
                                         ,(rec (cdr specs))))))
                   (rec var-and-args-specs))))))
@@ -981,7 +984,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (1 `(reduce (lambda (acc ,var) (+ acc (if (progn ,@body) 1 0)))
                 ,(car args) :initial-value 0))
     (2 `(loop for ,var from ,(first args) below ,(second args)
-              count (progn ,@body)))))
+              count ,(ensure-form body)))
+    (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)
+              count ,(ensure-form body)))))
 
 (defmacro counting* (var-and-args-specs &body body)
   (if (null var-and-args-specs)
@@ -993,6 +998,31 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                      `(sum ,(car specs)
                            ,(rec (cdr specs))))))
         (rec var-and-args-specs))))
+
+(defmacro collecting ((var &rest args) &body body)
+  (ecase (length args)
+    (1 `(mapcar (lambda (,var) ,(ensure-form body))
+                ,(car args)))
+    (2 `(loop for ,var from ,(first args) below ,(second args)
+              collect ,(ensure-form body)))
+    (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)
+              collect ,(ensure-form body)))))
+
+(defmacro collecting* (var-and-args-specs &body body)
+  (reduce (lambda (var-and-args-spec acc)
+            (dbind (var . args) var-and-args-spec
+              (ecase (length args)
+                (1 `(mapcan (lambda (,var)
+                              ,acc)
+                            ,(car args)))
+                (2 `(loop for ,var from ,(first args) below ,(second args)
+                          nconc ,acc))
+                (3 `(loop for ,var from ,(first args) below ,(second args) by ,(third args)
+                          nconc ,acc)))))
+          (butlast var-and-args-specs)
+          :from-end t
+          :initial-value `(collecting ,(last1 var-and-args-specs)
+                            ,@body)))
 
 (defmacro define-array-accumulations ()
   `(progn
