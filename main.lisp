@@ -1039,17 +1039,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                         ,(rec (cdr specs))))))
         (rec var-and-args-specs))))
 
-(defmacro lcomp (var-and-args-specs conditions &body body)
-  (when (and (listp var-and-args-specs)
-             (>= (length var-and-args-specs) 1))
-    (labels ((rec (specs)
-               (if (singletonp specs)
-                   `(,@(apply #'loop-for-clause (car specs))
-                     when (and ,@conditions)
-                     collect ,(ensure-form body))
-                   `(,@(apply #'loop-for-clause (car specs))
-                     nconc ,(rec (cdr specs))))))
-      (rec var-and-args-specs))))
+(defmacro lcomp (var-and-args-specs condition &body body)
+  (if (null var-and-args-specs)
+      nil
+      (labels ((rec (specs)
+                 (if (singletonp specs)
+                     `(,@(apply #'loop-for-clause (car specs))
+                       when ,condition
+                       collect ,(ensure-form body))
+                     `(,@(apply #'loop-for-clause (car specs))
+                       nconc ,(rec (cdr specs))))))
+        (rec var-and-args-specs))))
 
 (defmacro define-array-accumulations ()
   `(progn
