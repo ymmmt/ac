@@ -1,5 +1,12 @@
 (defun natural-number-sol (a b c)
   "Returns X, Y that satisfy aX + bY = c, X >= 0, Y >= 0, X, Y <- N"
+  (awhen (position-if (lambda (ax)
+                        (zerop (mod (- c ax) b)))
+                      (iterate (1+ (floor c a)) 0 (adder a)))
+    (values it (/ (- c (* a it)) b))))
+
+(defun natural-number-sol (a b c)
+  "Returns X, Y that satisfy aX + bY = c, X >= 0, Y >= 0, X, Y <- N"
   (dotimes (x (1+ (floor c a)))
     (mvbind (y r) (floor (- c (* a x)) b)
       (when (zerop r)
