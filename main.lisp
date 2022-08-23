@@ -217,7 +217,7 @@
      (declare (ignore char))
      (unless num (setf num 1))
      `(lambda ,(loop for i from 1 to num
-                     collect (intern (format nil "%~d" i)))
+                     collect (mksym "%~d" i))
         ,(read stream t nil t)))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -1056,7 +1056,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
      ,@(loop for acc in '(sum collect count nconc append some every)
              for wrd in '(sum collect count nconc append thereis always)
              collect
-             `(defun ,(intern (format nil "ARRAY-~A" acc)) (array &optional (key 'identity))
+             `(defun ,(mksym "ARRAY-~A" acc) (array &optional (key 'identity))
                 (loop for i below (array-total-size array)
                       ,wrd (funcall key (row-major-aref array i)))))))
 
