@@ -420,6 +420,18 @@
   (lambda (&rest subscripts)
     (apply #'aref array subscripts)))
 
+(defsubst adder (&rest numbers)
+  (lambda (x) (apply #'+ x numbers)))
+
+(defsubst suber (&rest  numbers)
+  (lambda (x) (apply #'- x numbers)))
+
+(defsubst muler (&rest numbers)
+  (lambda (x) (apply #'* x numbers)))
+
+(defsubst diver (&rest numbers)
+  (lambda (x) (apply #'/ x numbers)))
+
 (defun foldl (function initial-value sequence)
   (reduce function sequence :initial-value initial-value))
 
@@ -791,6 +803,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (aif (funcall function (car list))
                   (cons it acc)
                   acc)))))
+
+(defun find-if* (predicate list &key from-end (start 0) end)
+  (let ((list (subseq list start end)))
+    (nlet rec ((list (if from-end (reverse list) list)))
+      (if (null list)
+          (values nil nil)
+          (aif (funcall predicate (car list))
+               (values (car list) it)
+               (rec (cdr list)))))))
 
 ;; ;; more general
 ;; (defun filter-map (f list &rest more-lists)
