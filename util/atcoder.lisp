@@ -6,7 +6,7 @@
   (zerop bitset))
 
 (defsubst bs-member-p (i bitset)
-  (plusp (logand bitset (ash 1 i))))
+  (logbitp i bitset))
 
 (defun bitset-members (bitset)
   (loop for 2^k = 1 then (ash 2^k 1)
