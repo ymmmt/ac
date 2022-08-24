@@ -1087,7 +1087,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; https://img.atcoder.jp/agc024/editorial.pdf
 ;; qs[i]はiのpsにおけるpositionを表す。
 ;; qsの連続な単調増加部分列は、
-;; psにおける非連続な単調増加部分列に対応している。
+;; psにおける1ずつ増える非連続な単調増加部分列に対応している。
 ;; よって上記ページの解説のkの最大値は、
 ;; qsの連続な単調増加部分列の長さの最大に等しい。
 (defun solve (n ps)
