@@ -633,6 +633,24 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (loop for v being the hash-value of hash-table
         collect v))
 
+(defmacro do-hashkeys ((key hash-table &optional result) &body body)
+  `(loop for ,key being the hash-key of ,hash-table
+         do ,@body
+         finally (return ,result)))
+
+(defmacro do-hashvalues ((value hash-table &optional result) &body body)
+  `(loop for ,value being the hash-value of ,hash-table
+         do ,@body
+         finally (return ,result)))
+
+(defun accum-ht (alist &key (test #'eql))
+  (let ((ht (make-hash-table :test test)))
+    (loop for (k . v) in alist do
+      (unless (gethash k ht)
+        (setf (gethash k ht) (make-adj-array)))
+      (vector-push-extend v (gethash k ht)))
+    ht))
+
 ;;; Arrays
 
 (defun coerce-vector (object)
@@ -640,6 +658,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun pad (vector)
   (concatenate 'vector #(0) vector))
+
+(defun slice (vec beg &optional (end (length vec)))
+  (loop (multiple-value-bind (disp-to disp-index) (array-displacement vec)
+          (if disp-to
+              (setf vec disp-to
+                    beg (+ beg disp-index)
+                    end (when end (+ end disp-index)))
+              (return))))
+  (let ((size (max 0 (- (or end (length vec)) beg))))
+    (apply #'make-array size :element-type (array-element-type vec)
+           (unless (zerop size)
+             (list :displaced-to vec :displaced-index-offset beg)))))
 
 (defun make-bit-array (dimensions &rest args)
   (apply #'make-array dimensions :element-type 'bit args))
