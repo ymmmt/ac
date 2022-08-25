@@ -399,7 +399,7 @@
 (defsubst mapper (hash-table &optional default)
   (lambda (key)
     (gethash key hash-table default)))
-            
+
 (defsubst eqer (object)
   (lambda (x)
     (eq object x)))
