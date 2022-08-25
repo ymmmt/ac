@@ -1029,34 +1029,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (>= l 0) (< l w))
           collect (cons k l)))
 
-;; depends on cp/disjoint-set
-(defun alist->ds (alist ds-count)
-  (let ((ds (make-disjoint-set ds-count)))
-    (mapc (dlambda ((u . v))
-            (ds-unite! ds u v))
-          alist)
-    ds))
-
-;; depends on cp/disjoint-set
-(defun ds-roots (disjoint-set)
-  (let ((n (length (ds-data disjoint-set))))
-    (delete-dups (mapcar (curry #'ds-root disjoint-set)
-                         (range n))
-                 #'< #'=)))
-
-;; depends on cp/disjoint-set
-(defun ds-roots-size>=2 (disjoint-set)
-  (let ((n (length (ds-data disjoint-set))))
-    (ht-keys
-     (counter (filter-map (lambda (i)
-                            (when (>= (ds-size disjoint-set i) 2)
-                              (ds-root disjoint-set i)))
-                          (range n))))))
-
-;; depends on cp/disjoint-set
-(defun ds-count (disjoint-set)
-  (length (ds-data disjoint-set)))
-
 (defun graph-count-if (predicate graph start
                        &optional (seen (make-bit-array (length graph))))
   (labels ((dfs (vs acc)
