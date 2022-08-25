@@ -1064,6 +1064,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   ,',acc ,(ensure-form body)))
              collect
              `(defmacro ,(mksym "~A*" acc) (var-and-args-specs &body body)
+                (when (null var-and-args-specs)
+                  (error "~A*: VAR-AND-ARGS-SPECS must not be null." ',acc))
                 (labels ((rec (specs)
                            (if (null specs)
                                (ensure-form body)
