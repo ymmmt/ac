@@ -965,14 +965,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (when list
       (rec list))))
 
-(defun prefixp (sequence prefix &key (test 'eql))
-  (let ((i (mismatch prefix sequence :test test)))
+(defun prefixp (sequence prefix &key (test 'eql) (start 0) end)
+  (let ((i (mismatch prefix sequence
+                     :test test :start2 start :end2 end)))
     (or (not i)
         (= i (length prefix)))))
 
-(defun suffixp (sequence suffix &key (test 'eql))
+(defun suffixp (sequence suffix &key (test 'eql) (start 0) end)
   (let ((i (mismatch suffix sequence
-                     :from-end t :test test)))
+                     :from-end t :test test :start2 start :end2 end)))
     (or (not i)
         (zerop i))))
 
