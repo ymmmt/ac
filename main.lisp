@@ -545,6 +545,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst ^2 (x)
   (expt x 2))
 
+(defsubst 2^ (x)
+  (ash 1 x))
+
 (defsubst 2* (x)
   (ash x 1))
 
