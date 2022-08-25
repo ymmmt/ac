@@ -1131,14 +1131,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (define-array-accumulations)
 
 ;;; Body
-                                  
-(defun mod2 (x)
-  (mod x 2))
 
 (defun solve (n s)
   (declare (ignore n))
   (reduce #'+ (ht-values (counter s))
-          :key #'mod2))
+          :key #%2))
 
 (defun main ()
   (readlet (n)
