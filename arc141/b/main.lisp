@@ -1156,6 +1156,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                 ,gd)))
             ,gans)))))
 
+;; (dp i k) == aiまでを条件を満たすよう選んで、なおかつ
+;; aiの最上位ビットがk番目(0-base)、すなわち
+;; 2^k <= ai < 2^(k+1)
+;; が成り立っているときの数列a1, a2, ... ,aiの選び方の総数
+;; a(i+1)はaiより最上位ビットが必ず大きくならなければいけない。
+;; a1からanのn個の数の最上位ビットの位置はかぶらず、0からk-maxの(1+ k-max)個の
+;; 値からkを選ぶ必要があるので、(> n (1+ k-max))のとき答えは0。
 (defun solve (n m)
   (let ((k-max (1- (integer-length m))))
     (if (> n (1+ k-max))
