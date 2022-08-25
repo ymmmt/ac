@@ -1,3 +1,38 @@
+(defun graph-count-if (predicate graph start
+                       &optional (seen (make-bit-array (length graph))))
+  (labels ((dfs (vs acc)
+             (if (null vs)
+                 acc
+                 (let ((u (car vs))
+                       (vs (cdr vs)))
+                   (dfs (append (filter (lambda (v)
+                                          (when (zerop (aref seen v))
+                                            (setf (aref seen v) 1)))
+                                        (aref graph u))
+                                vs)
+                        (+ acc
+                           (funcall (quantizer predicate) u)))))))
+    (setf (aref seen start) 1)
+    (dfs (list start) 0)))
+
+(defun make-graph (n-vertices edges &key directed)
+  (let ((graph (make-list-array n-vertices)))
+    (mapc (dlambda ((u . v))
+            (push v (aref graph u))
+            (unless directed
+              (push u (aref graph v))))
+          edges)
+    graph))
+
+(defun adjacent-cells (h w i j)
+  (loop for di in '(-1 1 0 0)
+        for dj in '(0 0 -1 1)
+        for k = (+ i di)
+        for l = (+ j dj)
+        when (and (>= k 0) (< k h)
+                  (>= l 0) (< l w))
+          collect (cons k l)))
+
 @bitset
 (defsubst bs-universal (size)
   (1- (ash 1 size)))
@@ -636,7 +671,7 @@ Asserts the direct child form is labels form."
           (multiset (sort list sort-predicate)
                     test)))
 
-;; depends on range, cp/disjoint-set, delete-dups, curry
+;; depends on cp/disjoint-set
 (defun ds-roots (disjoint-set)
   (let ((n (length (ds-data disjoint-set))))
     (delete-dups (mapcar (curry #'ds-root disjoint-set)
@@ -644,10 +679,18 @@ Asserts the direct child form is labels form."
                  #'< #'=)))
 
 ;; depends on cp/disjoint-set
+(defun alist->ds (alist ds-count)
+  (let ((ds (make-disjoint-set ds-count)))
+    (mapc (dlambda ((u . v))
+            (ds-unite! ds u v))
+          alist)
+    ds))
+
+;; depends on cp/disjoint-set
 (defun ds-count (disjoint-set)
   (length (ds-data disjoint-set)))
 
-;; depends on range, cp/disjoint-set, ht-keys, counter
+;; depends on cp/disjoint-set
 (defun ds-roots-size>=2 (disjoint-set)
   (let ((n (length (ds-data disjoint-set))))
     (ht-keys
