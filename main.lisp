@@ -306,6 +306,11 @@
       (read-char)) ; skip #\Newline
     mat))
 
+(defun read-edges (n-edges)
+  (collect n-edges
+    (readlet (u v)
+      (cons (1- u) (1- v)))))
+
 (defun read-graph (n-vertices n-edges &key directed)
   (let ((graph (make-list-array n-vertices)))
     (loop repeat n-edges do
@@ -646,12 +651,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          do ,@body
          finally (return ,result)))
 
-(defun accum-ht (alist &key (test #'eql))
+(defun vector-accum-ht (alist &key (test #'eql))
   (let ((ht (make-hash-table :test test)))
     (loop for (k . v) in alist do
       (unless (gethash k ht)
         (setf (gethash k ht) (make-adj-array)))
       (vector-push-extend v (gethash k ht)))
+    ht))
+
+(defun list-accum-ht (alist &key (test 'eql))
+  (let ((ht (make-hash-table :test test)))
+    (loop for (k . v) in alist do
+      (push v (gethash k ht)))
     ht))
 
 ;;; Arrays
