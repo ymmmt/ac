@@ -472,6 +472,24 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (cdr list)
               (apply function (car list) initial-value initial-args))))
 
+(defun mvfoldl1 (function list &rest initial-args)
+  (if (null list)
+      (error "mvfoldl1: empty list")
+      (apply #'mvfoldl function (cdr list) (car list) initial-args)))
+
+(defun mvfoldr (function list initial-value &rest initial-args)
+  "Generalization of FOLDR.
+(FUNCTION item acc arg1 arg2 ... argN) => new-acc, new-arg1, new-arg2,..., new-argN
+LIST -- list of items
+INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
+  (apply #'mvfoldl function (reverse list) initial-value initial-args))
+
+(defun mvfoldr1 (function list &rest initial-args)
+  (if (null list)
+      (error "mvfoldr1: empty list")
+      (let ((rev (reverse list)))
+        (apply #'mvfoldl function (cdr rev) (car rev) initial-args))))
+
 (defun scanl (function initial-value list)
   (labels ((rec (list acc)
              (if (null list)
