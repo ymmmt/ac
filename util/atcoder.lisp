@@ -165,7 +165,8 @@ values (see MEM-USAGE) are saved in PLACE."
     (setf (aref seen initial-value) 0)
     (nlet rec ((i 1)
                (prev-value initial-value)
-               (value (funcall successor initial-value)))
+               (value (funcall successor initial-value))
+               (path (list initial-value)))
       (let ((j (aref seen value)))
         (if (>= j 0)
             (values (- i j)          ; loop length
@@ -173,12 +174,16 @@ values (see MEM-USAGE) are saved in PLACE."
                     (1- i)           ; last index before loop restarts
                     value            ; loop start value
                     prev-value       ; last value before loop restarts
+                    (->> (nreverse path)
+                         (drop j)
+                         (take (- i j))) ; values of loop
                     )
             (progn
               (setf (aref seen value) i)
               (rec (1+ i)
                    value
-                   (funcall successor value))))))))
+                   (funcall successor value)
+                   (cons value path))))))))
 
 ;; more general
 (defun detect-loop (initial-value successor &key (test #'eql))
