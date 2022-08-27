@@ -766,6 +766,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (loop for i from start below end by step
                collect i)))))
 
+(defun drange (&rest args)
+  (nreverse (apply #'range args)))
+
 (defun take (n list &key (step 1))
   (nlet rec ((n n) (list list) (acc nil))
     (if (or (zerop n) (null list))
