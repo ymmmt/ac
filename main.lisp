@@ -166,6 +166,16 @@
               (when it
                 (aand ,@(cdr args)))))))
 
+(defun until (predicate function value)
+  (if (funcall predicate value)
+      value
+      (until predicate function (funcall function value))))
+
+(defun while (predicate function value)
+  (if (funcall predicate value)
+      (while predicate function (funcall function value))
+      value))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun extract-function-name (spec)
     (if (and (consp spec)
