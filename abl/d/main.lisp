@@ -1392,12 +1392,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   :identity 0
   :element-type fixnum)
 
-;; asの要素aごとに逐次的に更新する。
+;; asの要素aごとに、それが末尾になる条件を満たす数列の長さの
+;; 最大を求め、そのmaxをとる。
 ;; (segtree-fold counts
 ;;               (max 0 (- a k))
 ;;               (1+ (min upper (+ a k))))
-;; によって、aを繋げて長さを増せる、aの前までで
+;; によって、aを繋げて延長できる、aの前までで
 ;; 構成できる条件を満たす数列の最大長を取得できる。
+;; したがって、(1+ (その値))がaに対する最大値。
 ;; countsのその条件を維持するために、
 ;; (segtree-ref counts a)に(1+ (その値))を入れる。
 (defun solve (n k as)
