@@ -8,6 +8,7 @@
    (process-exit-code
     (run-program *runtime-pathname*
                  `("--control-stack-size" "256MB"
+;;                   "--dynamic-space-size" "64MB"
                    "--noinform" "--disable-ldb" "--lose-on-corruption" "--end-runtime-options"
                    "--eval" "(push :child-sbcl *features*)"
                    "--script" ,(namestring *load-pathname*))
