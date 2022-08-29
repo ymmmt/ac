@@ -1182,6 +1182,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     result))
 
 (defun until (predicate function value)
+  (declare (optimize speed (safety 1)))
+  (declare (function predicate function))
   (if (funcall predicate value)
       value
       (until predicate function (funcall function value))))

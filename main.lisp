@@ -167,11 +167,15 @@
                 (aand ,@(cdr args)))))))
 
 (defun until (predicate function value)
+  (declare (optimize speed (safety 1)))
+  (declare (function predicate function))
   (if (funcall predicate value)
       value
       (until predicate function (funcall function value))))
 
 (defun while (predicate function value)
+  (declare (optimize speed (safety 1)))
+  (declare (function predicate function))
   (if (funcall predicate value)
       (while predicate function (funcall function value))
       value))
