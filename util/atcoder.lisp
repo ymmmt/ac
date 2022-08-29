@@ -1,3 +1,40 @@
+@stack
+(defstruct (stack (:constructor make-stack
+                      (size &aux (data (make-fixnum-array size)))))
+  (data nil :type (or null (simple-array fixnum (*))))
+  (pointer 0 :type fixnum)
+  (size 0 :type fixnum)
+  (count 0 :type fixnum))
+
+(defun stack-full-p (stack)
+  (= (stack-size stack)
+     (stack-count stack)))
+
+(defun stack-empty-p (stack)
+  (zerop (stack-count stack)))
+
+(defun spush (item stack)
+  (when (stack-full-p stack)
+    (error "spush: full stack"))
+  (with-slots (data pointer count) stack
+    (setf (aref data pointer) item)
+    (incf pointer)
+    (incf count)))
+
+(defun spop (stack)
+  (when (stack-empty-p stack)
+    (error "spop: empty stack"))
+  (with-slots (data pointer count) stack
+    (prog1 (aref data (1- pointer))
+      (decf pointer)
+      (decf count))))
+
+(defun shead (stack)
+  (assert (not (stack-empty-p stack)))
+  (with-slots (data pointer) stack
+    (aref data (1- pointer))))
+@stack end
+
 (defun graph-count-if (predicate graph start
                        &optional (seen (make-bit-array (length graph))))
   (labels ((dfs (vs acc)

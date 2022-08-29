@@ -477,7 +477,7 @@
 (FUNCTION item acc arg1 arg2 ... argN) => new-acc, new-arg1, new-arg2,..., new-argN
 LIST -- list of items
 INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
-  (declare (optimize (speed 3) (debug 1)))
+  (declare (optimize (speed 3) (safety 1)))
   (declare (function function))
   (if (null list)
       (apply #'values initial-value initial-args)
