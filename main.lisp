@@ -167,18 +167,24 @@
               (when it
                 (aand ,@(cdr args)))))))
 
-(defun until (predicate function value)
+(defun until (predicate function value &rest more-values)
   (declare (optimize speed (safety 1)))
   (declare (function predicate function))
   (if (funcall predicate value)
       value
-      (until predicate function (funcall function value))))
+      (mvcall #'until
+              predicate
+              function
+              (apply function value more-values))))
 
-(defun while (predicate function value)
+(defun while (predicate function value &rest more-values)
   (declare (optimize speed (safety 1)))
   (declare (function predicate function))
   (if (funcall predicate value)
-      (while predicate function (funcall function value))
+      (mvcall #'while
+              predicate
+              function
+              (apply function value more-values))
       value))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
