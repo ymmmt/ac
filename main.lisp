@@ -745,15 +745,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (unless (zerop size)
              (list :displaced-to vec :displaced-index-offset beg)))))
 
-(defun make-bit-array (dimensions &rest args)
-  (apply #'make-array dimensions :element-type 'bit args))
+(defun make-bit-array (dimensions &rest initargs)
+  (apply #'make-array dimensions :element-type 'bit initargs))
 
 (defun make-list-array (dimensions)
   (make-array dimensions :element-type 'list
                          :initial-element nil))
 
-(defun make-fixnum-array (dimensions &rest args)
-  (apply #'make-array dimensions :element-type 'fixnum args))
+(defun make-fixnum-array (dimensions &rest initargs)
+  (apply #'make-array dimensions :element-type 'fixnum initargs))
 
 (defun make-adj-array (&optional (length 0))
   (make-array length :fill-pointer 0 :adjustable t))
@@ -779,6 +779,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               :initial-value `(setf (aref self ,@(mapcar #'first var-and-dimension-specs))
                                     (progn ,@body)))
      self))
+
+(defun accum-array (alist dimensions &rest initargs)
+  (let ((a (apply #'make-array dimensions initargs)))
+    (mapc (dlambda ((subscripts . value))
+            (setf (apply #'aref a subscripts)
+                  value))
+          alist)
+    a))
 
 ;;; Lists/Sequences
 
@@ -827,6 +835,60 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun drange (&rest args)
   (nreverse (apply #'range args)))
+
+(declaim (ftype (function (fixnum fixnum fixnum) fixnum) range-last))
+(defun range-last (start end step)
+  (assert (< start end))
+  (+ start (* step (floor (- end start 1) step))))
+
+(defun map-range (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (loop for i fixnum from start below end by step
+        collect (funcall function i)))
+
+(defun map-drange (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (let ((last (range-last start end step)))
+    (loop for i fixnum = last then (the fixnum (- i step))
+          while (>= i start)
+          collect (funcall function i))))
+
+(defun mapc-range (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (loop for i fixnum from start below end by step
+        do (funcall function i)))
+
+(defun mapc-drange (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (let ((last (range-last start end step)))
+    (loop for i fixnum = last then (the fixnum (- i step))
+          while (>= i start)
+          do (funcall function i))))
+
+(defun filter-range (predicate start end &optional (step 1))
+  (declare (function predicate)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (loop for i fixnum from start below end by step
+        when (funcall predicate i)
+          collect i))
+
+(defun filter-map-range (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (loop for i fixnum from start below end by step
+        for item = (funcall function i)
+        when item
+          collect item))
 
 (defun take (n list &key (step 1))
   (nlet rec ((n n) (list list) (acc nil))
@@ -1078,14 +1140,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (or count (length list))
            nil))))
 
-(defun insert (list index value)
-  (labels ((rec (list index)
-             (if (zerop index)
-                 (cons value list)
-                 (cons (car list)
-                       (rec (cdr list) (1- index))))))
-    (rec list index)))
-
 ;;; Graphs
 
 (defun make-graph (n-vertices edges &key directed)
@@ -1142,7 +1196,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              collect
              `(defmacro ,(mksym "~A*" acc) (var-and-args-specs &body body)
                 (when (null var-and-args-specs)
-                  (error "VAR-AND-ARGS-SPECS must not be null." ',acc))
+                  (error "VAR-AND-ARGS-SPECS must not be null."))
                 (labels ((rec (specs)
                            (if (null specs)
                                (ensure-form body)
