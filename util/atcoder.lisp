@@ -1,3 +1,25 @@
+;; depends on fib-heap
+;; https://github.com/kraison/graph-utils/blob/master/fib-heap.lisp
+(defun dijkstra (graph start weight)
+  (let* ((n (length graph))
+         (d (make-array-with-content ((v n))
+              (if (= v start) 0 +inf+)))
+         (heap (make-instance 'fib-heap)))
+    (mapc-range (lambda (v)
+                  (insert heap (svref d v) v))
+                0 n)
+    (labels ((relax (u v)
+               (let ((e (+ (svref d u) (funcall weight u v))))
+                 (when (> (svref d v) e)
+                   (setf (svref d v) e)
+                   (decrease-key heap v e)))))
+      (nlet rec ()
+        (if (empty-p heap)
+            d
+            (let ((u (extract-min heap)))
+              (mapc (curry #'relax u) (aref graph u))
+              (rec)))))))
+
 (defun row-insert (m w from to)
   "Inserts FROM row to TO row of matrix M."
   (let ((row (make-array-with-content ((j w))
