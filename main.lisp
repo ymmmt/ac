@@ -488,7 +488,7 @@
 
 (defun foldl1 (function sequence)
   (if (zerop (length sequence))
-      (error "foldl1: empty sequence")
+      (error "Empty sequence.")
       (reduce function sequence)))
 
 (defun foldr (function initial-value sequence)
@@ -496,7 +496,7 @@
 
 (defun foldr1 (function sequence)
   (if (zerop (length sequence))
-      (error "foldr1: empty sequence")
+      (error "Empty sequence.")
       (reduce function sequence :from-end t)))
 
 (defun mvfoldl (function list initial-value &rest initial-args)
@@ -515,7 +515,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun mvfoldl1 (function list &rest initial-args)
   (if (null list)
-      (error "mvfoldl1: empty list")
+      (error "Empty list.")
       (apply #'mvfoldl function (cdr list) (car list) initial-args)))
 
 (defun mvfoldr (function list initial-value &rest initial-args)
@@ -527,7 +527,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun mvfoldr1 (function list &rest initial-args)
   (if (null list)
-      (error "mvfoldr1: empty list")
+      (error "Empty list.")
       (let ((rev (reverse list)))
         (apply #'mvfoldl function (cdr rev) (car rev) initial-args))))
 
@@ -541,7 +541,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun scanl1 (function list)
   (if (null list)
-      (error "scanl1: empty list")
+      (error "Empty list.")
       (scanl function (car list) (cdr list))))
 
 (defun scanr (function initial-value list)
@@ -555,7 +555,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun scanr1 (function list)
   (if (null list)
-      (error "scanr1: empty list")
+      (error "Empty list.")
       (scanr function (car (last list)) (nbutlast list))))
 
 (defun ensure-function (sym-or-func)
@@ -563,7 +563,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         ((or (functionp sym-or-func)
              (and (consp sym-or-func) (eq (car sym-or-func) 'lambda)))
          sym-or-func)
-        (t (error "~A is not symbol or function" sym-or-func))))
+        (t (error "~A is not symbol or function." sym-or-func))))
 
 (defun disjoin (predicate &rest more-predicates)
   (declare (optimize (speed 3) (safety 1) (debug 1)))
@@ -1142,7 +1142,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              collect
              `(defmacro ,(mksym "~A*" acc) (var-and-args-specs &body body)
                 (when (null var-and-args-specs)
-                  (error "~A*: VAR-AND-ARGS-SPECS must not be null." ',acc))
+                  (error "VAR-AND-ARGS-SPECS must not be null." ',acc))
                 (labels ((rec (specs)
                            (if (null specs)
                                (ensure-form body)
