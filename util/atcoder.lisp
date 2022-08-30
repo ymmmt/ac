@@ -1,3 +1,23 @@
+(defun row-insert (m w from to)
+  "Inserts FROM row to TO row of matrix M."
+  (let ((row (make-array-with-content ((j w))
+               (aref m from j))))
+    (cond ((< from to)
+           (loop for i from from to (1- to) do
+             (dotimes (j w)
+               (setf (aref m i j)
+                     (aref m (1+ i) j)))))
+          ((> from to)
+           (loop for i from from downto (1+ to) do
+             (dotimes (j w)
+               (setf (aref m i j)
+                     (aref m (1- i) j)))))
+          (t
+           (return-from row-insert m)))
+    (dotimes (j w m)
+      (setf (aref m to j)
+            (aref row j)))))
+
 @stack
 (defstruct (stack (:constructor make-stack
                       (size &aux (data (make-fixnum-array size)))))
