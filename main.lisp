@@ -106,13 +106,33 @@
           ((= (length body) 1)
            (car body))
           (t
-           `(progn ,@body)))))
+           `(progn ,@body))))
+
+  (defun definition->memoized-definition (definition table)
+    (with-gensyms (args val found-p)
+      (dbind (name lambda-list &body body) definition
+        `(,name (&rest ,args)
+                (mvbind (,val ,found-p)
+                    (gethash ,args ,table)
+                  (if ,found-p ,val
+                      (setf (gethash ,args ,table)
+                            (dbind ,lambda-list ,args
+                              ,@body))))))))
+
+  ) ; eval-when
 
 (defmacro with-memos (definitions &body body)
   (if (null definitions)
       (ensure-form body)
-      `(with-memo ,(car definitions)
-         (with-memos ,(cdr definitions) ,@body))))
+      (let* ((n (length definitions))
+             (tables (loop repeat n collect (gensym "TABLE"))))
+        `(let ,(mapcar (lambda (table)
+                         `(,table (make-hash-table :test 'equal)))
+                tables)
+           (labels ,(mapcar (lambda (definition table)
+                              (definition->memoized-definition definition table))
+                            definitions tables)
+             ,@body)))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun ensure-list (x)
