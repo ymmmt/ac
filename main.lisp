@@ -895,6 +895,34 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         when item
           collect item))
 
+(defun range-foldl (function initial-value start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (let ((acc initial-value))
+    (loop for i fixnum from start below end by step
+          do (setf acc (funcall function acc i)))
+    acc))
+
+(defun range-foldl1 (function start end &optional (step 1))
+  (assert (< start end))
+  (range-foldl function start (1+ start) end step))
+
+(defun range-foldr (function initial-value start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (let ((last (range-last start end step))
+        (acc initial-value))
+    (loop for i fixnum = last then (the fixnum (- i step))
+          while (>= i start)
+          do (setf acc (funcall function i acc)))
+    acc))
+
+(defun range-foldr1 (function start end &optional (step 1))
+  (assert (< start end))
+  (range-foldr function start (1+ start) end step))
+
 (defun take (n list &key (step 1))
   (nlet rec ((n n) (list list) (acc nil))
     (if (or (zerop n) (null list))
