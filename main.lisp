@@ -353,6 +353,16 @@
     (readlet (u v)
       (cons (1- u) (1- v)))))
 
+(defun read-weighted-edges (n-edges)
+  (nlet rec ((i 0) (edges nil) (ws nil))
+    (if (= i n-edges)
+        (values (nreverse edges)
+                (nreverse ws))
+        (readlet (u v w)
+          (rec (1+ i)
+               (acons (1- u) (1- v) edges)
+               (cons w ws))))))
+
 (defun read-graph (n-vertices n-edges &key directed)
   (let ((graph (make-list-array n-vertices)))
     (loop repeat n-edges do
