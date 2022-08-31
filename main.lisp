@@ -920,8 +920,50 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     acc))
 
 (defun range-foldr1 (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
   (assert (< start end))
-  (range-foldr function start (1+ start) end step))
+  (let ((last (range-last start end step)))
+    (range-foldr function last start (- end step) step)))
+
+(defun range-scanl (function initial-value start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (let ((acc initial-value))
+    (cons initial-value
+          (loop for i fixnum from start below end by step
+                do (setf acc (funcall function acc i))
+                collect acc))))  
+
+(defun range-scanl1 (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (assert (< start end))
+  (range-scanl function start (1+ start) end step))
+
+(defun range-scanr (function initial-value start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (let ((last (range-last start end step))
+        (acc initial-value))
+    (nreverse
+     (cons initial-value
+           (loop for i fixnum = last then (the fixnum (- i step))
+                 while (>= i start)
+                 do (setf acc (funcall function i acc))
+                 collect acc)))))
+
+(defun range-scanr1 (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
+  (assert (< start end))
+  (let ((last (range-last start end step)))
+    (range-scanr function last start (- end step) step)))
 
 (defun take (n list &key (step 1))
   (nlet rec ((n n) (list list) (acc nil))
