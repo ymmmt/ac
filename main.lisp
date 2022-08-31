@@ -689,6 +689,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              ht)
     result))
 
+(defun ht (keys values &key (test #'eql))
+  (let ((ht (make-hash-table :test test)))
+    (mapc (lambda (k v)
+            (setf (gethash k ht) v))
+          keys values)
+    ht))
+
 (defun make-hashset (list &key (test 'eql))
   (let ((ht (make-hash-table :test test)))
     (dolist (item list ht)
