@@ -821,6 +821,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (t
          (length<= (1- n) (cdr list)))))
 
+(defun all-same-p (list &key (test 'eql))
+  (or (null list)
+      (every (curry test (car list))
+             (cdr list))))
+
 (defun range (&rest args)
   (ecase (length args)
     (1 (let ((end (car args)))

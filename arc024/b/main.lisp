@@ -821,6 +821,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (t
          (length<= (1- n) (cdr list)))))
 
+(defun all-same-p (list &key (test 'eql))
+  (or (null list)
+      (every (curry test (car list))
+             (cdr list))))
+
 (defun range (&rest args)
   (ecase (length args)
     (1 (let ((end (car args)))
@@ -1267,8 +1272,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun solve (n cs)
   (declare (ignore n))
-  (if (every (eqler (car cs))
-             cs)
+  (if (all-same-p cs)
       -1
       (let* ((c1 (car cs))
              (cn (last1 cs))
@@ -1279,9 +1283,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (-> (multiset cs #'=)
             (reduce #'max % :key (dlambda ((c . count))
                                    (declare (ignore c))
-                                   (if (<= count 2)
-                                       0
-                                       (floor (1- count) 2))))
+                                   (floor (1- count) 2)))
             1+))))
 
 (defun main ()
