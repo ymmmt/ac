@@ -1,3 +1,10 @@
+(defun choose (n k)
+  (if (or (minusp k) (< n k))
+      0
+      (/ (fact n)
+         (fact k)
+         (fact (- n k)))))
+
 ;; depends on fib-heap
 ;; https://github.com/kraison/graph-utils/blob/master/fib-heap.lisp
 (defun dijkstra (graph start weight)
