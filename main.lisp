@@ -922,6 +922,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     acc))
 
 (defun range-foldl1 (function start end &optional (step 1))
+  (declare (function function)
+           (fixnum start end step)
+           (optimize speed (safety 0)))
   (assert (< start end))
   (range-foldl function start (1+ start) end step))
 
@@ -929,12 +932,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (declare (function function)
            (fixnum start end step)
            (optimize speed (safety 0)))
-  (let ((last (range-last start end step))
-        (acc initial-value))
-    (loop for i fixnum = last then (the fixnum (- i step))
-          while (>= i start)
-          do (setf acc (funcall function i acc)))
-    acc))
+  (if (>= start end)
+      (list initial-value)
+      (let ((last (range-last start end step))
+            (acc initial-value))
+        (loop for i fixnum = last then (the fixnum (- i step))
+              while (>= i start)
+              do (setf acc (funcall function i acc)))
+        acc)))
 
 (defun range-foldr1 (function start end &optional (step 1))
   (declare (function function)
@@ -965,14 +970,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (declare (function function)
            (fixnum start end step)
            (optimize speed (safety 0)))
-  (let ((last (range-last start end step))
-        (acc initial-value))
-    (nreverse
-     (cons initial-value
-           (loop for i fixnum = last then (the fixnum (- i step))
-                 while (>= i start)
-                 do (setf acc (funcall function i acc))
-                 collect acc)))))
+  (if (>= start end)
+      (list initial-value)
+      (let ((last (range-last start end step))
+            (acc initial-value))
+        (nreverse
+         (cons initial-value
+               (loop for i fixnum = last then (the fixnum (- i step))
+                     while (>= i start)
+                     do (setf acc (funcall function i acc))
+                     collect acc))))))
 
 (defun range-scanr1 (function start end &optional (step 1))
   (declare (function function)
