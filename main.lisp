@@ -942,7 +942,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (optimize speed (safety 0)))
   (assert (< start end))
   (let ((last (range-last start end step)))
-    (range-foldr function last start (- end step) step)))
+    (range-foldr function last start last step)))
 
 (defun range-scanl (function initial-value start end &optional (step 1))
   (declare (function function)
@@ -980,7 +980,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (optimize speed (safety 0)))
   (assert (< start end))
   (let ((last (range-last start end step)))
-    (range-scanr function last start (- end step) step)))
+    (range-scanr function last start last step)))
 
 (defun take (n list &key (step 1))
   (nlet rec ((n n) (list list) (acc nil))
