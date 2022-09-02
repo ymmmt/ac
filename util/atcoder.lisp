@@ -1,4 +1,5 @@
 (defun choose (n k)
+  "Note that (choose 0 0) == 1"
   (if (or (minusp k) (< n k))
       0
       (/ (fact n)
@@ -1819,14 +1820,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                      (1+ acc)))))))
 
 (defun num->digits (num &optional (base 10))
-  (nreverse 
-   (loop for x = num then (floor x base)
-         while (plusp x)
-         collect (mod x base))))
+  (if (zerop num)
+      (list 0)
+      (nreverse 
+       (loop for x = num then (floor x base)
+             while (plusp x)
+             collect (mod x base)))))
 
 (defun digits->num (digits &optional (base 10))
   (reduce (lambda (acc d) (+ (* acc base) d))
-          digits))
+          digits
+          :initial-value 0))
 
 (defun row-major-index (i j n-cols)
   (+ (* i n-cols) j))
