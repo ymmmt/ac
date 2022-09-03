@@ -62,7 +62,7 @@
 
 (defmacro with-gensyms (syms &body body)
   `(let ,(mapcar #'(lambda (s)
-                     `(,s (gensym)))
+                     `(,s (gensym ,(string s))))
           syms)
      ,@body))
 
