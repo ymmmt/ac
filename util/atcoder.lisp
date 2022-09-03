@@ -1,3 +1,24 @@
+(defun crossp (p q a b)
+  "p == (px . py), q == (qx . qy),
+   a == (ax . ay), b == (bx . by)
+Returns t if line PQ intersects line AB."
+  (and (dividep p q a b)
+       (dividep a b p q)))
+
+(defun separatep (p q a b)
+  "p == (px . py), q == (qx . qy),
+   a == (ax . ay), b == (bx . by)
+Returns t if line PQ separates point A and point B into
+different sign domains."
+  (dbind (px . py) p
+    (dbind (qx . qy) q
+      (labels ((sign (point)
+                 (dbind (x . y) point
+                   (signum (- (* (- py qy) (- x px))
+                              (* (- px qx) (- y py)))))))
+        (= (* (sign a) (sign b))
+           -1)))))
+
 (defmemo (fact) (n)
   (if (<= n 1)
       1
