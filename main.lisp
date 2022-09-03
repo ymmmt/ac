@@ -348,6 +348,14 @@
       (read-char)) ; skip #\Newline
     mat))
 
+(defun read-conses (n)
+  (collect n
+    (readlet (x y)
+      (cons x y))))
+
+(defun read-lists (n)
+  (collect n (readlist)))
+
 (defun read-edges (n-edges)
   (collect n-edges
     (readlet (u v)
