@@ -1,3 +1,27 @@
+(defmemo (fact) (n)
+  (if (<= n 1)
+      1
+      (* n (fact (1- n)))))
+
+(defun min-dists (graph start)
+  (let* ((n (length graph))
+         (d (make-fixnum-array n :initial-element -1))
+         (p (make-fixnum-array n :initial-element -1)))
+    (labels ((dfs (u dist parent)
+               (setf (aref d u) dist)
+               (setf (aref p u) parent)
+               (dolist (v (aref graph u))
+                 (when (= (aref d v) -1)
+                   (dfs v (1+ dist) u)))))
+      (dfs start 0 -1)
+      (values d p))))
+
+(defmemo (subtree-size :key (curry #'take 2) :test #'equal) (graph root &optional parent)
+  (1+ (sum (v (aref graph root))
+        (if (eql parent v)
+            0
+            (subtree-size graph v root)))))
+
 (defun choose (n k)
   "Note that (choose 0 0) == 1"
   (if (or (minusp k) (< n k))
