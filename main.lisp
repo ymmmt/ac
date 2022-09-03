@@ -805,6 +805,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           alist)
     a))
 
+(defun make-arrayset (natural-numbers &optional (max (reduce #'max natural-numbers)))
+  (assert (<= max #.(expt 10 6)))
+  (let ((a (make-bit-array (1+ max))))
+    (mapc (lambda (i)
+            (setf (aref a i) 1))
+          natural-numbers)
+    a))
+
 ;;; Lists/Sequences
 
 (defun coerce-list (object)
