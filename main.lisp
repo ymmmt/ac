@@ -1,3 +1,4 @@
+
 (in-package :cl-user)
 
 #-swank
@@ -748,6 +749,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (let ((ht (make-hash-table :test test)))
     (loop for (k . v) in alist do
       (push v (gethash k ht)))
+    (do-hashkeys (k ht)
+      (setf (gethash k ht)
+            (nreverse (gethash k ht))))
     ht))
 
 ;;; Arrays
@@ -1041,6 +1045,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defsubst repeat (n item)
   (make-list n :initial-element item))
+
+(defun alist (keys data &optional alist)
+  (nconc (nreverse (pairlis keys data))
+         alist))
 
 (defun zip (&rest lists)
   (when lists
