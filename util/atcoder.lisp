@@ -1,3 +1,13 @@
+(defmemo (mod-fib) (n)
+  (if (<= n 1)
+      1
+      (nlet rec ((a 1) (b 1) (c 2))
+        (if (= c n)
+            (md (+ a b))
+            (rec (md (+ a b))
+                 a
+                 (1+ c))))))
+
 (defun crossp (p q a b)
   "p == (px . py), q == (qx . qy),
    a == (ax . ay), b == (bx . by)
