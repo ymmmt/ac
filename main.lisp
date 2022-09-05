@@ -187,6 +187,16 @@
               (when it
                 (aand ,@(cdr args)))))))
 
+(defmacro acond (&rest clauses)
+  (if (null clauses)
+      nil
+      (let ((cl1 (car clauses)))
+        (with-gensyms (sym)
+          `(let ((,sym ,(car cl1)))
+             (if ,sym
+                 (let ((it ,sym)) ,@(cdr cl1))
+                 (acond ,@(cdr clauses))))))))
+
 (defun until (predicate function value &rest more-values)
   (declare (optimize speed (safety 1)))
   (declare (function predicate function))
