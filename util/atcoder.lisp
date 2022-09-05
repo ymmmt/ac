@@ -1,3 +1,12 @@
+;; depends on cp/explicit-treap
+(defun treap-count (treap)
+  (let ((c 0))
+    (treap-map (lambda (k v)
+                 (declare (ignore k v))
+                 (incf c))
+               treap)
+    c))
+
 ;; depends on cp/bisect
 (defun longest-monotonic-subsequence (sequence &key key (test #'<))
   (let ((length->last-min (make-adj-array)))
