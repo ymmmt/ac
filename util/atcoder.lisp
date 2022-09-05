@@ -1,3 +1,31 @@
+;; depends on cp/bisect
+(defun longest-monotonic-subsequence (sequence &key key (test #'<))
+  (let ((length->last-min (make-adj-array)))
+    (map nil (lambda (x)
+               (let ((k (ensure-key key x)))
+                 (if (zerop (length length->last-min))
+                     (vector-push-extend k length->last-min)
+                     (let ((len (bisect-left (arefer length->last-min)
+                                             k
+                                             :end (length length->last-min)
+                                             :order test)))
+                       (if (>= len (length length->last-min))
+                           (vector-push-extend k length->last-min)
+                           (setf (aref length->last-min len) k))))))
+         sequence)
+    (values (length length->last-min)
+            length->last-min)))
+
+;; depends on insert
+(defun perms (n)
+  (if (= n 1)
+      (list (list 1))
+      (mapcan (lambda (p)
+                (map-drange (lambda (pos)
+                              (insert p pos n))
+                            0 n))
+              (perms (1- n)))))
+
 (defun remove-uniques (list &key (test #'eql))
   (filter (compose #>1 (mapper (counter list :test test)))
           list))
