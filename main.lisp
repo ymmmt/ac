@@ -625,6 +625,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst md (x)
   (mod x +mod+))
 
+(defsubst oddity= (x y)
+  (= (mod x 2) (mod y 2)))
+
 (defsubst ^2 (x)
   (expt x 2))
 
