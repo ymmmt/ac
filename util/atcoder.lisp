@@ -484,7 +484,6 @@ cx + dy = q"
      (loop while (< (get-internal-real-time) ,gend)
            do ,@body))))
 
-;; depends on split-at
 ;; https://kira000.hatenadiary.jp/entry/2019/02/23/053917
 (defun inversion-number (list > &optional (n (length list)))
   (if (<= n 1)
