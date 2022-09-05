@@ -250,6 +250,12 @@
                           &body clauses)
   (generate-switch-body whole object clauses test key '(cerror "Return NIL from CSWITCH.")))
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defmacro ensure-key (key expr)
+    `(aif ,key
+          (funcall it ,expr)
+          ,expr)))
+
 ;;; Read macros
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
