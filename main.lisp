@@ -819,6 +819,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           alist)
     a))
 
+(defun arr (subscripts-list values dimensions &rest initargs)
+  (let ((a (apply #'make-array dimensions initargs)))
+    (mapc (lambda (subscripts value)
+            (setf (apply #'aref a (ensure-list subscripts))
+                  value))
+          subscripts-list values)
+    a))
+
 (defun make-arrayset (natural-numbers &optional (max (reduce #'max natural-numbers)))
   (assert (<= max #.(expt 10 6)))
   (let ((a (make-bit-array (1+ max))))
