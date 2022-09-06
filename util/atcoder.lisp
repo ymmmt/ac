@@ -1,3 +1,12 @@
+(defun floyd-warshall (n-vertices weight)
+  (with-memos ((d (i j k)
+                 (if (zerop k)
+                     (funcall weight i j)
+                     (min (d i j (1- k))
+                          (+ (d i k (1- k))
+                             (d k j (1- k)))))))
+    (rcurry #'d (1- (n-vertices)))))
+
 ;; depends on cp/explicit-treap
 (defun treap-count (treap)
   (let ((c 0))
@@ -2958,5 +2967,5 @@ where (<= 0 k (length a))"
       (loop for v across vertices
             for j below n do
               (setf (aref distance i j) (vertex-d v))))
-    distance))      
+    distance))
 @dijkstra end
