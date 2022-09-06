@@ -1,3 +1,16 @@
+;; depends on dijkstra
+(defun johnson-without-reweighting (graph weight)
+  (let* ((n (length graph))
+         (d (make-array `(,n ,n))))
+    (mapc-range (lambda (u)
+                  (let ((du (dijkstra graph u weight)))
+                    (mapc-range (lambda (v)
+                                  (setf (aref d u v)
+                                        (aref du v)))
+                                0 n)))
+                0 n)
+    d))
+
 (defun floyd-warshall (n-vertices weight)
   (with-memos ((d (i j k)
                  (if (zerop k)
