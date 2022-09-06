@@ -2740,6 +2740,23 @@ where (<= 0 k (length a))"
                    (enqueue v q)))))
     seen))
 
+;; depends on @queue
+(defun bfs (graph start)
+  (let* ((n (length graph))
+         (d (make-array n :initial-element -1))
+         (p (make-array n :initial-element -1)))
+    (setf (aref d start) 0)
+    (nlet rec ((vs (snoc (make-queue) start)))
+      (if (queue-empty-p vs)
+          (values d p)
+          (let ((u (head vs)))
+            (rec (foldl #'snoc (tail vs)
+                        (filter (lambda (v)
+                                  (when (= (aref d v) -1)
+                                    (setf (aref d v) (1+ (aref d u))
+                                          (aref p v) u)))
+                                (aref graph u)))))))))
+
 (defun paint-graph-in-two-colors (adjacency-list start)
   (let ((verts (bfs adjacency-list 0)))
     (loop for v across verts do
