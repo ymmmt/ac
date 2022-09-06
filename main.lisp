@@ -843,6 +843,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           subscripts-list values)
     a))
 
+(defun matrix (h w subscripts-alist values &rest initargs)
+  (let ((m (apply #'make-array `(,h ,w) initargs)))
+    (mapc (dlambda ((i . j) value)
+            (setf (aref m i j) value))
+          subscripts-alist values)
+    m))
+
 (defun make-arrayset (natural-numbers &optional (max (reduce #'max natural-numbers)))
   (assert (<= max #.(expt 10 6)))
   (let ((a (make-bit-array (1+ max))))
