@@ -1,3 +1,7 @@
+(defun intersections (list &rest more-lists)
+  (reduce #'intersection
+          (cons list more-lists)))
+
 ;; depends on dijkstra
 (defun johnson-without-reweighting (graph weight)
   (let* ((n (length graph))
