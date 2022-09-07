@@ -1,3 +1,102 @@
+(defun cons-order (car-key cdr-key &key (order #'<))
+  (dlambda ((a . b) (c . d))
+    (let ((ka (funcall car-key a))
+          (kc (funcall car-key c)))
+      (or (funcall order ka kc)
+          (and (not (fucnall order kc ka))
+               (funcall order (funcall cdr-key b) (funcall cdr-key d)))))))
+
+(defun cons< (cons1 cons2 &key (test #'<))
+  (dbind (a . b) cons1
+    (dbind (c . d) cons2
+      (or (funcall test a c)
+          (and (not (funcall test c a))
+               (funcall test b d))))))
+
+(defun list< (list1 list2 &key (test #'<))
+  (nlet rec ((l1 list1) (l2 list2))
+    (cond ((null l2) nil)
+          ((null l1) t)
+          ((funcall test (car l1) (car l2))
+           t)
+          ((funcall test (car l2) (car l1))
+           nil)
+          (t
+           (rec (cdr l1) (cdr l2))))))
+
+;; @avltree
+;; (defstruct (avltree (:conc-name nil)
+;;                     (:constructor avltree
+;;                         (key left right)))
+;;   key left right)
+
+;; (defun %rotate-left (avltree)
+;;   (if (null avltree)
+;;       nil
+;;       (with-accessors ((k key) (l left) (r right)) avltree
+;;         (with-accessors ((lk key) (ll left) (lr right)) l
+;;           (avltree lk ll (avltree lr r))))))
+
+;; (defun %rotate-right (avltree)
+;;   (if (null avltree)
+;;       nil
+;;       (with-accessors ((k key) (l left) (r right)) avltree
+;;         (with-accessors ((rk key) (rl left) (rr right)) r
+;;           (avltree rk (avltree k l rl) rr)))))
+
+;; (defun %double-rotate-right-left (avltree)
+;;   (with-accessors ((k key) (l left) (r right)) avltree
+;;     (with-accessors ((rk key) (rl left) (rr right)) r
+;;       (with-accessors ((rlk key) (rll left) (rlr right)) rl
+;;         (avltree rlk
+;;                  (avltree k l rll)
+;;                  (avltree rk rlr rr))))))
+
+;; (defun %double-rotate-left-right (avltree)
+;;   (with-accessors ((k key) (l left) (r right)) avltree
+;;     (with-accessors ((lk key) (ll left) (lr right)) l
+;;       (with-accessors ((lrk key) (lrl left) (lrr right)) lr
+;;         (avltree lrk
+;;                  (avltree lk ll lrl)
+;;                  (avltree k lrr r))))))
+
+;; (defun %height (avltree)
+;;   (if (null avltree)
+;;       0
+;;       (with-accessors ((l left) (r right)) avltree
+;;         (1+ (max (height l) (height r))))))
+
+;; (defun avltree-insert (avltree key &key (order #'<))
+;;   (if (null avltree)
+;;       (avltree key nil nil)
+;;       (with-accessors ((k key) (l left) (r right)) avltree
+;;         (if (funcall order key k)
+;;             (let ((l* (avltree-insert key l)))
+;;               (with-accessors ((lk* key)) l*
+;;                 (if (= (- (%height l*) (%height r)) 2)
+;;                     (if (funcall order key lk*)
+;;                         (%rotate-left (avltree k l* r))
+;;                         (%double-rotate-left-right (avltree k l* r)))
+;;                     (avltree k l* r))))
+;;             (let ((r* (avltree-insert key r)))
+;;               (with-accessors ((rk* key)) r*
+;;                 (if (= (- (%height r*) (%height l)) 2)
+;;                     (if (funcall order rk* key)
+;;                         (%rotate-right (avltree k l r*))
+;;                         (%double-rotate-right-left (avltree k l r*)))
+;;                     (avltree k l r*))))))))
+
+;; (defun avltree-find (avltree key &key (order #'<))
+;;   (if (null avltree)
+;;       nil
+;;       (with-accessors ((k key) (l left) (r right)) avltree
+;;         (cond ((funcall order key k)
+;;                (avltree-find l key :order order))
+;;               ((funcall order k key)
+;;                (avltree-find r key :order order))
+;;               (t avltree)))))
+;; @avltree
+
 (defun triangle-area (p q r)
   (dbind (px . py) p
     (dbind (qx . qy) q
@@ -2029,16 +2128,17 @@ cx + dy = q"
                    (char= c fst))
                (coerce str 'list)))))
 
-(defun argmax (list &key (key #'identity))
-  (when list
-    (labels ((rec (i list idx elem max)
-               (if (null list)
-                   (values idx elem max)
-                   (let ((val (funcall key (car list))))
-                     (if (> val max)
-                         (rec (1+ i) (cdr list) i (car list) val)
-                         (rec (1+ i) (cdr list) idx elem max))))))
-      (rec 1 (cdr list) 0 (car list) (funcall key (car list))))))
+(defun argmax (function list)
+  (if (null list)
+      (error "Empty list.")
+      (labels ((rec (i list idx elem max)
+                 (if (null list)
+                     (values idx elem max)
+                     (let ((val (funcall function (car list))))
+                       (if (> val max)
+                           (rec (1+ i) (cdr list) i (car list) val)
+                           (rec (1+ i) (cdr list) idx elem max))))))
+        (rec 1 (cdr list) 0 (car list) (funcall function (car list))))))
 
 (defun argmin (list &key (key #'identity))
   (when list
@@ -2853,10 +2953,6 @@ where (<= 0 k (length a))"
 @dfs end
 
 @avltree
-(defconstant inf most-positive-fixnum)
-
-(defconstant ninf most-negative-fixnum)
-
 (defclass avl-tree ()
   ((key
     :initarg :node-key
