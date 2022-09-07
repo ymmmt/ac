@@ -1302,9 +1302,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (subseq sequence 1)
              :initial-value (list (cons (elt sequence 0) 1))))))
 
-(defun delete-dups (list sort-predicate test)
+(defun delete-dups (list &key (order #'<) (test #'=))
   (mapcar #'car
-          (multiset (sort list sort-predicate)
+          (multiset (sort list order)
                     test)))
 
 (defun group (n list)
