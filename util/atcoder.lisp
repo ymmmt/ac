@@ -1,3 +1,50 @@
+(defun dff (graph)
+  "Returns list of connected compoents by doing dfs."
+  (let* ((n (length graph))
+         (seen (make-bit-array n)))
+    (labels ((dfs (start)
+               (setf (aref seen start) 1)
+               (nlet rec ((stack (list start))
+                          (vs nil)
+                          (es nil))
+                 (if (null stack)
+                     (list vs es)
+                     (let ((u (car stack)))
+                       (rec (nconc (filter (lambda (v)
+                                             (when (zerop (aref seen v))
+                                               (setf (aref seen v) 1)))
+                                           (aref graph u))
+                                   (cdr stack))
+                            (cons u vs)
+                            (nconc (mapcar (curry #'cons u) (aref graph u))
+                                   es)))))))
+      (lcomp ((v 0 n))
+          (zerop (aref seen v))
+        (dfs v)))))
+
+(defun n-cycles (n-vertices n-edges n-connected-components)
+  "Returns number of cycles of undirected, connected and simple graph."
+  (+ (/ n-edges 2) (- n-vertices) n-connected-components))
+
+(defun count-cycles (graph start &optional (seen (make-bit-array (length graph))))
+  "GRAPH must be simple: no self loops and no duplicate edges."
+  (nlet rec ((vs `((,start . -1)))
+             (c 0))
+    (if (null vs)
+        c
+        (dbind (u . parent) (car vs)
+          (if (plusp (aref seen u))
+              (rec (cdr vs) (1+ c))
+              (progn
+                (setf (aref seen u) 1)
+                (rec (nconc (filter-map (lambda (v)
+                                          (when (and (/= v parent)
+                                                     (zerop (aref seen v)))
+                                            (cons v u)))
+                                        (aref graph u))
+                            (cdr vs))
+                     c)))))))
+
 (defun intersections (list &rest more-lists)
   (reduce #'intersection
           (cons list more-lists)))
