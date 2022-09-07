@@ -1,3 +1,14 @@
+(defun triangle-area (p q r)
+  (dbind (px . py) p
+    (dbind (qx . qy) q
+      (dbind (rx . ry) r
+        (let ((a (- qx px))
+              (b (- qy py))
+              (c (- rx px))
+              (d (- ry py)))
+          (/ (abs (- (* a d) (* b c)))
+             2))))))
+
 (defun dff (graph)
   "Returns list of connected compoents by doing dfs."
   (let* ((n (length graph))
@@ -23,7 +34,7 @@
         (dfs v)))))
 
 (defun n-cycles (n-vertices n-edges n-connected-components)
-  "Returns number of cycles of undirected, connected and simple graph."
+  "Returns number of cycles of undirected and simple graph."
   (+ (/ n-edges 2) (- n-vertices) n-connected-components))
 
 (defun count-cycles (graph start &optional (seen (make-bit-array (length graph))))
