@@ -880,7 +880,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               var-and-dimension-specs
               :from-end t
               :initial-value `(setf (aref self ,@(mapcar #'first var-and-dimension-specs))
-                                    (progn ,@body)))
+                                    ,(ensure-form body)))
      self))
 
 (defun accum-array (alist dimensions &rest initargs)
