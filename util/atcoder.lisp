@@ -1,3 +1,23 @@
+;; https://atcoder.jp/contests/arc146/editorial/4634
+(defun minimum-superset (x min)
+  "Returns Y >= X s.t. (logand X Y) == X."
+  (declare (optimize speed (safety 1))
+           (fixnum x min))
+  (assert (and (integerp x)
+               (plusp x)))
+  (if (>= x min)
+      x
+      (range-foldr (lambda (i acc)
+                     (+ (2* acc)
+                        (if (logbitp i x)
+                            1
+                            (if (< (1- (ash (1+ (2* acc)) i))
+                                   min)
+                                1
+                                0))))
+                   0
+                   0 (integer-length min))))
+
 (defun cons-order (car-key cdr-key &key (order #'<))
   (dlambda ((a . b) (c . d))
     (let ((ka (funcall car-key a))
