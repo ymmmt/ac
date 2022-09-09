@@ -1,3 +1,15 @@
+(defmacro avalues (&rest values)
+  (when values
+    `(apply #'values
+            ,(foldr (lambda (v acc)
+                      (with-gensyms (value)
+                        `(let ((,value ,v))
+                           (cons ,value
+                                 (let ((it ,value))
+                                   ,acc)))))
+                    `(list ,(last1 values))
+                    (butlast values)))))
+
 (defun read-binary (&rest args)
   (values (read-from-string
            (concatenate 'string "#b"
