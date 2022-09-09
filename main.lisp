@@ -1237,6 +1237,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (car list)
            (funcall function (car list))))
 
+(defun best-k (k list test &key key)
+  (take k (sort (copy-list list) test :key key)))
+
+(defun nbest-k (k list test &key key)
+  (take k (sort list test :key key)))
+
 (defun split (item list &key (test 'eql) omit-nulls)
   (split-if (lambda (item2)
               (funcall test item item2))
