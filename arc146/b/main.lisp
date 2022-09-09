@@ -1565,8 +1565,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (take k (sort list test :key key)))
 
 ;; https://atcoder.jp/contests/arc146/submissions/34497277
-;; 気持ちとして、まずd値はaが1にする必要のある
-;; targetのビットを表している。これが0のときは、
+;; 気持ちとして、まずdはaが0から1にする必要のある
+;; targetのビットを表している。d=0のときは、
 ;; 既にtargetの1ビットすべてをaも持っているので
 ;; コストは0。
 ;; 0でないときは、それらの1ビットを加算によって
