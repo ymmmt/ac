@@ -1,3 +1,13 @@
+(defun read-binary (&rest args)
+  (values (read-from-string
+           (concatenate 'string "#b"
+                        (apply #'read-line args)))))
+
+(defun read-bit-vector (&rest args)
+  (values (read-from-string
+           (concatenate 'string "#*"
+                        (apply #'read-line args)))))
+
 ;; https://atcoder.jp/contests/arc146/editorial/4634
 (defun minimum-superset (x min)
   "Returns Y >= X s.t. (logand X Y) == X."
@@ -1633,8 +1643,12 @@ cx + dy = q"
 ;;        0)))
 ;;       numbers)))))
 
+;; (defun invert-kth-bit% (k x)
+;;   (logxor (ash 1 k) x))
+
 (defun invert-kth-bit (k x)
-  (logxor (ash 1 k) x))
+  (let ((b (if (logbitp k x) 0 1)))
+    (dpb b (byte k 1) x)))
 
 @profile
 ;; http://www.sbcl.org/manual/#Profiling
