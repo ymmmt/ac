@@ -747,7 +747,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun binary-search (left right predicate)
   "invariant: (funcall predicate left) => t, (funcall predicate right) => nil"
   (labels ((rec (left right)
-             (let ((mid (floor (+ left right) 2)))
+             (let ((mid (ash (+ left right) -1)))
                (cond ((= (1+ left) right)
                       left)
                      ((funcall predicate mid)
