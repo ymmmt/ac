@@ -260,6 +260,16 @@
                             0 n))
               (perms (1- n)))))
 
+;; depends on insert
+(defun permutations (list &optional (n (length list)))
+  (if (null list)
+      (list nil)
+      (mapcan (lambda (p)
+                (map-drange (lambda (pos)
+                              (insert p pos (car list)))
+                            0 n))
+              (permutations (cdr list) (1- n)))))
+
 (defun remove-uniques (list &key (test #'eql))
   (filter (compose #>1 (mapper (counter list :test test)))
           list))
