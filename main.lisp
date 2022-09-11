@@ -417,14 +417,14 @@
     (with-output-to-string (*standard-output* nil :element-type 'base-char)
       ,@body)))
 
-(defun join-print (sequence &key (count (length sequence)) (key #'identity) (test (constantly t)))
+(defun join-print (sequence &key (count (length sequence)) (key #'identity) (test (constantly t)) (sep " "))
   (let ((c 0))
     (map nil (lambda (item)
                (when (and (<= (incf c) count)
                           (funcall test item))
                  (princ (funcall key item))
                  (when (< c count)
-                   (princ " "))))
+                   (princ sep))))
          sequence)
     (fresh-line)))
 
