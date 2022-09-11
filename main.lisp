@@ -372,20 +372,30 @@
 (defun read-lists (n)
   (collect n (readlist)))
 
-(defun read-edges (n-edges)
-  (collect n-edges
-    (readlet (u v)
-      (cons (1- u) (1- v)))))
+(defun read-edges (n-edges &key directed)
+  (loop repeat n-edges
+        nconc
+        (readlet (u v)
+          (if directed
+              (list (cons (1- u) (1- v)))
+              (list (cons (1- u) (1- v))
+                    (cons (1- v) (1- u)))))))
 
-(defun read-weighted-edges (n-edges)
+(defun read-weighted-edges (n-edges &key directed)
   (nlet rec ((i 0) (edges nil) (ws nil))
     (if (= i n-edges)
         (values (nreverse edges)
                 (nreverse ws))
         (readlet (u v w)
           (rec (1+ i)
-               (acons (1- u) (1- v) edges)
-               (cons w ws))))))
+               (if directed
+                   (acons (1- u) (1- v) edges)
+                   (acons (1- u) (1- v)
+                          (acons (1- v) (1- u)
+                                 edges)))
+               (if directed
+                   (cons w ws)
+                   (list* w w ws)))))))
 
 (defun read-graph (n-vertices n-edges &key directed)
   (let ((graph (make-list-array n-vertices)))
@@ -1360,12 +1370,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Graphs
 
-(defun make-graph (n-vertices edges &key directed)
+(defun make-graph (n-vertices edges)
   (let ((graph (make-list-array n-vertices)))
     (mapc (dlambda ((u . v))
-            (push v (aref graph u))
-            (unless directed
-              (push u (aref graph v))))
+            (push v (aref graph u)))
           edges)
     graph))
 
