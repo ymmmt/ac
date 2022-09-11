@@ -222,15 +222,10 @@
 ;; depends on dijkstra
 (defun johnson-without-reweighting (graph weight)
   (let* ((n (length graph))
-         (d (make-array `(,n ,n))))
-    (mapc-range (lambda (u)
-                  (let ((du (dijkstra graph u weight)))
-                    (mapc-range (lambda (v)
-                                  (setf (aref d u v)
-                                        (aref du v)))
-                                0 n)))
-                0 n)
-    d))
+         (dus (make-array-with-content ((u n))
+                (dijkstra graph u weight))))
+    (make-array-with-content ((u n) (v n))
+      (aref (aref dus u) v))))
 
 (defun floyd-warshall (n-vertices weight)
   (with-memos ((d (i j k)
@@ -268,23 +263,33 @@
     (values (length length->last-min)
             length->last-min)))
 
-;; depends on insert
+;; ;; depends on %insert
+;; (defun perms (n)
+;;   (if (= n 1)
+;;       (list (list 1))
+;;       (mapcan (lambda (p)
+;;                 (map-drange (lambda (pos)
+;;                               (%insert p pos n))
+;;                             0 n))
+;;               (perms (1- n)))))
+
+;; depends on %insert
 (defun perms (n)
-  (if (= n 1)
-      (list (list 1))
+  (if (zerop n)
+      (list nil)
       (mapcan (lambda (p)
                 (map-drange (lambda (pos)
-                              (insert p pos n))
+                              (%insert p pos (1- n)))
                             0 n))
               (perms (1- n)))))
 
-;; depends on insert
+;; depends on %insert
 (defun permutations (list &optional (n (length list)))
   (if (null list)
       (list nil)
       (mapcan (lambda (p)
                 (map-drange (lambda (pos)
-                              (insert p pos (car list)))
+                              (%insert p pos (car list)))
                             0 n))
               (permutations (cdr list) (1- n)))))
 
@@ -1208,7 +1213,7 @@ cx + dy = q"
                            (multi-combinations list (1- k) n))
                    (multi-combinations (cdr list) k (1- n)))))))
 
-(defun insert (list index value)
+(defun %insert (list index value)
   (labels ((rec (list index)
              (if (zerop index)
                  (cons value list)
