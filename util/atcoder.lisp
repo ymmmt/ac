@@ -1,3 +1,21 @@
+@mod-choose
+(defmemo (mod-fact) (n)
+  (if (<= n 1)
+      1
+      (mod* (mod n +mod+)
+            (mod-fact (1- n)))))
+
+(mapc-range #'mod-fact 1 (expt 10 5))
+
+;; depends on mod-inverse
+(defun mod-choose (n k)
+  (if (or (< n k) (< n 0) (< k 0))
+      0
+      (mod* (mod-fact n)
+            (mod-inverse (mod-fact k) +mod+)
+            (mod-inverse (mod-fact (- n k)) +mod+))))
+@mod-choose end
+
 (defmacro avalues (&rest values)
   (when values
     `(apply #'values
