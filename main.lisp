@@ -166,9 +166,15 @@
                         ,@body))))))))
 
 (defmacro dlambda (lambda-list &body body)
-  (let ((gargs (gensym "ARGS")))
-    `(lambda (&rest ,gargs)
-       (dbind ,lambda-list ,gargs
+  (with-gensyms (args)
+    `(lambda (&rest ,args)
+       (dbind ,lambda-list ,args
+         ,@body))))
+
+(defmacro ddefun (name lambda-list &body body)
+  (with-gensyms (args)
+    `(defun ,name (&rest ,args)
+       (dbind ,lambda-list ,args
          ,@body))))
 
 (defmacro aif (test then &optional else)
