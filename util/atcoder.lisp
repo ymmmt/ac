@@ -1,3 +1,15 @@
+(defun duplicate-item-indices (sequence &key (test #'eql))
+  (let ((c (make-hash-table :test test)))
+    (etypecase sequence
+      (list (mapcar (lambda (item)
+                      (prog1 (gethash item c 0)
+                        (incf (gethash item c 0))))
+                    sequence))
+      (vector (map 'vector (lambda (item)
+                             (prog1 (gethash item c 0)
+                               (incf (gethash item c 0))))
+                   sequence)))))
+
 @mod-choose
 (defmemo (mod-fact) (n)
   (if (<= n 1)
