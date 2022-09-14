@@ -1,3 +1,14 @@
+(defmacro once-only (syms &body body)
+  (assert (every #'symbolp syms))
+  (let ((gs (loop repeat (length syms)
+                  collect (gensym "ARG"))))
+    `(let ,(mapcar #'list gs syms)
+       `(let (,,@(mapcar (lambda (g sym)
+                           ``(,,g ,,sym))
+                         gs syms))
+          ,(let ,(mapcar #'list syms gs)
+             ,@body)))))
+
 (defun numberings (sequence &key (test #'eql))
   (let ((c (make-hash-table :test test)))
     (etypecase sequence
