@@ -857,11 +857,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (accum-ht alist (make-adj-array) #'vpush :test test)))
 
 (defun list-accum-ht (alist &key (test #'eql))
-  (let ((ht (accum-ht alist nil #'cons :test test)))
-    (do-hashkeys (k ht)
-      (setf (gethash k ht)
-            (nreverse (gethash k ht))))
-    ht))
+  (labels ((snoc (list obj)
+             (cons obj list)))
+    (let ((ht (accum-ht alist nil #'snoc :test test)))
+      (do-hashkeys (k ht)
+        (setf (gethash k ht)
+              (nreverse (gethash k ht))))
+      ht)))
 
 (defun count-accum-ht (alist &key (test #'eql))
   (accum-ht alist 0 #'+ :test test))
