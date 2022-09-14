@@ -1,4 +1,4 @@
-(defun duplicate-item-indices (sequence &key (test #'eql))
+(defun numberings (sequence &key (test #'eql))
   (let ((c (make-hash-table :test test)))
     (etypecase sequence
       (list (mapcar (lambda (item)
