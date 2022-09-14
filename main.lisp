@@ -837,22 +837,34 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          do ,@body
          finally (return ,result)))
 
-(defun vector-accum-ht (alist &key (test #'eql))
-  (let ((ht (make-hash-table :test test)))
-    (loop for (k . v) in alist do
-      (unless (gethash k ht)
-        (setf (gethash k ht) (make-adj-array)))
-      (vector-push-extend v (gethash k ht)))
-    ht))
+(defmacro accum-ht (alist value-init-form update &key (test ''eql))
+  (with-gensyms (ht k v value found-p gupdate)
+    `(let ((,ht (make-hash-table :test ,test))
+           (,gupdate ,update))
+       (loop for (,k . ,v) in ,alist do
+         (mvbind (,value ,found-p) (gethash ,k ,ht)
+           (if ,found-p
+               (setf (gethash ,k ,ht)
+                     (funcall ,gupdate ,value ,v))
+               (setf (gethash ,k ,ht)
+                     (funcall ,gupdate ,value-init-form ,v)))))
+       ,ht)))
 
-(defun list-accum-ht (alist &key (test 'eql))
-  (let ((ht (make-hash-table :test test)))
-    (loop for (k . v) in alist do
-      (push v (gethash k ht)))
+(defun vector-accum-ht (alist &key (test #'eql))
+  (labels ((vpush (v obj)
+             (vector-push-extend obj v)
+             v))
+    (accum-ht alist (make-adj-array) #'vpush :test test)))
+
+(defun list-accum-ht (alist &key (test #'eql))
+  (let ((ht (accum-ht alist nil #'cons :test test)))
     (do-hashkeys (k ht)
       (setf (gethash k ht)
             (nreverse (gethash k ht))))
     ht))
+
+(defun count-accum-ht (alist &key (test #'eql))
+  (accum-ht alist 0 #'+ :test test))
 
 ;;; Arrays
 
@@ -1314,6 +1326,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                          left
                          (cons (car list) right))))))
     (rec (nreverse list) nil nil)))
+
+(defun flatten (tree)
+  (let (acc)
+    (labels ((rec (tree)
+               (when tree
+                 (if (consp tree)
+                     (progn
+                       (rec (car tree))
+                       (rec (cdr tree)))
+                     (push tree acc)))))
+      (rec tree)
+      (nreverse acc))))
 
 (defun iterate (n x successor)
   (nlet rec ((n n) (x x) (acc nil))
