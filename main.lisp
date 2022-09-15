@@ -733,7 +733,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (ash 1 x))
 
 (defsubst 2* (x)
-  (ash x 1))
+  (if (integerp x)
+      (ash x 1)
+      (* 2 x)))
 
 (defsubst dist (x y)
   (abs (- x y)))
