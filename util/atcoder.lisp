@@ -425,8 +425,8 @@ different sign domains."
             (subtree-size graph v root)))))
 
 (defun choose (n k)
-  "Note that (choose 0 0) == 1"
-  (if (or (minusp k) (< n k))
+  "Note that (choose 0 0) == 1."
+  (if (or (< n k) (< n 0) (< k 0))
       0
       (/ (fact n)
          (fact k)
