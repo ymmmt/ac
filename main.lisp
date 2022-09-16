@@ -1234,12 +1234,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (rec (nreverse list) nil nil)))
 
 (defun strip-prefix (prefix list &key (test #'eql))
-  (cond ((null prefix) list)
-        ((null list) nil)
-        ((funcall test (car prefix) (car list))
-         (strip-prefix (cdr prefix) (cdr list) :test test))
-        (t
-         list)))
+  (if (prefixp prefix list :test test)
+      (values (drop (length prefix) list) t)
+      (values list nil)))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun last1 (sequence)
