@@ -1,3 +1,8 @@
+(defun choose2 (n)
+  (if (< n 2)
+      0
+      (/ (* n (1- n)) 2)))
+
 (defun median (list)
   (assert (consp list))
   (let* ((n (length list))
