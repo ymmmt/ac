@@ -1181,19 +1181,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (nconc (nreverse (pairlis keys data))
          alist))
 
-(defun zip (&rest lists)
-  (when lists
-    (apply #'zip-with #'list lists)))
+(defun zip (list &rest more-lists)
+  (apply #'mapcar #'list list more-lists))
 
-(defun zip-with (fn &rest lists)
-  (when lists
-    (labels ((rec (lists acc)
-               (if (some #'null lists)
-                   (nreverse acc)
-                   (rec (mapcar #'cdr lists)
-                        (cons (apply fn (mapcar #'car lists))
-                              acc)))))
-      (rec lists nil))))
+(defun zip-with (function list &rest more-lists)
+  (apply #'mapcar function list more-lists))
 
 (defun zip* (&rest lists)
   (when lists
@@ -1210,9 +1202,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (rec lists nil))))
 
 (defun zip-with-index (list &optional (index-base 0))
-  (zip list
-       (range index-base
-              (+ index-base (length list)))))
+  (mapcar (let ((i (1- index-base)))
+            (lambda (item)
+              (cons item (incf i))))
+          list))
 
 (defun filter (predicate sequence &key from-end (start 0) end count key)
   (remove-if-not predicate sequence
