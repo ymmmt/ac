@@ -807,12 +807,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           keys values)
     ht))
 
-(defun make-hashset (list &key (test 'eql))
+(defun make-hashset (list &key (test #'eql))
   (let ((ht (make-hash-table :test test)))
     (dolist (item list ht)
       (setf (gethash item ht) t))))
 
-(defun counter (sequence &key (test 'eql) (key 'identity))
+(defun counter (sequence &key (test #'eql) (key 'identity))
   (let ((counter (make-hash-table :size (length sequence) :test test)))
     (map nil (lambda (elem)
                (let ((k (funcall key elem)))
@@ -993,7 +993,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (t
          (length<= (1- n) (cdr list)))))
 
-(defun all-same-p (list &key (test 'eql))
+(defun all-same-p (list &key (test #'eql))
   (or (null list)
       (every (curry test (car list))
              (cdr list))))
@@ -1409,19 +1409,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun suffixes (list)
   (maplist #'identity list))
 
-(defun prefixp (prefix sequence &key (test 'eql) (start 0) end)
+(defun prefixp (prefix sequence &key (test #'eql) (start 0) end)
   (let ((i (mismatch prefix sequence
                      :test test :start2 start :end2 end)))
     (or (not i)
         (= i (length prefix)))))
 
-(defun suffixp (suffix sequence &key (test 'eql) (start 0) end)
+(defun suffixp (suffix sequence &key (test #'eql) (start 0) end)
   (let ((i (mismatch suffix sequence
                      :from-end t :test test :start2 start :end2 end)))
     (or (not i)
         (zerop i))))
 
-(defun infixp (infix sequence &key (test 'eql) (start 0) end)
+(defun infixp (infix sequence &key (test #'eql) (start 0) end)
   (some (curry #'prefixp infix)
         (suffixes sequence)))
 
@@ -1435,7 +1435,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (t
              (rec sub (cdr list)))))))
 
-(defun splice-replace (new old list &key (test 'eql) count)
+(defun splice-replace (new old list &key (test #'eql) count)
   (let ((old-len (length old))
         (new-rev (reverse new)))
     (labels ((rec (list count acc)
