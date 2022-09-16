@@ -965,6 +965,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (defun singletonp (list)
     (and (consp list) (null (cdr list)))))
 
+(defsubst uncons (list)
+  (assert (consp list))
+  (values (car list) (cdr list)))
+
 (defun length>= (list1 list2)
   (labels ((rec (l1 l2)
              (cond ((null l2) t)
@@ -1167,6 +1171,76 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (drop-while predicate (cdr list)
                   :count (if count (1- count) nil))))
 
+(defun drop-while-end (predicate list)
+  (nreverse (drop-while predicate (reverse list))))
+  
+(defun split (item list &key (test #'eql) omit-nulls)
+  (split-if (curry test item)
+            list
+            :omit-nulls omit-nulls))
+
+(defun split-if (predicate list &key omit-nulls)
+  (labels ((rec (rest &optional temp-acc)
+             (cond ((null rest)
+                    (if temp-acc
+                        (list (nreverse temp-acc))
+                        nil))
+                   ((funcall predicate (car rest))
+                    (cond ((eq rest list)
+                           (rec (cdr rest) nil))
+                          ((and omit-nulls (null temp-acc))
+                           (rec (cdr rest) nil))
+                          (t
+                           (cons (nreverse temp-acc)
+                                 (rec (cdr rest) nil)))))
+                   (t
+                    (rec (cdr rest)
+                         (cons (car rest) temp-acc))))))
+    (rec list)))
+
+(defun split-at (n list)
+  (labels ((rec (n list left)
+             (if (or (zerop n) (null list))
+                 (values (nreverse left) list)
+                 (rec (1- n) (cdr list) (cons (car list) left)))))
+    (rec n list nil)))
+
+(defun span-if (predicate list)
+  "(span-if p list) == 
+(values (take-while p list) (drop-while p list))"
+  (break-if (complement predicate) list))
+
+(defun break-if (predicate list)
+  "(break-if p list) == 
+(values (take-while (not p) list) (drop-while (not p) list))"
+  (nlet rec ((list list) (acc nil))
+    (if (or (null list) (funcall predicate (car list)))
+        (values (nreverse acc) list)
+        (rec (cdr list)
+             (cons (car list) acc)))))
+
+(defun partition (predicate list)
+  (labels ((rec (list left right)
+             (cond ((null list)
+                    (values left right))
+                   ((funcall predicate (car list))
+                    (rec (cdr list)
+                         (cons (car list) left)
+                         right))
+                   (t
+                    (rec (cdr list)
+                         left
+                         (cons (car list) right))))))
+    (rec (nreverse list) nil nil)))
+
+(defun strip-prefix (prefix list &key (test #'eql))
+  (cond ((null prefix) list)
+        ((null list) nil)
+        ((funcall test (car prefix) (car list))
+         (strip-prefix (cdr prefix) (cdr list) :test test))
+        (t
+         list)))
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun last1 (sequence)
     (etypecase sequence
@@ -1207,6 +1281,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (cons item (incf i))))
           list))
 
+(defun unzip (alist)
+  (mvfoldr (dlambda ((k . v) keys values)
+             (values (cons k keys)
+                     (cons v values)))
+           alist nil nil))
+
 (defun filter (predicate sequence &key from-end (start 0) end count key)
   (remove-if-not predicate sequence
                  :from-end from-end
@@ -1223,15 +1303,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  acc))
           nil
           list)))
-
-(defun find-if* (predicate list &key from-end (start 0) end)
-  (let ((list (subseq list start end)))
-    (nlet rec ((list (if from-end (reverse list) list)))
-      (if (null list)
-          (values nil nil)
-          (aif (funcall predicate (car list))
-               (values (car list) it)
-               (rec (cdr list)))))))
 
 ;; ;; more general
 ;; (defun filter-map (f list &rest more-lists)
@@ -1261,6 +1332,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (cons (apply function (take k list))
                    acc)))))
 
+(defun find-if* (predicate list &key from-end (start 0) end)
+  (let ((list (subseq list start end)))
+    (nlet rec ((list (if from-end (reverse list) list)))
+      (if (null list)
+          (values nil nil)
+          (aif (funcall predicate (car list))
+               (values (car list) it)
+               (rec (cdr list)))))))
+
 (defun best (function list)
   (assert (consp list))
   (mvfoldl (lambda (item argmax max)
@@ -1277,52 +1357,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun nbest-k (k list test &key key)
   (take k (sort list test :key key)))
-
-(defun split (item list &key (test 'eql) omit-nulls)
-  (split-if (lambda (item2)
-              (funcall test item item2))
-            list
-            :omit-nulls omit-nulls))
-
-(defun split-if (predicate list &key omit-nulls)
-  (labels ((rec (rest &optional temp-acc)
-             (cond ((null rest)
-                    (if temp-acc
-                        (list (nreverse temp-acc))
-                        nil))
-                   ((funcall predicate (car rest))
-                    (cond ((eq rest list)
-                           (rec (cdr rest) nil))
-                          ((and omit-nulls (null temp-acc))
-                           (rec (cdr rest) nil))
-                          (t
-                           (cons (nreverse temp-acc)
-                                 (rec (cdr rest) nil)))))
-                   (t
-                    (rec (cdr rest)
-                         (cons (car rest) temp-acc))))))
-    (rec list)))
-
-(defun split-at (n list)
-  (labels ((rec (n list left)
-             (if (or (zerop n) (null list))
-                 (values (nreverse left) list)
-                 (rec (1- n) (cdr list) (cons (car list) left)))))
-    (rec n list nil)))
-
-(defun span (predicate list)
-  (labels ((rec (list left right)
-             (cond ((null list)
-                    (values left right))
-                   ((funcall predicate (car list))
-                    (rec (cdr list)
-                         (cons (car list) left)
-                         right))
-                   (t
-                    (rec (cdr list)
-                         left
-                         (cons (car list) right))))))
-    (rec (nreverse list) nil nil)))
 
 (defun flatten (tree)
   (let (acc)
@@ -1369,17 +1403,37 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (when list
       (rec list))))
 
-(defun prefixp (sequence prefix &key (test 'eql) (start 0) end)
+(defun prefixes (list)
+  (mapcar #'reverse (suffixes (reverse list))))
+
+(defun suffixes (list)
+  (maplist #'identity list))
+
+(defun prefixp (prefix sequence &key (test 'eql) (start 0) end)
   (let ((i (mismatch prefix sequence
                      :test test :start2 start :end2 end)))
     (or (not i)
         (= i (length prefix)))))
 
-(defun suffixp (sequence suffix &key (test 'eql) (start 0) end)
+(defun suffixp (suffix sequence &key (test 'eql) (start 0) end)
   (let ((i (mismatch suffix sequence
                      :from-end t :test test :start2 start :end2 end)))
     (or (not i)
         (zerop i))))
+
+(defun infixp (infix sequence &key (test 'eql) (start 0) end)
+  (some (curry #'prefixp infix)
+        (suffixes sequence)))
+
+(defun subsequencep (sub list &key (test #'eql) (start 0) end)
+  (let ((list (subseq list start end)))
+    (nlet rec ((sub sub) (list list))
+      (cond ((null sub) t)
+            ((null list) nil)
+            ((funcall test (car sub) (car list))
+             (rec (cdr sub) (cdr list)))
+            (t
+             (rec sub (cdr list)))))))
 
 (defun splice-replace (new old list &key (test 'eql) count)
   (let ((old-len (length old))
