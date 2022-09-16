@@ -1430,9 +1430,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (or (not i)
         (zerop i))))
 
-(defun infixp (infix sequence &key (test #'eql) (start 0) end)
+(defun infixp (infix list &key (test #'eql) (start 0) end)
   (some (curry #'prefixp infix)
-        (suffixes sequence)))
+        (suffixes list)))
 
 (defun subsequencep (sub list &key (test #'eql) (start 0) end)
   (let ((list (subseq list start end)))
