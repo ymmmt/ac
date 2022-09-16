@@ -1332,6 +1332,55 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (cons (apply function (take k list))
                    acc)))))
 
+(defun intersperse (sep list)
+  (when list
+    (if (singletonp list)
+        list
+        (nreverse (foldl (lambda (acc item)
+                           (list* item sep acc))
+                         (list (car list))
+                         (cdr list))))))         
+
+(defun intercalate (sep list-of-lists)
+  (flatten (intersperse sep list-of-lists)))
+
+(defun flatten (tree)
+  (let (acc)
+    (labels ((rec (tree)
+               (when tree
+                 (if (consp tree)
+                     (progn
+                       (rec (car tree))
+                       (rec (cdr tree)))
+                     (push tree acc)))))
+      (rec tree)
+      (nreverse acc))))
+
+(defun multiset (sequence test)
+  (when (or (consp sequence) (>= (length sequence) 1))
+    (nreverse
+     (reduce (lambda (acc next)
+               (dbind (curr . count) (car acc)
+                 (if (funcall test curr next)
+                     (cons (cons curr (1+ count)) (cdr acc))
+                     (cons (cons next 1) acc))))
+             (subseq sequence 1)
+             :initial-value (list (cons (elt sequence 0) 1))))))
+
+(defun delete-dups (list &key (order #'<) (test #'=))
+  (mapcar #'car
+          (multiset (sort list order)
+                    test)))
+
+(defun group (n list)
+  (labels ((rec (src &optional acc)
+             (let ((rest (nthcdr n src)))
+               (if (consp rest)
+                   (rec rest (cons (subseq src 0 n) acc))
+                   (nreverse (cons src acc))))))
+    (when list
+      (rec list))))
+
 (defun find-if* (predicate list &key from-end (start 0) end)
   (let ((list (subseq list start end)))
     (nlet rec ((list (if from-end (reverse list) list)))
@@ -1358,18 +1407,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun nbest-k (k list test &key key)
   (take k (sort list test :key key)))
 
-(defun flatten (tree)
-  (let (acc)
-    (labels ((rec (tree)
-               (when tree
-                 (if (consp tree)
-                     (progn
-                       (rec (car tree))
-                       (rec (cdr tree)))
-                     (push tree acc)))))
-      (rec tree)
-      (nreverse acc))))
-
 (defun iterate (n x successor)
   (nlet rec ((n n) (x x) (acc nil))
     (if (zerop n)
@@ -1377,31 +1414,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (rec (1- n)
              (funcall successor x)
              (cons x acc)))))
-
-(defun multiset (sequence test)
-  (when (or (consp sequence) (>= (length sequence) 1))
-    (nreverse
-     (reduce (lambda (acc next)
-               (dbind (curr . count) (car acc)
-                 (if (funcall test curr next)
-                     (cons (cons curr (1+ count)) (cdr acc))
-                     (cons (cons next 1) acc))))
-             (subseq sequence 1)
-             :initial-value (list (cons (elt sequence 0) 1))))))
-
-(defun delete-dups (list &key (order #'<) (test #'=))
-  (mapcar #'car
-          (multiset (sort list order)
-                    test)))
-
-(defun group (n list)
-  (labels ((rec (src &optional acc)
-             (let ((rest (nthcdr n src)))
-               (if (consp rest)
-                   (rec rest (cons (subseq src 0 n) acc))
-                   (nreverse (cons src acc))))))
-    (when list
-      (rec list))))
 
 (defun prefixes (list)
   (mapcar #'reverse (suffixes (reverse list))))
@@ -1458,6 +1470,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (rec list
            (or count (length list))
            nil))))
+
+(defun non-empty-subsequences (list)
+  (if (null list)
+      nil
+      (let ((item (car list)))
+        (cons (list item)
+              (foldr (lambda (sub acc)
+                       (list* sub (cons item sub) acc))
+                     nil
+                     (non-empty-subsequences (cdr list)))))))
+              
+(defun subsequences (list)
+  (cons nil (non-empty-subsequences list)))
 
 ;;; Graphs
 
