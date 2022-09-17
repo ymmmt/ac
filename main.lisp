@@ -812,7 +812,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (dolist (item list ht)
       (setf (gethash item ht) t))))
 
-(defun counter (sequence &key (test #'eql) (key 'identity))
+(defun counter (sequence &key (test #'eql) (key #'identity))
   (let ((counter (make-hash-table :size (length sequence) :test test)))
     (map nil (lambda (elem)
                (let ((k (funcall key elem)))
