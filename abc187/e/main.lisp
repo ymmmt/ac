@@ -1663,36 +1663,26 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                           (aref p v) u)))
                                 (aref graph u)))))))))
 
+;; https://atcoder.jp/contests/abc187/editorial/487
 (defun solve (n abs qs)
-  (let* ((cost (count-accum-ht (mapcar (dlambda ((ti e x))
+  (let* ((g (make-graph n (nconc (mapcar (dlambda ((a . b)) (cons b a))
+                                         abs)
+                                 abs)))
+         (abs (coerce-vector abs))
+         (cost (count-accum-ht (mapcar (dlambda ((ti e x))
                                          (dbind (a . b) (aref abs e)
                                            (ecase ti
                                              (1 (cons (cons a b) x))
                                              (2 (cons (cons b a) x)))))
                                        qs)
                                :test #'equal))
-         (g (make-graph n (nconc (map 'list (dlambda ((a . b)) (cons b a))
-                                      abs)
-                                 (coerce-list abs))))
-         (s (position-if (lambda (adjs)
-                           (= (length adjs) 1))
-                         g))
-         (s-cost (let ((seen (make-bit-array n)))
-                   (setf (aref seen s) 1)
-                   (labels ((dfs (u)
-                              (sum (v (aref g u))
-                                (if (zerop (aref seen v))
-                                    (progn
-                                      (setf (aref seen v) 1)
-                                      (+ (gethash (cons u v) cost 0)
-                                         (dfs v)))
-                                    0))))
-                     (dfs s))))
-         (parent (nth-value 1 (bfs g s))))
+         (p (nth-value 1 (bfs g 0)))
+         (c0 (sum (v 1 n)
+               (gethash (cons (aref p v) v) cost 0))))
     (with-memos ((cost (v)
-                   (if (= v s)
-                       s-cost
-                       (let ((p (aref parent v)))
+                   (if (= v 0)
+                       c0
+                       (let ((p (aref p v)))
                          (+ (cost p)
                             (- (gethash (cons p v) cost 0))
                             (gethash (cons v p) cost 0))))))
@@ -1700,13 +1690,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun main ()
   (readlet (n)
-    (let ((abs (coerce-vector (read-edges (1- n)
-                                          :directed t))))
+    (let ((abs (read-edges (1- n)
+                           :directed t)))
       (readlet (q)
         (let ((qs (collect q
                     (readlet (ti e x)
                       (list ti (1- e) x)))))
           (bulk-stdout
             (printlns (solve n abs qs))))))))
-          
+
 #-swank (main)
