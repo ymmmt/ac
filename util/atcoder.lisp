@@ -1,3 +1,6 @@
+(defsubst random-choice (list)
+  (nth (random (length list)) list))
+
 (defmacro on (function key)
   (sb-ext::once-only ((function function) (key key))
     (with-gensyms (args)
