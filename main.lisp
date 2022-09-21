@@ -1569,6 +1569,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   `(,@(apply #'loop-for-clause var args)
     nconc ,(ensure-form body)))
 
+(defmacro nconcing* (var-and-args-specs &body body)
+  (if (null var-and-args-specs)
+      nil
+      (labels ((rec (specs)
+                 (if (singletonp specs)
+                     `(nconcing ,(car specs)
+                        ,(ensure-form body))
+                     `(nconcing ,(car specs)
+                        ,(rec (cdr specs))))))
+        (rec var-and-args-specs))))
+
 (defmacro collecting ((var &rest args) &body body)
   `(,@(apply #'loop-for-clause var args)
     collect ,(ensure-form body)))
