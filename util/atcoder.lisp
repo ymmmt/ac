@@ -1,3 +1,9 @@
+(defmacro on (function key)
+  (sb-ext::once-only ((function function) (key key))
+    (with-gensyms (args)
+      `(lambda (&rest ,args)
+         (apply ,function (mapcar ,key ,args))))))
+
 (defun choose2 (n)
   (if (< n 2)
       0
@@ -102,7 +108,7 @@
     (let ((ka (funcall car-key a))
           (kc (funcall car-key c)))
       (or (funcall order ka kc)
-          (and (not (fucnall order kc ka))
+          (and (not (funcall order kc ka))
                (funcall order (funcall cdr-key b) (funcall cdr-key d)))))))
 
 (defun cons< (cons1 cons2 &key (test #'<))
