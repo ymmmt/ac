@@ -1590,7 +1590,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (labels ((rec (specs)
                  (if (singletonp specs)
                      `(,@(apply #'loop-for-clause (car specs))
-                       when ,condition
+                       for it = ,condition
+                       when it
                        collect ,(ensure-form body))
                      `(,@(apply #'loop-for-clause (car specs))
                        nconc ,(rec (cdr specs))))))
