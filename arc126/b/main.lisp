@@ -1706,16 +1706,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (values (length length->last-min)
             length->last-min)))
 
-(defun cons-order (car-key cdr-key &key (order #'<))
+(defun cons-order (car-order cdr-order)
   (dlambda ((a . b) (c . d))
-    (let ((ka (funcall car-key a))
-          (kc (funcall car-key c)))
-      (or (funcall order ka kc)
-          (and (not (funcall order kc ka))
-               (funcall order (funcall cdr-key b) (funcall cdr-key d)))))))
+    (or (funcall car-order a c)
+        (and (not (funcall car-order c a))
+             (funcall cdr-order b d)))))
 
 (defun solve (abs)
-  (->> (sort abs (cons-order #'identity #'-))
+  (->> (sort abs (cons-order #'< #'>))
        (mapcar #'cdr)
        longest-monotonic-subsequence))
 
