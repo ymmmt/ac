@@ -1715,10 +1715,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (funcall order (funcall cdr-key b) (funcall cdr-key d)))))))
 
 (defun solve (abs)
-  (-> (sort abs (cons-order #'identity #'-))
-      (longest-monotonic-subsequence
-       :test (dlambda ((ai . bi) (aj . bj))
-               (and (< ai aj) (< bi bj))))))
+  (->> (sort abs (cons-order #'identity #'-))
+       (mapcar #'cdr)
+       longest-monotonic-subsequence))
 
 (defun main ()
   (readlet (n m)
