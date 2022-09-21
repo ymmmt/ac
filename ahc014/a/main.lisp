@@ -1637,6 +1637,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Core
 
 (defvar *n*)
+(defvar *center*)
 (defvar *timelimit*)
 
 (defsubst pointp (grid r c)
@@ -1751,7 +1752,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           xys)
     (state grid row-edges col-edges)))
 
-(defun solve (xys &optional (selector #'random-choice))
+(defun high-weight-selector (valid-ops)
+  (labels ((d (op)
+             (let ((r (first op))
+                   (c (second op)))
+               (+ (^2 (- r *center*))
+                  (^2 (- c *center*))))))
+    (car (sort valid-ops #'> :key #'d))))
+
+(defun solve (xys &optional (selector #'high-weight-selector))
   (let ((state (init-state xys)))
     (with-timelimit (*timelimit*)
       (nlet rec ((state state) (ops nil))
@@ -1766,8 +1775,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun set-vars (n)
   (setf *n* n
+        *center* (ash n -1)
         *timelimit* 2.5))
-
+  
 (defun main ()
   (readlet (n m)
     (let ((xys (read-conses m)))
