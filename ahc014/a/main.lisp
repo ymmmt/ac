@@ -1389,7 +1389,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (if (null list)
           (values nil nil)
           (aif (funcall predicate (car list))
-               (values (car list) it)
+               (values it (car list))
                (rec (cdr list)))))))
 
 (defun best (function list)
@@ -1601,7 +1601,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (labels ((rec (specs)
                  (if (singletonp specs)
                      `(,@(apply #'loop-for-clause (car specs))
-                       when ,condition
+                       for it = ,condition
+                       when it
                        collect ,(ensure-form body))
                      `(,@(apply #'loop-for-clause (car specs))
                        nconc ,(rec (cdr specs))))))
@@ -1675,30 +1676,43 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (min *n* (+ const *n*))))
 
 (defun points (grid)
-  (nconcing (r 0 *n*)
-    (row-points grid r)))
+  (lcomp ((r 0 *n*) (c 0 *n*))
+      (pointp grid r c)
+    (cons r c)))
 
-(defun row-points (grid row)
-  (filter-map-range (curry* #'point-cell-p grid row %)
-                    0 *n*))
+(defun adja-row-points (grid row col)
+  (->> (list (find-if* (curry* #'point-cell-p grid row %)
+                       (drange col))
+             (find-if* (curry* #'point-cell-p grid row %)
+                       (range (1+ col) *n*)))
+       (delete nil)))
 
-(defun col-points (grid col)
-  (filter-map-range (curry* #'point-cell-p grid % col)
-                    0 *n*))
+(defun adja-col-points (grid row col)
+  (->> (list (find-if* (curry* #'point-cell-p grid % col)
+                       (drange row))
+             (find-if* (curry* #'point-cell-p grid % col)
+                       (range (1+ row) *n*)))
+       (delete nil)))
 
-(defun ldiag-points (grid row col)
+(defun adja-ldiag-points (grid row col)
   (let ((const (+ row col)))
-    (filter-map-range (lambda (r)
-                        (point-cell-p grid r (- const r)))
-                      (ldiag-row-start row col)
-                      (ldiag-row-end row col))))
+    (flet ((point-cell-p (r)
+             (point-cell-p grid r (- const r))))
+      (->> (list (find-if* #'point-cell-p
+                           (drange (ldiag-row-start row col) row))
+                 (find-if* #'point-cell-p
+                           (range (1+ row) (ldiag-row-end row col))))
+           (delete nil)))))
 
-(defun rdiag-points (grid row col)
+(defun adja-rdiag-points (grid row col)
   (let ((const (- row col)))
-    (filter-map-range (lambda (r)
-                        (point-cell-p grid r (- r const)))
-                      (rdiag-row-start row col)
-                      (rdiag-row-end row col))))
+    (flet ((point-cell-p (r)
+             (point-cell-p grid r (- r const))))
+      (->> (list (find-if* #'point-cell-p
+                           (drange (rdiag-row-start row col) row))
+                 (find-if* #'point-cell-p
+                           (range (1+ row) (rdiag-row-end row col))))
+           (delete nil)))))
 
 ;;; Main
 
@@ -1790,12 +1804,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun find-valid-ops (state point)
   (dbind (r . c) point
     (with-accessors ((grid state-grid)) state
-      (nconc (filter-map (curry #'make-axis-aligned-op-if-valid state point)
-                         (delete point (row-points grid r) :test #'equal)
-                         (delete point (col-points grid c) :test #'equal))
-             (filter-map (curry #'make-diagonal-op-if-valid state point)
-                         (delete point (ldiag-points grid r c) :test #'equal)
-                         (delete point (rdiag-points grid r c) :test #'equal))))))
+      (nconc (lcomp ((rp (adja-row-points grid r c))
+                     (cp (adja-col-points grid r c)))
+                 (make-axis-aligned-op-if-valid state point rp cp)
+               it)
+             (lcomp ((ldp (adja-ldiag-points grid r c))
+                     (rdp (adja-rdiag-points grid r c)))
+                 (make-diagonal-op-if-valid state point ldp rdp)
+               it)))))
 
 (defun valid-ops (state)
   (mapcan (curry #'find-valid-ops state)
