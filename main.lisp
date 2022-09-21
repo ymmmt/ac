@@ -1389,7 +1389,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (if (null list)
           (values nil nil)
           (aif (funcall predicate (car list))
-               (values (car list) it)
+               (values it (car list))
                (rec (cdr list)))))))
 
 (defun best (function list)
