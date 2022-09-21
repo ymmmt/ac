@@ -1661,26 +1661,29 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (filter-map-range (curry* #'point-cell-p grid % col)
                     0 *n*))
 
-
 ;;; Main
 
 (defstruct (state (:constructor state
-                    (grid row-edges col-edges)))
+                      (grid row-edges col-edges)))
   (grid nil :type (or null (simple-array bit)))
   (row-edges nil :type (or null (simple-array bit)))
   (col-edges nil :type (or null (simple-array bit)))
   ldiag-edges
   rdiag-edges)
 
-(defun valid-row-edge-p (row-edges row c1 c2)
+(defun valid-row-edge-p (grid row-edges row c1 c2)
   (sortf < c1 c2)
   (always (c c1 c2)
-    (zerop (aref row-edges row c))))
+    (and (or (= c c1)
+             (blankp grid row c))
+         (zerop (aref row-edges row c)))))
 
-(defun valid-col-edge-p (col-edges col r1 r2)
+(defun valid-col-edge-p (grid col-edges col r1 r2)
   (sortf < r1 r2)
   (always (r r1 r2)
-    (zerop (aref col-edges r col))))
+    (and (or (= r r1)
+             (blankp grid r col))
+         (zerop (aref col-edges r col)))))
 
 (defun valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
   (with-accessors ((grid state-grid)
@@ -1689,10 +1692,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       state
     (and (array-in-bounds-p grid r1 c1)
          (blankp grid r1 c1)
-         (valid-col-edge-p col-edges c1 r1 r2)
-         (valid-row-edge-p row-edges r2 c2 c3)
-         (valid-col-edge-p col-edges c3 r3 r4)
-         (valid-row-edge-p row-edges r4 c4 c1))))
+         (valid-col-edge-p grid col-edges c1 r1 r2)
+         (valid-row-edge-p grid row-edges r2 c2 c3)
+         (valid-col-edge-p grid col-edges c3 r3 r4)
+         (valid-row-edge-p grid row-edges r4 c4 c1))))
 
 (defun make-op-if-valid (state point row-point col-point)
   (dbind (r3 . c3) point
@@ -1733,7 +1736,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       state
     (dbind (r1 c1 r2 c2 r3 c3 r4 c4) op
       (setf (aref grid r1 c1) 1)
-      (col-connect! col-edges c1 c1 c2)
+      (col-connect! col-edges c1 r1 r2)
       (row-connect! row-edges r2 c2 c3)
       (col-connect! col-edges c3 r3 r4)
       (row-connect! row-edges r4 c4 c1)))
@@ -1760,11 +1763,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (let ((op (funcall selector valid-ops)))
                 (rec (operate state op)
                      (cons op ops)))))))))
-              
+
 (defun set-vars (n)
   (setf *n* n
         *timelimit* 2.5))
-  
+
 (defun main ()
   (readlet (n m)
     (let ((xys (read-conses m)))
@@ -1774,5 +1777,5 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (println k)
           (dolist (op ops)
             (join-print op)))))))
-          
+
 #-swank (main)
