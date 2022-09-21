@@ -103,13 +103,19 @@
                    0
                    0 (integer-length min))))
 
-(defun cons-order (car-key cdr-key &key (order #'<))
+(defun cons-order% (car-key cdr-key &key (order #'<))
   (dlambda ((a . b) (c . d))
     (let ((ka (funcall car-key a))
           (kc (funcall car-key c)))
       (or (funcall order ka kc)
           (and (not (funcall order kc ka))
                (funcall order (funcall cdr-key b) (funcall cdr-key d)))))))
+
+(defun cons-order (car-order cdr-order)
+  (dlambda ((a . b) (c . d))
+    (or (funcall car-order a c)
+        (and (not (funcall car-order c a))
+             (funcall cdr-order b d)))))
 
 (defun cons< (cons1 cons2 &key (test #'<))
   (dbind (a . b) cons1
