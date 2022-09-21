@@ -131,7 +131,7 @@
                 tables)
            (labels ,(mapcar (lambda (definition table)
                               (definition->memoized-definition definition table))
-                            definitions tables)
+                     definitions tables)
              ,@body)))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -255,15 +255,15 @@
   ) ; eval-when
 
 (defmacro switch (&whole whole (object &key (test 'eql) (key 'identity))
-                         &body clauses)
+                  &body clauses)
   (generate-switch-body whole object clauses test key))
 
 (defmacro eswitch (&whole whole (object &key (test 'eql) (key 'identity))
-                          &body clauses)
+                   &body clauses)
   (generate-switch-body whole object clauses test key '(error)))
 
 (defmacro cswitch (&whole whole (object &key (test 'eql) (key 'identity))
-                          &body clauses)
+                   &body clauses)
   (generate-switch-body whole object clauses test key '(cerror "Return NIL from CSWITCH.")))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -454,8 +454,8 @@
 (defmacro curry* (function &rest arguments)
   (assert (= 1 (count '% arguments :test 'eq)))
   (let ((g% (gensym)))
-  `(lambda (,g%)
-     (funcall ,function ,@(subst g% '% arguments)))))
+    `(lambda (,g%)
+       (funcall ,function ,@(subst g% '% arguments)))))
 
 (defun curry (function &rest arguments)
   (lambda (&rest args)
@@ -1178,7 +1178,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun drop-while-end (predicate list)
   (nreverse (drop-while predicate (reverse list))))
-  
+
 (defun split (item list &key (test #'eql) omit-nulls)
   (split-if (curry test item)
             list
@@ -1482,7 +1482,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                        (list* sub (cons item sub) acc))
                      nil
                      (non-empty-subsequences (cdr list)))))))
-              
+
 (defun subsequences (list)
   (cons nil (non-empty-subsequences list)))
 
