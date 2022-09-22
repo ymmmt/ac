@@ -1666,6 +1666,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (fresh-line))
   (fresh-line))
 
+(defsubst invert (bit)
+  (declare (type bit bit))
+  (- 1 bit))
+
+(define-modify-macro invertf () invert)
+
 ;;; Core
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -1680,7 +1686,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *n*)
 (defvar *center*)
 (defvar *timelimit*)
-(defvar *randomness*)
 
 (defsubst pointp (grid r c)
   #@grid
@@ -1863,36 +1868,36 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (mapcan (curry #'find-valid-ops state)
           (state-points state)))
 
-(defun row-connect! (row-edges row c1 c2)
+(defun invert-row-edge! (row-edges row c1 c2)
   #@row-edges
   (sortf < c1 c2)
   (mapc-range (lambda (c)
-                (setf (sbit row-edges row c) 1))
+                (invertf (sbit row-edges row c)))
               c1 c2))
 
-(defun col-connect! (col-edges col r1 r2)
+(defun invert-col-edge! (col-edges col r1 r2)
   #@col-edges
   (sortf < r1 r2)
   (mapc-range (lambda (r)
-                (setf (sbit col-edges r col) 1))
+                (invertf (sbit col-edges r col)))
               r1 r2))
 
-(defun ldiag-connect! (ldiag-edges r1 c1 r2 c2)
+(defun invert-ldiag-edge! (ldiag-edges r1 c1 r2 c2)
   #@ldiag-edges
   (if (> r1 r2)
-      (ldiag-connect! ldiag-edges r2 c2 r1 c1)
+      (invert-ldiag-edge! ldiag-edges r2 c2 r1 c1)
       (let ((const (+ r1 c1)))
         (mapc-range (lambda (r)
-                      (setf (sbit ldiag-edges r (- const r)) 1))
+                      (invertf (sbit ldiag-edges r (- const r))))
                     r1 r2))))
 
-(defun rdiag-connect! (rdiag-edges r1 c1 r2 c2)
+(defun invert-rdiag-edge! (rdiag-edges r1 c1 r2 c2)
   #@rdiag-edges
   (if (> r1 r2)
-      (rdiag-connect! rdiag-edges r2 c2 r1 c1)
+      (invert-rdiag-edge! rdiag-edges r2 c2 r1 c1)
       (let ((const (- r1 c1)))
         (mapc-range (lambda (r)
-                      (setf (sbit rdiag-edges r (- r const)) 1))
+                      (invertf (sbit rdiag-edges r (- r const))))
                     r1 r2))))
 
 (defun operate (state op)
@@ -1906,18 +1911,25 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (dbind (type r1 c1 r2 c2 r3 c3 r4 c4) op
       (ecase type
         (:axis-aligned
-         (col-connect! col-edges c1 r1 r2)
-         (row-connect! row-edges r2 c2 c3)
-         (col-connect! col-edges c3 r3 r4)
-         (row-connect! row-edges r4 c4 c1))
+         (invert-col-edge! col-edges c1 r1 r2)
+         (invert-row-edge! row-edges r2 c2 c3)
+         (invert-col-edge! col-edges c3 r3 r4)
+         (invert-row-edge! row-edges r4 c4 c1))
         (:diagonal
-         (rdiag-connect! rdiag-edges r1 c1 r2 c2)
-         (ldiag-connect! ldiag-edges r2 c2 r3 c3)
-         (rdiag-connect! rdiag-edges r3 c3 r4 c4)
-         (ldiag-connect! ldiag-edges r4 c4 r1 c1)))
-      (setf (sbit grid r1 c1) 1)
-      (push (cons r1 c1) points)))
+         (invert-rdiag-edge! rdiag-edges r1 c1 r2 c2)
+         (invert-ldiag-edge! ldiag-edges r2 c2 r3 c3)
+         (invert-rdiag-edge! rdiag-edges r3 c3 r4 c4)
+         (invert-ldiag-edge! ldiag-edges r4 c4 r1 c1)))
+      (invertf (sbit grid r1 c1))
+      (let ((p (cons r1 c1)))
+        (setf points
+              (if (equal p (car points))
+                  (cdr points)
+                  (cons p points))))))
   state)
+
+(defsubst undo! (state op)
+  (operate state op))
 
 (defun init-state (xys)
   (let* ((dims (list *n* *n*))
@@ -1932,7 +1944,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           xys)
     (state grid (points grid) row-edges col-edges ldiag-edges rdiag-edges)))
 
-(defun d (op)
+(defsubst d (op)
   (let ((r (second op))
         (c (third op)))
     (+ (^2 (- r *center*))
@@ -1941,50 +1953,39 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun score (ops)
   (reduce #'+ ops :initial-value 0 :key #'d))
 
-(defun generate-ops (xys selector)
-  (let ((state (init-state xys)))
-    (nlet rec ((state state) (ops nil))
-      (let ((valid-ops (valid-ops state)))
-        (if (null valid-ops)
-            (list (score ops)
-                  (length ops)
-                  (mapcar #'cdr (nreverse ops)))
-            (let ((op (funcall selector valid-ops)))
-              (rec (operate state op)
-                   (cons op ops))))))))
+(defun solve (xys)
+  (let (cands)
+    (with-timelimit (*timelimit*)
+      (labels ((dfs (state op-stack)
+                 (let ((valid-ops (valid-ops state)))
+                   (cond ((null valid-ops)
+                          (push (list (score op-stack)
+                                      (length op-stack)
+                                      op-stack)
+                                cands))
+                         ((time-up-p)
+                          (dbind (score k op-stack) (best #'car cands)
+                            (declare (ignore score))
+                            (return-from solve
+                              (values k (mapcar #'cdr (nreverse op-stack))))))
+                         (t
+                          (dolist (op valid-ops)
+                            (dfs (operate state op)
+                                 (cons op op-stack))
+                            (undo! state op)))))))
+        (dfs (init-state xys) nil)))))
 
-(defun high-weight-selector (valid-ops)
-  (car (best #'d valid-ops)))
-
-(defun high-weight-random-selector (valid-ops)
-  (random-choice (nbest-k *randomness* valid-ops #'> :key #'d)))
-
-(defun random-selector (valid-ops)
-  (random-choice valid-ops))
-
-(defun solve (xys selector)
-  (let ((cands (with-timelimit (*timelimit*)
-                 (nlet rec ((acc nil))
-                   (if (time-up-p)
-                       acc
-                       (rec (cons (generate-ops xys selector)
-                                  acc)))))))
-    (dbind (score k ops) (best #'car cands)
-      (declare (ignore score))
-      (values k ops))))
-
-(defun set-vars (n randomness)
+(defun set-vars (n)
   (setf *n* n
         *center* (ash n -1)
-        *timelimit* 2.5
-        *randomness* randomness))
+        *timelimit* 2.5))
 
-(defun main (&optional (stream *standard-input*) (randomness 8))
+(defun main (&optional (stream *standard-input*))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars n randomness)
-        (mvbind (k ops) (solve xys #'high-weight-random-selector)
+        (set-vars n)
+        (mvbind (k ops) (solve xys)
           (bulk-stdout
             (println k)
             (dolist (op ops)

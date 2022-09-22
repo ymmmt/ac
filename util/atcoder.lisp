@@ -1,3 +1,9 @@
+(defsubst invert (bit)
+  (declare (type bit bit))
+  (- 1 bit))
+
+(define-modify-macro invertf () invert)
+
 (defun lines (string)
   (->> (split #\Newline (coerce-list string)
               :test #'char=
@@ -1479,11 +1485,17 @@ cx + dy = q"
                    (t nil)))
     (values (nreverse max-keys) max-count)))
 
-(defun nshuffle (sequence)
+(defun nshuffle% (sequence)
   (loop for i from (length sequence) downto 2
         do (rotatef (elt sequence (random i))
                     (elt sequence (1- i))))
   sequence)
+
+(defun nshuffle (vector)
+  (loop for i from (length vector) downto 2
+        do (rotatef (aref vector (random i))
+                    (aref vector (1- i))))
+  vector)
 
 @heap
 (defstruct (heap (:constructor make-heap
