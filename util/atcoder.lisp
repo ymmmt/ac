@@ -1,3 +1,13 @@
+(defun lines (string)
+  (->> (split #\Newline (coerce-list string)
+              :test #'char=
+              :omit-nulls t)
+       (mapcar (rcurry #'coerce 'string))))
+
+(defun average (list &key key)
+  (/ (reduce #'+ list :key key)
+     (length list)))
+
 (defsubst random-choice (list)
   (nth (random (length list)) list))
 
