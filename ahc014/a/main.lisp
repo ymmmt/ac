@@ -1680,6 +1680,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *n*)
 (defvar *center*)
 (defvar *timelimit*)
+(defvar *randomness*)
 
 (defsubst pointp (grid r c)
   #@grid
@@ -1953,6 +1954,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun high-weight-selector (valid-ops)
   (car (best #'d valid-ops)))
 
+(defun high-weight-random-selector (valid-ops)
+  (random-choice (nbest-k *randomness* valid-ops #'> :key #'d)))
+
 (defun random-selector (valid-ops)
   (random-choice valid-ops))
 
@@ -1967,19 +1971,57 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (declare (ignore score))
       (values k ops))))
 
-(defun set-vars (n)
+(defun set-vars (n randomness)
   (setf *n* n
         *center* (ash n -1)
-        *timelimit* 2.5))
+        *timelimit* 2.5
+        *randomness* randomness))
 
-(defun main ()
-  (readlet (n m)
-    (let ((xys (read-conses m)))
-      (set-vars n)
-      (mvbind (k ops) (solve xys #'random-selector)
-        (bulk-stdout
-          (println k)
-          (dolist (op ops)
-            (join-print op)))))))
+(defun main (&optional (stream *standard-input*) (randomness 6))
+  (let ((*standard-input* stream))
+    (readlet (n m)
+      (let ((xys (read-conses m)))
+        (set-vars n randomness)
+        (mvbind (k ops) (solve xys #'high-weight-random-selector)
+          (bulk-stdout
+            (println k)
+            (dolist (op ops)
+              (join-print op))))))))
 
 #-swank (main)
+
+;;; Benchmark
+
+;; (require :uiop)
+
+;; (defun testcase-filename (test-dir test-id)
+;;   (format nil "~A/sample-~4,'0D.in" test-dir test-id))
+
+;; (defun testcase-score (filename randomness)
+;;   (with-open-stream (in (-> (uiop:launch-program
+;;                              (list "cat" filename)
+;;                              :output :stream)
+;;                             uiop:process-info-output))
+;;     (let ((*standard-input* in))
+;;       (readlet (n m)
+;;         (let ((xys (read-conses n)))
+;;           (set-vars n randomness)
+;;           (mvbind (k ops) (solve xys #'high-weight-random-selector)
+;;             (reduce #'+ ops :key #'d)))))))
+
+;; (defun total-score (test-dir randomness)
+;;   (reduce #'+ (range 100)
+;;           :key (lambda (id)
+;;                  (testcase-score (testcase-filename test-dir id)
+;;                                  randomness))))
+
+;; (defun benchmark ()
+;;   (let ((dir (sb-ext:posix-getenv "dir")))
+;;     (println dir)
+;;     (mapc (lambda (r)
+;;             (dbg 'randomness r)
+;;             (dbg 'total-score (total-score dir r)))
+;;           (range 1 11))))
+
+;; (trace testcase-score)
+;; (benchmark)
