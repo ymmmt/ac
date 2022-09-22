@@ -1909,7 +1909,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (readlet (n m)
     (let ((xys (read-conses m)))
       (set-vars n)
-      (mvbind (k ops) (solve xys)
+      (mvbind (k ops) (solve xys #'random-choice)
         (bulk-stdout
           (println k)
           (dolist (op ops)
