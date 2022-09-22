@@ -1683,11 +1683,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defsubst pointp (grid r c)
   #@grid
-  (plusp (aref grid r c)))
+  (plusp (sbit grid r c)))
 
 (defsubst blankp (grid r c)
   #@grid
-  (zerop (aref grid r c)))
+  (zerop (sbit grid r c)))
 
 (defsubst point-cell-p (grid r c)
   #@grid
@@ -1773,7 +1773,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (always (c c1 c2)
     (and (or (= c c1)
              (blankp grid row c))
-         (zerop (aref row-edges row c)))))
+         (zerop (sbit row-edges row c)))))
 
 (defun valid-col-edge-p (grid col-edges col r1 r2)
   #@(grid col-edges)
@@ -1781,7 +1781,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (always (r r1 r2)
     (and (or (= r r1)
              (blankp grid r col))
-         (zerop (aref col-edges r col)))))
+         (zerop (sbit col-edges r col)))))
 
 (defun valid-ldiag-edge-p (grid ldiag-edges r1 c1 r2 c2)
   #@(grid ldiag-edges)
@@ -1791,7 +1791,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (always (r r1 r2)
           (and (or (= r r1)
                    (blankp grid r (- const r)))
-               (zerop (aref ldiag-edges r (- const r))))))))
+               (zerop (sbit ldiag-edges r (- const r))))))))
 
 (defun valid-rdiag-edge-p (grid rdiag-edges r1 c1 r2 c2)
   #@(grid rdiag-edges)
@@ -1801,7 +1801,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (always (r r1 r2)
           (and (or (= r r1)
                    (blankp grid r (- r const)))
-               (zerop (aref rdiag-edges r (- r const))))))))
+               (zerop (sbit rdiag-edges r (- r const))))))))
 
 (defun axis-aligned-valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
   (with-accessors ((grid state-grid)
@@ -1865,14 +1865,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   #@row-edges
   (sortf < c1 c2)
   (mapc-range (lambda (c)
-                (setf (aref row-edges row c) 1))
+                (setf (sbit row-edges row c) 1))
               c1 c2))
 
 (defun col-connect! (col-edges col r1 r2)
   #@col-edges
   (sortf < r1 r2)
   (mapc-range (lambda (r)
-                (setf (aref col-edges r col) 1))
+                (setf (sbit col-edges r col) 1))
               r1 r2))
 
 (defun ldiag-connect! (ldiag-edges r1 c1 r2 c2)
@@ -1881,7 +1881,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (ldiag-connect! ldiag-edges r2 c2 r1 c1)
       (let ((const (+ r1 c1)))
         (mapc-range (lambda (r)
-                      (setf (aref ldiag-edges r (- const r)) 1))
+                      (setf (sbit ldiag-edges r (- const r)) 1))
                     r1 r2))))
 
 (defun rdiag-connect! (rdiag-edges r1 c1 r2 c2)
@@ -1890,7 +1890,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (rdiag-connect! rdiag-edges r2 c2 r1 c1)
       (let ((const (- r1 c1)))
         (mapc-range (lambda (r)
-                      (setf (aref rdiag-edges r (- r const)) 1))
+                      (setf (sbit rdiag-edges r (- r const)) 1))
                     r1 r2))))
 
 (defun operate (state op)
@@ -1903,13 +1903,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (dbind (type r1 c1 r2 c2 r3 c3 r4 c4) op
       (ecase type
         (:axis-aligned
-         (setf (aref grid r1 c1) 1)
+         (setf (sbit grid r1 c1) 1)
          (col-connect! col-edges c1 r1 r2)
          (row-connect! row-edges r2 c2 c3)
          (col-connect! col-edges c3 r3 r4)
          (row-connect! row-edges r4 c4 c1))
         (:diagonal
-         (setf (aref grid r1 c1) 1)
+         (setf (sbit grid r1 c1) 1)
          (rdiag-connect! rdiag-edges r1 c1 r2 c2)
          (ldiag-connect! ldiag-edges r2 c2 r3 c3)
          (rdiag-connect! rdiag-edges r3 c3 r4 c4)
@@ -1925,7 +1925,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (rdiag-edges (make-bit-array dims)))
     #@grid
     (mapc (dlambda ((x . y))
-            (setf (aref grid x y) 1))
+            (setf (sbit grid x y) 1))
           xys)
     (state grid row-edges col-edges ldiag-edges rdiag-edges)))
 
