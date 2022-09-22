@@ -1758,8 +1758,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Main
 
 (defstruct (state (:constructor state
-                      (grid row-edges col-edges ldiag-edges rdiag-edges)))
+                      (grid points row-edges col-edges ldiag-edges rdiag-edges)))
   (grid nil :type (or null (simple-array bit)))
+  (points nil :type list)
   (row-edges nil :type (or null (simple-array bit)))
   (col-edges nil :type (or null (simple-array bit)))
   (ldiag-edges nil :type (or null (simple-array bit)))
@@ -1860,7 +1861,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun valid-ops (state)
   (mapcan (curry #'find-valid-ops state)
-          (points (state-grid state))))
+          (state-points state)))
 
 (defun row-connect! (row-edges row c1 c2)
   #@row-edges
@@ -1896,6 +1897,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun operate (state op)
   (with-accessors ((grid state-grid)
+                   (points state-points)
                    (row-edges state-row-edges)
                    (col-edges state-col-edges)
                    (ldiag-edges state-ldiag-edges)
@@ -1904,17 +1906,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (dbind (type r1 c1 r2 c2 r3 c3 r4 c4) op
       (ecase type
         (:axis-aligned
-         (setf (sbit grid r1 c1) 1)
          (col-connect! col-edges c1 r1 r2)
          (row-connect! row-edges r2 c2 c3)
          (col-connect! col-edges c3 r3 r4)
          (row-connect! row-edges r4 c4 c1))
         (:diagonal
-         (setf (sbit grid r1 c1) 1)
          (rdiag-connect! rdiag-edges r1 c1 r2 c2)
          (ldiag-connect! ldiag-edges r2 c2 r3 c3)
          (rdiag-connect! rdiag-edges r3 c3 r4 c4)
-         (ldiag-connect! ldiag-edges r4 c4 r1 c1)))))
+         (ldiag-connect! ldiag-edges r4 c4 r1 c1)))
+      (setf (sbit grid r1 c1) 1)
+      (push (cons r1 c1) points)))
   state)
 
 (defun init-state (xys)
@@ -1928,7 +1930,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (mapc (dlambda ((x . y))
             (setf (sbit grid x y) 1))
           xys)
-    (state grid row-edges col-edges ldiag-edges rdiag-edges)))
+    (state grid (points grid) row-edges col-edges ldiag-edges rdiag-edges)))
 
 (defun d (op)
   (let ((r (second op))
@@ -1977,7 +1979,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *timelimit* 2.5
         *randomness* randomness))
 
-(defun main (&optional (stream *standard-input*) (randomness 6))
+(defun main (&optional (stream *standard-input*) (randomness 8))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
@@ -2010,7 +2012,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;             (reduce #'+ ops :key #'d)))))))
 
 ;; (defun total-score (test-dir randomness)
-;;   (reduce #'+ (range 100)
+;;   (reduce #'+ (range 10)
 ;;           :key (lambda (id)
 ;;                  (testcase-score (testcase-filename test-dir id)
 ;;                                  randomness))))
