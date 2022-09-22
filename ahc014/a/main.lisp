@@ -1951,7 +1951,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                    (cons op ops))))))))
 
 (defun high-weight-selector (valid-ops)
-  (car (sort valid-ops #'> :key #'d)))
+  (car (best #'d valid-ops)))
 
 (defun random-selector (valid-ops)
   (random-choice valid-ops))
