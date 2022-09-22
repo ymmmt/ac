@@ -532,6 +532,10 @@
   (lambda (args)
     (apply fn args)))
 
+(defsubst cons-applier (fn)
+  (dlambda ((a . b))
+    (funcall fn a b)))
+
 (defsubst arefer (array)
   (lambda (&rest subscripts)
     (apply #'aref array subscripts)))
