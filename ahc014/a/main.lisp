@@ -1666,6 +1666,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (fresh-line))
   (fresh-line))
 
+(defun shuffle! (vector)
+  (loop for i from (length vector) downto 2
+        do (rotatef (aref vector (random i))
+                    (aref vector (1- i)))))
+
 ;;; Core
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -1680,7 +1685,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *n*)
 (defvar *center*)
 (defvar *timelimit*)
-(defvar *randomness*)
 
 (defsubst pointp (grid r c)
   #@grid
@@ -1760,7 +1764,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defstruct (state (:constructor state
                       (grid points row-edges col-edges ldiag-edges rdiag-edges)))
   (grid nil :type (or null (simple-array bit)))
-  (points nil :type list)
+  (points nil :type (or null vector))
   (row-edges nil :type (or null (simple-array bit)))
   (col-edges nil :type (or null (simple-array bit)))
   (ldiag-edges nil :type (or null (simple-array bit)))
@@ -1863,6 +1867,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (mapcan (curry #'find-valid-ops state)
           (state-points state)))
 
+(defun random-valid-op (state)
+  (with-accessors ((points state-points)) state
+    (shuffle! points)
+    (car (find-if*-range (lambda (i)
+                           (find-valid-ops state (aref points i)))
+                         0 (length points)))))
+
 (defun row-connect! (row-edges row c1 c2)
   #@row-edges
   (sortf < c1 c2)
@@ -1916,12 +1927,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (rdiag-connect! rdiag-edges r3 c3 r4 c4)
          (ldiag-connect! ldiag-edges r4 c4 r1 c1)))
       (setf (sbit grid r1 c1) 1)
-      (push (cons r1 c1) points)))
+      (vector-push-extend (cons r1 c1) points)))
   state)
 
 (defun init-state (xys)
   (let* ((dims (list *n* *n*))
          (grid (make-bit-array dims))
+         (points (make-adj-array))
          (row-edges (make-bit-array dims))
          (col-edges (make-bit-array dims))
          (ldiag-edges (make-bit-array dims))
@@ -1930,7 +1942,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (mapc (dlambda ((x . y))
             (setf (sbit grid x y) 1))
           xys)
-    (state grid (points grid) row-edges col-edges ldiag-edges rdiag-edges)))
+    (mapc (rcurry #'vector-push-extend points)
+          (points grid))
+    (state grid points row-edges col-edges ldiag-edges rdiag-edges)))
 
 (defun d (op)
   (let ((r (second op))
@@ -1941,50 +1955,39 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun score (ops)
   (reduce #'+ ops :initial-value 0 :key #'d))
 
-(defun generate-ops (xys selector)
+(defun generate-ops (xys)
   (let ((state (init-state xys)))
     (nlet rec ((state state) (ops nil))
-      (let ((valid-ops (valid-ops state)))
-        (if (null valid-ops)
+      (let ((op (random-valid-op state)))
+        (if (null op)
             (list (score ops)
                   (length ops)
                   (mapcar #'cdr (nreverse ops)))
-            (let ((op (funcall selector valid-ops)))
-              (rec (operate state op)
-                   (cons op ops))))))))
+            (rec (operate state op)
+                 (cons op ops)))))))
 
-(defun high-weight-selector (valid-ops)
-  (car (best #'d valid-ops)))
-
-(defun high-weight-random-selector (valid-ops)
-  (random-choice (nbest-k *randomness* valid-ops #'> :key #'d)))
-
-(defun random-selector (valid-ops)
-  (random-choice valid-ops))
-
-(defun solve (xys selector)
+(defun solve (xys)
   (let ((cands (with-timelimit (*timelimit*)
                  (nlet rec ((acc nil))
                    (if (time-up-p)
                        acc
-                       (rec (cons (generate-ops xys selector)
+                       (rec (cons (generate-ops xys)
                                   acc)))))))
     (dbind (score k ops) (best #'car cands)
       (declare (ignore score))
       (values k ops))))
 
-(defun set-vars (n randomness)
+(defun set-vars (n)
   (setf *n* n
         *center* (ash n -1)
-        *timelimit* 2.5
-        *randomness* randomness))
+        *timelimit* 2.5))
 
-(defun main (&optional (stream *standard-input*) (randomness 8))
+(defun main (&optional (stream *standard-input*))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars n randomness)
-        (mvbind (k ops) (solve xys #'high-weight-random-selector)
+        (set-vars n)
+        (mvbind (k ops) (solve xys)
           (bulk-stdout
             (println k)
             (dolist (op ops)
