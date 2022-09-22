@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 testcase-dir" >&2
+    exit 1
+fi    
+
+dir="$1"
+dir=$dir sbcl --script main.lisp

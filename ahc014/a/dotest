@@ -1,0 +1,11 @@
+#!/bin/bash
+
+usage="Usage: $0 test-input"
+
+if [ $# -ne 1 ]; then
+    echo $usage >&2
+    exit 1
+fi
+
+file="$1"
+cat $file | sbcl --script main.lisp
