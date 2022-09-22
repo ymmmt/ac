@@ -1153,6 +1153,26 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (let ((last (range-last start end step)))
     (range-scanr function last start last step)))
 
+(defun find-if*-range (predicate start end &optional (step 1))
+  (declare (function predicate)
+           (fixnum start end step)
+           (optimize speed (safety 1)))
+  (loop for i fixnum from start below end by step
+        for value = (funcall predicate i)
+        when value
+          return (values value i)))
+
+(defun find-if*-drange (predicate start end &optional (step 1))
+  (declare (function predicate)
+           (fixnum start end step)
+           (optimize speed (safety 1)))
+  (let ((last (range-last start end step)))
+    (loop for i fixnum = last then (the fixnum (- i step))
+          while (>= i start)
+          for value = (funcall predicate i)
+          when value
+            return (values value i))))
+
 (defun take (n list &key (step 1))
   (nlet rec ((n n) (list list) (acc nil))
     (if (or (zerop n) (null list))
