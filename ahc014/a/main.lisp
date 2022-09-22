@@ -1034,10 +1034,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (declare (function function)
            (fixnum start end step)
            (optimize speed (safety 1)))
-  (let ((last (range-last start end step)))
-    (loop for i fixnum = last then (the fixnum (- i step))
-          while (>= i start)
-          collect (funcall function i))))
+  (when (< start end)
+    (let ((last (range-last start end step)))
+      (loop for i fixnum = last then (the fixnum (- i step))
+            while (>= i start)
+            collect (funcall function i)))))
 
 (defun mapc-range (function start end &optional (step 1))
   (declare (function function)
@@ -1050,10 +1051,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (declare (function function)
            (fixnum start end step)
            (optimize speed (safety 1)))
-  (let ((last (range-last start end step)))
-    (loop for i fixnum = last then (the fixnum (- i step))
-          while (>= i start)
-          do (funcall function i))))
+  (when (< start end)
+    (let ((last (range-last start end step)))
+      (loop for i fixnum = last then (the fixnum (- i step))
+            while (>= i start)
+            do (funcall function i)))))
 
 (defun filter-range (predicate start end &optional (step 1))
   (declare (function predicate)
@@ -1148,6 +1150,27 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (assert (< start end))
   (let ((last (range-last start end step)))
     (range-scanr function last start last step)))
+
+(defun find-if*-range (predicate start end &optional (step 1))
+  (declare (function predicate)
+           (fixnum start end step)
+           (optimize speed (safety 1)))
+  (loop for i fixnum from start below end by step
+        for value = (funcall predicate i)
+        when value
+          return (values value i)))
+
+(defun find-if*-drange (predicate start end &optional (step 1))
+  (declare (function predicate)
+           (fixnum start end step)
+           (optimize speed (safety 1)))
+  (when (< start end)
+    (let ((last (range-last start end step)))
+      (loop for i fixnum = last then (the fixnum (- i step))
+            while (>= i start)
+            for value = (funcall predicate i)
+            when value
+              return (values value i)))))
 
 (defun take (n list &key (step 1))
   (nlet rec ((n n) (list list) (acc nil))
@@ -1645,17 +1668,29 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Core
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (set-dispatch-macro-character
+   #\# #\@
+   (lambda (stream char num)
+     (declare (ignore char num))
+     (let ((arrays (read stream t nil t)))
+       `(declare (type (simple-array bit) ,@(ensure-list arrays))
+                 (optimize speed (safety 1)))))))
+
 (defvar *n*)
 (defvar *center*)
 (defvar *timelimit*)
 
 (defsubst pointp (grid r c)
+  #@grid
   (plusp (aref grid r c)))
 
 (defsubst blankp (grid r c)
+  #@grid
   (zerop (aref grid r c)))
 
 (defsubst point-cell-p (grid r c)
+  #@grid
   (when (pointp grid r c)
     (cons r c)))
 
@@ -1676,42 +1711,47 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (min *n* (+ const *n*))))
 
 (defun points (grid)
+  #@grid
   (lcomp ((r 0 *n*) (c 0 *n*))
       (pointp grid r c)
     (cons r c)))
 
 (defun adja-row-points (grid row col)
-  (->> (list (find-if* (curry* #'point-cell-p grid row %)
-                       (drange col))
-             (find-if* (curry* #'point-cell-p grid row %)
-                       (range (1+ col) *n*)))
+  #@grid
+  (->> (list (find-if*-drange (curry* #'point-cell-p grid row %)
+                              0 col)
+             (find-if*-range (curry* #'point-cell-p grid row %)
+                             (1+ col) *n*))
        (delete nil)))
 
 (defun adja-col-points (grid row col)
-  (->> (list (find-if* (curry* #'point-cell-p grid % col)
-                       (drange row))
-             (find-if* (curry* #'point-cell-p grid % col)
-                       (range (1+ row) *n*)))
+  #@grid
+  (->> (list (find-if*-drange (curry* #'point-cell-p grid % col)
+                              0 row)
+             (find-if*-range (curry* #'point-cell-p grid % col)
+                             (1+ row) *n*))
        (delete nil)))
 
 (defun adja-ldiag-points (grid row col)
+  #@grid
   (let ((const (+ row col)))
     (flet ((point-cell-p (r)
              (point-cell-p grid r (- const r))))
-      (->> (list (find-if* #'point-cell-p
-                           (drange (ldiag-row-start row col) row))
-                 (find-if* #'point-cell-p
-                           (range (1+ row) (ldiag-row-end row col))))
+      (->> (list (find-if*-drange #'point-cell-p
+                                  (ldiag-row-start row col) row)
+                 (find-if*-range #'point-cell-p
+                                 (1+ row) (ldiag-row-end row col)))
            (delete nil)))))
 
 (defun adja-rdiag-points (grid row col)
+  #@grid
   (let ((const (- row col)))
     (flet ((point-cell-p (r)
              (point-cell-p grid r (- r const))))
-      (->> (list (find-if* #'point-cell-p
-                           (drange (rdiag-row-start row col) row))
-                 (find-if* #'point-cell-p
-                           (range (1+ row) (rdiag-row-end row col))))
+      (->> (list (find-if*-drange #'point-cell-p
+                                  (rdiag-row-start row col) row)
+                 (find-if*-range #'point-cell-p
+                                 (1+ row) (rdiag-row-end row col)))
            (delete nil)))))
 
 ;;; Main
@@ -1728,6 +1768,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (print-matrix (state-grid object)))
 
 (defun valid-row-edge-p (grid row-edges row c1 c2)
+  #@(grid row-edges)
   (sortf < c1 c2)
   (always (c c1 c2)
     (and (or (= c c1)
@@ -1735,6 +1776,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (zerop (aref row-edges row c)))))
 
 (defun valid-col-edge-p (grid col-edges col r1 r2)
+  #@(grid col-edges)
   (sortf < r1 r2)
   (always (r r1 r2)
     (and (or (= r r1)
@@ -1742,6 +1784,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (zerop (aref col-edges r col)))))
 
 (defun valid-ldiag-edge-p (grid ldiag-edges r1 c1 r2 c2)
+  #@(grid ldiag-edges)
   (if (> r1 r2)
       (valid-ldiag-edge-p grid ldiag-edges r2 c2 r1 c1)
       (let ((const (+ r1 c1)))
@@ -1751,6 +1794,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (zerop (aref ldiag-edges r (- const r))))))))
 
 (defun valid-rdiag-edge-p (grid rdiag-edges r1 c1 r2 c2)
+  #@(grid rdiag-edges)
   (if (> r1 r2)
       (valid-rdiag-edge-p grid rdiag-edges r2 c2 r1 c1)
       (let ((const (- r1 c1)))
@@ -1818,18 +1862,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (points (state-grid state))))
 
 (defun row-connect! (row-edges row c1 c2)
+  #@row-edges
   (sortf < c1 c2)
   (mapc-range (lambda (c)
                 (setf (aref row-edges row c) 1))
               c1 c2))
 
 (defun col-connect! (col-edges col r1 r2)
+  #@col-edges
   (sortf < r1 r2)
   (mapc-range (lambda (r)
                 (setf (aref col-edges r col) 1))
               r1 r2))
 
 (defun ldiag-connect! (ldiag-edges r1 c1 r2 c2)
+  #@ldiag-edges
   (if (> r1 r2)
       (ldiag-connect! ldiag-edges r2 c2 r1 c1)
       (let ((const (+ r1 c1)))
@@ -1838,6 +1885,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     r1 r2))))
 
 (defun rdiag-connect! (rdiag-edges r1 c1 r2 c2)
+  #@rdiag-edges
   (if (> r1 r2)
       (rdiag-connect! rdiag-edges r2 c2 r1 c1)
       (let ((const (- r1 c1)))
@@ -1869,11 +1917,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   state)
 
 (defun init-state (xys)
-  (let ((grid (make-bit-array `(,*n* ,*n*)))
-        (row-edges (make-bit-array `(,*n* ,*n*)))
-        (col-edges (make-bit-array `(,*n* ,*n*)))
-        (ldiag-edges (make-bit-array `(,*n* ,*n*)))
-        (rdiag-edges (make-bit-array `(,*n* ,*n*))))
+  (let* ((dims (list *n* *n*))
+         (grid (make-bit-array dims))
+         (row-edges (make-bit-array dims))
+         (col-edges (make-bit-array dims))
+         (ldiag-edges (make-bit-array dims))
+         (rdiag-edges (make-bit-array dims)))
+    #@grid
     (mapc (dlambda ((x . y))
             (setf (aref grid x y) 1))
           xys)
@@ -1909,7 +1959,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (readlet (n m)
     (let ((xys (read-conses m)))
       (set-vars n)
-      (mvbind (k ops) (solve xys #'random-choice)
+      (mvbind (k ops) (solve xys)
         (bulk-stdout
           (println k)
           (dolist (op ops)
