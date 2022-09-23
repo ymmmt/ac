@@ -1685,6 +1685,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *n*)
 (defvar *center*)
 (defvar *timelimit*)
+(defvar *randomness*)
 
 (defsubst pointp (grid r c)
   #@grid
@@ -1867,12 +1868,28 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (mapcan (curry #'find-valid-ops state)
           (state-points state)))
 
-(defun random-valid-op (state)
-  (with-accessors ((points state-points)) state
-    (shuffle! points)
-    (car (find-if*-range (lambda (i)
-                           (find-valid-ops state (aref points i)))
-                         0 (length points)))))
+(defun random-valid-op (state &optional (r *randomness*))
+  (labels ((ret (acc)
+             (when acc
+               (best #'d acc))))
+    (with-accessors ((points state-points)) state
+      (shuffle! points)
+      (let ((len (length points)))
+        (nlet rec ((i 0) (count 0) (acc nil))
+          (declare (type fixnum len i count r)
+                   (optimize speed (safety 1)))
+          (if (or (>= i len)
+                  (>= count r))
+              (ret acc)
+              (mvbind (ops j) (find-if*-range (lambda (pos)
+                                                (find-valid-ops state (aref points pos)))
+                                              i len)
+                (declare (type (or null fixnum) j))
+                (if (null j)
+                    (ret acc)
+                    (rec (1+ j)
+                         (+ count (length ops))
+                         (nconc ops acc))))))))))
 
 (defun row-connect! (row-edges row c1 c2)
   #@row-edges
@@ -1977,16 +1994,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (declare (ignore score))
       (values k ops))))
 
-(defun set-vars (n)
+(defun set-vars (n randomness)
   (setf *n* n
         *center* (ash n -1)
-        *timelimit* 2.5))
+        *timelimit* 2.5
+        *randomness* randomness))
 
-(defun main (&optional (stream *standard-input*))
+(defun main (&optional (stream *standard-input*) (randomness 7))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars n)
+        (set-vars n randomness)
         (mvbind (k ops) (solve xys)
           (bulk-stdout
             (println k)
