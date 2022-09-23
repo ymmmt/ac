@@ -1981,7 +1981,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun score (ops)
   (reduce #'+ ops :initial-value 0 :key #'d))
 
-(defun generate-ops (xys)
+(defun generate-cand (xys)
   (let ((state (init-state xys)))
     (nlet rec ((state state) (ops nil))
       (let ((op (random-valid-op state)))
@@ -1997,7 +1997,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  (nlet rec ((acc nil))
                    (if (time-up-p)
                        acc
-                       (rec (cons (generate-ops xys)
+                       (rec (cons (generate-cand xys)
                                   acc)))))))
     (dbind (score k ops) (best #'car cands)
       (declare (ignore score))
