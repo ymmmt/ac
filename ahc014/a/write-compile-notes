@@ -1,0 +1,3 @@
+#!/bin/bash
+
+sbcl --eval '(compile-file "main.lisp")' --eval '(exit)'  &> compile-notes
