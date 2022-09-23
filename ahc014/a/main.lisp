@@ -1697,10 +1697,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *randomness*)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (defconstant +all-dirs+          '(n ne e se s sw w nw))
-  (defconstant +all-opposite-dirs+ '(s sw w nw n ne e se))
+  (defconstant +dirs+          '(n ne e se s sw w nw))
+  (defconstant +opposite-dirs+ '(s sw w nw n ne e se))
   (defconstant +dir-alist+
-    (mapcar #'cons +all-dirs+ +all-opposite-dirs+))
+    (mapcar #'cons +dirs+ +opposite-dirs+))
 
   (defun opposite (dir)
     (cdr (assoc dir +dir-alist+)))
@@ -1743,9 +1743,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (point-row object) (point-col object)
            (mapcar (lambda (dir)
                      (point-repr (funcall (mksym "POINT-~A-CONNECT" dir) object)))
-                   +all-dirs+))))
+                   +dirs+))))
             
-
 (deftype cell ()
   '(or null point))
 
@@ -1876,19 +1875,32 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (0  'n)
             (1  'ne))))))
 
-(defsubst adj-accessor (row col r c)
-  (mksym "POINT-~A-ADJ" (dir row col r c)))
+(defsubst adj-accessor (dir)
+  (ecase dir
+    (n  'point-n-adj)
+    (ne 'point-ne-adj)
+    (e  'point-e-adj)
+    (se 'point-se-adj)
+    (s  'point-s-adj)
+    (sw 'point-sw-adj)
+    (w  'point-w-adj)
+    (nw 'point-nw-adj)))
 
-(defsubst connect-accessor (row col r c)
-  (mksym "POINT-~A-CONNECT" (dir row col r c)))
-
-(defmacro %connectedp-aux ()
-  (labels ((aux (dir)
-             `(eq p1 (,(mksym "POINT-~A-CONNECT" dir) p2))))
-    `(or ,@(mapcar #'aux +all-dirs+))))
+(defsubst connect-accessor (dir)
+  (ecase dir
+    (n  'point-n-connect)
+    (ne 'point-ne-connect)
+    (e  'point-e-connect)
+    (se 'point-se-connect)
+    (s  'point-s-connect)
+    (sw 'point-sw-connect)
+    (w  'point-w-connect)
+    (nw 'point-nw-connect)))
 
 (defun connectedp (p1 p2)
-  (%connectedp-aux))
+  (some (lambda (dir)
+          (eq p1 (funcall (connect-accessor dir) p2)))
+        +dirs+))
 
 (defun betweenp (p1 p2 r c)
   (with-accessors ((r1 point-row) (c1 point-col)) p1
@@ -1898,13 +1910,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                 (or (= c1 c2 c) (monotonicp c1 c2 c)))))))
 
 (defun connectablep (point r c)
-  (let ((row (point-row point))
-        (col (point-col point)))
-    (let ((adj (funcall (adj-accessor row col r c)
-                        point)))
-      (or (null adj)
-          (and (not (connectedp point adj))
-               (not (betweenp point adj r c)))))))
+  (let* ((dir (dir (point-row point)
+                   (point-col point)
+                   r c))
+         (adj (funcall (adj-accessor dir)
+                       point)))
+    (or (null adj)
+        (and (not (connectedp point adj))
+             (not (betweenp point adj r c))))))
 
 ;;; Ops
 
@@ -1918,7 +1931,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun make-axis-aligned-op-if-valid (grid point row-point col-point)
-  (with-accessors ((r3 point-row) (c3 point-col)) point
     (with-accessors ((r2 point-row) (c2 point-col)) row-point
       (with-accessors ((r4 point-row) (c4 point-col)) col-point
         (let ((r1 r4)
@@ -1929,7 +1941,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                      (connectablep col-point r1 c1)
                      (not (connectedp point row-point))
                      (not (connectedp point col-point)))
-            (list (point r1 c1) row-point point col-point)))))))
+            (list (point r1 c1) row-point point col-point))))))
 
 (defun make-diagonal-op-if-valid (grid point ldiag-point rdiag-point)
   (with-accessors ((r3 point-row) (c3 point-col)) point
@@ -1996,7 +2008,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     (dir-connect! point it ',dir)
                     (dir-connect! point old ',(opposite dir)))))))
     `(progn
-       ,@(mapcar #'aux +all-dirs+))))
+       ,@(mapcar #'aux +dirs+))))
 
 (defun update-adjacent-points-slots! (grid point)
   (with-accessors ((r point-row) (c point-col)) point
@@ -2011,10 +2023,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun connect! (p1 p2)
   (with-accessors ((row point-row) (col point-col)) p1
     (with-accessors ((r point-row) (c point-col)) p2
-      (funcall (fdefinition `(setf ,(connect-accessor row col r c)))
-               p2 p1)
-      (funcall (fdefinition `(setf ,(connect-accessor r c row col)))
-               p1 p2))))
+      (let ((dir (dir row col r c)))
+        (funcall (fdefinition `(setf ,(connect-accessor dir)))
+                 p2 p1)
+        (funcall (fdefinition `(setf ,(connect-accessor (opposite dir))))
+                 p1 p2)))))
 
 (defun connect-rect! (op)
   (dbind (p1 p2 p3 p4) op
