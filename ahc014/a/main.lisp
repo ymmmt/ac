@@ -1867,10 +1867,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  (make-diagonal-op-if-valid state point ldp rdp)
                it)))))
 
-(defun valid-ops (state)
-  (mapcan (curry #'find-valid-ops state)
-          (state-points state)))
-
 (defun random-valid-op (state &optional (r *randomness*))
   (labels ((ret (acc)
              (when acc
@@ -1971,12 +1967,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (c (third op)))
     (+ (^2 (- r *center*))
        (^2 (- c *center*)))))
-
-;; (defun d (op)
-;;   (dbind (type r1 c1 r2 c2 r3 c3 . rest) op
-;;     (declare (ignore type rest))
-;;     (max (dist r1 c1 r2 c2)
-;;          (dist r2 c2 r3 c3))))
 
 (defun score (ops)
   (reduce #'+ ops :initial-value 0 :key #'d))
