@@ -1393,13 +1393,13 @@ cx + dy = q"
         (t
          (cons (car list) (replace-nth (cdr list) (1- n) item)))))
 
-(defun print-matrix (matrix &optional (sep " "))
+(defun print-matrix (matrix &key (sep " ") (stream t))
   (dotimes (i (array-dimension matrix 0))
     (dotimes (j (array-dimension matrix 1))
       (when (plusp j) (princ sep))
-      (princ (aref matrix i j)))
-    (fresh-line))
-  (fresh-line))
+      (princ (aref matrix i j) stream))
+    (fresh-line stream))
+  (fresh-line stream))
 
 (defun char-matrix->num-matrix (char-matrix &rest init-args)
   (let* ((h (array-dimension char-matrix 0))
