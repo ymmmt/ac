@@ -2100,7 +2100,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *timelimit* 2.5
         *randomness* randomness))
 
-(defun main (&optional (stream *standard-input*) (randomness 3))
+(defun main (&optional (stream *standard-input*) (randomness 4))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
