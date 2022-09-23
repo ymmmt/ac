@@ -1,3 +1,6 @@
+(defsubst non-nils (list)
+  (delete nil list))
+
 (defun lines (string)
   (->> (split #\Newline (coerce-list string)
               :test #'char=
