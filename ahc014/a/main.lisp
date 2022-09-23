@@ -742,8 +742,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (ash x 1)
       (* 2 x)))
 
-(defsubst dist (x y)
-  (abs (- x y)))
+(defsubst dist (a b c d)
+  (declare (type fixnum a b c d)
+           (optimize speed (safety 0)))
+  (+ (the fixnum (^2 (- a c)))
+     (the fixnum (^2 (- b d)))))
 
 (defsubst df (x)
   (coerce x 'double-float))
@@ -1969,6 +1972,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (+ (^2 (- r *center*))
        (^2 (- c *center*)))))
 
+;; (defun d (op)
+;;   (dbind (type r1 c1 r2 c2 r3 c3 . rest) op
+;;     (declare (ignore type rest))
+;;     (max (dist r1 c1 r2 c2)
+;;          (dist r2 c2 r3 c3))))
+
 (defun score (ops)
   (reduce #'+ ops :initial-value 0 :key #'d))
 
@@ -2029,7 +2038,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
 ;;           (set-vars n randomness)
-;;           (mvbind (k ops) (solve xys #'high-weight-random-selector)
+;;           (mvbind (k ops) (solve xys)
 ;;             (reduce #'+ ops :key #'d)))))))
 
 ;; (defun total-score (test-dir randomness)
