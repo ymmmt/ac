@@ -1897,7 +1897,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (w  'point-w-connect)
     (nw 'point-nw-connect)))
 
-(defun connectedp (p1 p2)
+(defsubst connectedp (p1 p2)
   (some (lambda (dir)
           (eq p1 (funcall (connect-accessor dir) p2)))
         +dirs+))
@@ -1930,18 +1930,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (format t "~D ~D ~D ~D ~D ~D ~D ~D"
                     r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
+(defun make-op-if-valid (grid r1 c1 p2 p3 p4)
+  (when (and (grid-in-bounds-p r1 c1)
+             (blankp grid r1 c1)
+             (connectablep p2 r1 c1)
+             (connectablep p4 r1 c1)
+             (not (connectedp p2 p3))
+             (not (connectedp p3 p4)))
+    (list (point r1 c1) p2 p3 p4)))
+  
 (defun make-axis-aligned-op-if-valid (grid point row-point col-point)
-    (with-accessors ((r2 point-row) (c2 point-col)) row-point
-      (with-accessors ((r4 point-row) (c4 point-col)) col-point
-        (let ((r1 r4)
-              (c1 c2))
-          (when (and (grid-in-bounds-p r1 c1)
-                     (blankp grid r1 c1)
-                     (connectablep row-point r1 c1)
-                     (connectablep col-point r1 c1)
-                     (not (connectedp point row-point))
-                     (not (connectedp point col-point)))
-            (list (point r1 c1) row-point point col-point))))))
+  (with-accessors ((r2 point-row) (c2 point-col)) row-point
+    (with-accessors ((r4 point-row) (c4 point-col)) col-point
+      (let ((r1 r4)
+            (c1 c2))
+        (make-op-if-valid grid r1 c1 row-point point col-point)))))
 
 (defun make-diagonal-op-if-valid (grid point ldiag-point rdiag-point)
   (with-accessors ((r3 point-row) (c3 point-col)) point
@@ -1949,13 +1952,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (with-accessors ((r4 point-row) (c4 point-col)) rdiag-point
         (let ((r1 (- r4 (- r3 r2)))
               (c1 (+ c4 (- c2 c3))))
-          (when (and (grid-in-bounds-p r1 c1)
-                     (blankp grid r1 c1)
-                     (connectablep ldiag-point r1 c1)
-                     (connectablep rdiag-point r1 c1)
-                     (not (connectedp point ldiag-point))
-                     (not (connectedp point rdiag-point)))
-            (list (point r1 c1) ldiag-point point rdiag-point)))))))
+          (make-op-if-valid grid r1 c1 ldiag-point point rdiag-point))))))
 
 (defun find-valid-ops (grid point)
   (with-accessors ((r point-row) (c point-col)
