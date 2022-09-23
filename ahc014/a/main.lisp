@@ -742,11 +742,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (ash x 1)
       (* 2 x)))
 
-(defsubst dist (a b c d)
-  (declare (type fixnum a b c d)
-           (optimize speed (safety 0)))
-  (+ (the fixnum (^2 (- a c)))
-     (the fixnum (^2 (- b d)))))
+(defsubst dist (x y)
+  (abs (- x y)))
 
 (defsubst df (x)
   (coerce x 'double-float))
@@ -1661,18 +1658,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (>= (get-internal-real-time) ,gend)))
          ,@body))))
 
-(defun print-matrix (matrix &optional (sep " "))
+(defun print-matrix (matrix &key (sep " ") (stream t))
   (dotimes (i (array-dimension matrix 0))
     (dotimes (j (array-dimension matrix 1))
       (when (plusp j) (princ sep))
-      (princ (aref matrix i j)))
-    (fresh-line))
-  (fresh-line))
+      (princ (aref matrix i j) stream))
+    (fresh-line stream))
+  (fresh-line stream))
 
 (defun shuffle! (vector)
   (loop for i from (length vector) downto 2
         do (rotatef (aref vector (random i))
                     (aref vector (1- i)))))
+
+(defsubst non-nils (&rest items)
+  (delete nil items))
 
 ;;; Core
 
@@ -1682,7 +1682,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
    (lambda (stream char num)
      (declare (ignore char num))
      (let ((arrays (read stream t nil t)))
-       `(declare (type (simple-array bit) ,@(ensure-list arrays))
+       `(declare (type simple-array ,@(ensure-list arrays))
                  (optimize speed (safety 1)))))))
 
 (defvar *n*)
@@ -1690,18 +1690,56 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *timelimit*)
 (defvar *randomness*)
 
-(defsubst pointp (grid r c)
+(defstruct (point (:constructor point
+                      (row col)))
+  (row  0 :type uint8)
+  (col  0 :type uint8)
+  (n  nil :type (or null point))
+  (ne nil :type (or null point))
+  (e  nil :type (or null point))
+  (se nil :type (or null point))
+  (s  nil :type (or null point))
+  (sw nil :type (or null point))
+  (w  nil :type (or null point))
+  (nw nil :type (or null point)))
+
+(defmethod print-object ((object point) stream)
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream ":R ~D :C ~D"
+            (point-row object)
+            (point-col object))))
+
+(deftype cell ()
+  '(or null point))
+
+(defstruct (state (:constructor state
+                      (grid points row-edges col-edges ldiag-edges rdiag-edges)))
+  (grid        nil :type (or null (simple-array cell)))
+  (points      nil :type (or null vector))
+  (row-edges   nil :type (or null (simple-array bit)))
+  (col-edges   nil :type (or null (simple-array bit)))
+  (ldiag-edges nil :type (or null (simple-array bit)))
+  (rdiag-edges nil :type (or null (simple-array bit))))
+
+(defmethod print-object ((object state) stream)
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream ":GRID~%")
+    (print-matrix (state-grid object) :stream stream)))
+
+(defsubst make-grid (dimensions)
+  (make-array dimensions :element-type 'cell :initial-element nil))
+
+;;; Predicates
+
+(defsubst filledp (grid r c)
   #@grid
-  (plusp (sbit grid r c)))
+  (aref grid r c))
 
 (defsubst blankp (grid r c)
   #@grid
-  (zerop (sbit grid r c)))
+  (null (aref grid r c)))
 
-(defsubst point-cell-p (grid r c)
-  #@grid
-  (when (pointp grid r c)
-    (cons r c)))
+;;; Points
 
 (defsubst ldiag-row-start (row col)
   (let ((const (+ row col)))
@@ -1722,60 +1760,62 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun points (grid)
   #@grid
   (lcomp ((r 0 *n*) (c 0 *n*))
-      (pointp grid r c)
-    (cons r c)))
+      (filledp grid r c)
+    it))
 
-(defun adja-row-points (grid row col)
+(defsubst adjacent-n-point (grid row col)
   #@grid
-  (->> (list (find-if*-drange (curry* #'point-cell-p grid row %)
-                              0 col)
-             (find-if*-range (curry* #'point-cell-p grid row %)
-                             (1+ col) *n*))
-       (delete nil)))
+  (find-if*-range (curry* #'filledp grid % col)
+                  (1+ row) *n*))
 
-(defun adja-col-points (grid row col)
-  #@grid
-  (->> (list (find-if*-drange (curry* #'point-cell-p grid % col)
-                              0 row)
-             (find-if*-range (curry* #'point-cell-p grid % col)
-                             (1+ row) *n*))
-       (delete nil)))
-
-(defun adja-ldiag-points (grid row col)
-  #@grid
-  (let ((const (+ row col)))
-    (flet ((point-cell-p (r)
-             (point-cell-p grid r (- const r))))
-      (->> (list (find-if*-drange #'point-cell-p
-                                  (ldiag-row-start row col) row)
-                 (find-if*-range #'point-cell-p
-                                 (1+ row) (ldiag-row-end row col)))
-           (delete nil)))))
-
-(defun adja-rdiag-points (grid row col)
+(defsubst adjacent-ne-point (grid row col)
   #@grid
   (let ((const (- row col)))
-    (flet ((point-cell-p (r)
-             (point-cell-p grid r (- r const))))
-      (->> (list (find-if*-drange #'point-cell-p
-                                  (rdiag-row-start row col) row)
-                 (find-if*-range #'point-cell-p
-                                 (1+ row) (rdiag-row-end row col)))
-           (delete nil)))))
+    (flet ((filledp (r)
+             (filledp grid r (- r const))))
+      (find-if*-range #'filledp
+                      (1+ row) (rdiag-row-end row col)))))
 
-;;; Main
+(defsubst adjacent-e-point (grid row col)
+  #@grid
+  (find-if*-range (curry* #'filledp grid row %)
+                  (1+ col) *n*))
 
-(defstruct (state (:constructor state
-                      (grid points row-edges col-edges ldiag-edges rdiag-edges)))
-  (grid nil :type (or null (simple-array bit)))
-  (points nil :type (or null vector))
-  (row-edges nil :type (or null (simple-array bit)))
-  (col-edges nil :type (or null (simple-array bit)))
-  (ldiag-edges nil :type (or null (simple-array bit)))
-  (rdiag-edges nil :type (or null (simple-array bit))))
+(defsubst adjacent-se-point (grid row col)
+  #@grid
+  (let ((const (+ row col)))
+    (flet ((filledp (r)
+             (filledp grid r (- const r))))
+      (find-if*-drange #'filledp
+                       (ldiag-row-start row col) row))))
 
-(defmethod print-object ((object state) stream)
-  (print-matrix (state-grid object)))
+(defsubst adjacent-s-point (grid row col)
+  #@grid
+  (find-if*-drange (curry* #'filledp grid % col)
+                   0 row))
+
+(defsubst adjacent-sw-point (grid row col)
+  #@grid
+  (let ((const (- row col)))
+    (flet ((filledp (r)
+             (filledp grid r (- r const))))
+      (find-if*-drange #'filledp
+                       (rdiag-row-start row col) row))))
+
+(defsubst adjacent-w-point (grid row col)
+  #@grid
+  (find-if*-drange (curry* #'filledp grid row %)
+                   0 col))
+
+(defsubst adjacent-nw-point (grid row col)
+  #@grid
+  (let ((const (+ row col)))
+    (flet ((filledp (r)
+             (filledp grid r (- const r))))
+      (find-if*-range #'filledp
+                      (1+ row) (ldiag-row-end row col)))))
+
+;;; Edges
 
 (defun valid-row-edge-p (grid row-edges row c1 c2)
   #@(grid row-edges)
@@ -1813,6 +1853,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                    (blankp grid r (- r const)))
                (zerop (sbit rdiag-edges r (- r const))))))))
 
+;; Ops
+
 (defun axis-aligned-valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
   (with-accessors ((grid state-grid)
                    (row-edges state-row-edges)
@@ -1838,34 +1880,36 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (valid-ldiag-edge-p grid ldiag-edges r4 c4 r1 c1))))
 
 (defun make-axis-aligned-op-if-valid (state point row-point col-point)
-  (dbind (r3 . c3) point
-    (dbind (r2 . c2) row-point
-      (dbind (r4 . c4) col-point
+  (with-accessors ((r3 point-row) (c3 point-col)) point
+    (with-accessors ((r2 point-row) (c2 point-col)) row-point
+      (with-accessors ((r4 point-row) (c4 point-col)) col-point
         (let ((r1 r4)
               (c1 c2))
           (when (axis-aligned-valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
             (list :axis-aligned r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun make-diagonal-op-if-valid (state point ldiag-point rdiag-point)
-  (dbind (r3 . c3) point
-    (dbind (r2 . c2) ldiag-point
-      (dbind (r4 . c4) rdiag-point
+  (with-accessors ((r3 point-row) (c3 point-col)) point
+    (with-accessors ((r2 point-row) (c2 point-col)) ldiag-point
+      (with-accessors ((r4 point-row) (c4 point-col)) rdiag-point
         (let ((r1 (- r4 (- r3 r2)))
               (c1 (+ c4 (- c2 c3))))
           (when (diagonal-valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
             (list :diagonal r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun find-valid-ops (state point)
-  (dbind (r . c) point
-    (with-accessors ((grid state-grid)) state
-      (nconc (lcomp ((rp (adja-row-points grid r c))
-                     (cp (adja-col-points grid r c)))
-                 (make-axis-aligned-op-if-valid state point rp cp)
-               it)
-             (lcomp ((ldp (adja-ldiag-points grid r c))
-                     (rdp (adja-rdiag-points grid r c)))
-                 (make-diagonal-op-if-valid state point ldp rdp)
-               it)))))
+  (with-accessors ((r point-row) (c point-col)
+                   (n point-n) (ne point-ne) (e point-e) (se point-se)
+                   (s point-s) (sw point-sw) (w point-w) (nw point-nw))
+      point
+    (nconc (lcomp ((rp (non-nils e w))
+                   (cp (non-nils n s)))
+               (make-axis-aligned-op-if-valid state point rp cp)
+             it)
+           (lcomp ((ldp (non-nils se nw))
+                   (rdp (non-nils ne sw)))
+               (make-diagonal-op-if-valid state point ldp rdp)
+             it))))
 
 (defun random-valid-op (state &optional (r *randomness*))
   (labels ((ret (acc)
@@ -1889,6 +1933,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     (rec (1+ j)
                          (+ count (length ops))
                          (nconc ops acc))))))))))
+
+;;; State update
 
 (defun row-connect! (row-edges row c1 c2)
   #@row-edges
@@ -1922,7 +1968,24 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                       (setf (sbit rdiag-edges r (- r const)) 1))
                     r1 r2))))
 
-(defun operate (state op)
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defconstant all-dirs          '(n ne e se s sw w nw))
+  (defconstant all-opposite-dirs '(s sw w nw n ne e se)))
+
+(defmacro %update-adjacent-points!-aux ()
+  (let ((opposit (mapcar #'cons all-dirs all-opposite-dirs)))
+    (labels ((aux (dir)
+               `(awhen (,(mksym "ADJACENT-~A-POINT" dir) grid r c)
+                  (setf (,(mksym "POINT-~A" dir) point) it)
+                  (setf (,(mksym "POINT-~A" (cdr (assoc dir opposit))) it) point))))
+      `(progn
+         ,@(mapcar #'aux all-dirs)))))
+
+(defun update-adjacent-points! (grid point)
+  (with-accessors ((r point-row) (c point-col)) point
+    (%update-adjacent-points!-aux)))
+
+(defun operate! (state op)
   (with-accessors ((grid state-grid)
                    (points state-points)
                    (row-edges state-row-edges)
@@ -1942,24 +2005,28 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (ldiag-connect! ldiag-edges r2 c2 r3 c3)
          (rdiag-connect! rdiag-edges r3 c3 r4 c4)
          (ldiag-connect! ldiag-edges r4 c4 r1 c1)))
-      (setf (sbit grid r1 c1) 1)
-      (vector-push-extend (cons r1 c1) points)))
+      (let ((p1 (point r1 c1)))
+        (setf (aref grid r1 c1) p1)
+        (vector-push-extend p1 points)
+        (update-adjacent-points! grid p1))))
   state)
 
 (defun init-state (xys)
-  (let* ((dims (list *n* *n*))
-         (grid (make-bit-array dims))
+  (let* ((ds (list *n* *n*))
+         (grid (make-grid ds))
          (points (make-adj-array))
-         (row-edges (make-bit-array dims))
-         (col-edges (make-bit-array dims))
-         (ldiag-edges (make-bit-array dims))
-         (rdiag-edges (make-bit-array dims)))
+         (row-edges (make-bit-array ds))
+         (col-edges (make-bit-array ds))
+         (ldiag-edges (make-bit-array ds))
+         (rdiag-edges (make-bit-array ds)))
     #@grid
     (mapc (dlambda ((x . y))
-            (setf (sbit grid x y) 1))
+            (setf (aref grid x y) (point x y)))
           xys)
     (mapc (rcurry #'vector-push-extend points)
           (points grid))
+    (map nil (curry #'update-adjacent-points! grid)
+         points)
     (state grid points row-edges col-edges ldiag-edges rdiag-edges)))
 
 (defun d (op)
@@ -1979,7 +2046,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (list (score ops)
                   (length ops)
                   (mapcar #'cdr (nreverse ops)))
-            (rec (operate state op)
+            (rec (operate! state op)
                  (cons op ops)))))))
 
 (defun solve (xys)
@@ -1999,7 +2066,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *timelimit* 2.5
         *randomness* randomness))
 
-(defun main (&optional (stream *standard-input*) (randomness 7))
+(defun main (&optional (stream *standard-input*) (randomness 3))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
@@ -2007,8 +2074,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (mvbind (k ops) (solve xys)
           (bulk-stdout
             (println k)
-            (dolist (op ops)
-              (join-print op))))))))
+            (mapc #'join-print ops)))))))
 
 #-swank (main)
 
