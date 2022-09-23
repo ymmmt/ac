@@ -1658,11 +1658,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (>= (get-internal-real-time) ,gend)))
          ,@body))))
 
-(defun print-matrix (matrix &key (sep " ") (stream t))
+(defun print-matrix (matrix &key key (sep " ") (stream t))
   (dotimes (i (array-dimension matrix 0))
     (dotimes (j (array-dimension matrix 1))
       (when (plusp j) (princ sep))
-      (princ (aref matrix i j) stream))
+      (princ (ensure-key key (aref matrix i j))
+             stream))
     (fresh-line stream))
   (fresh-line stream))
 
@@ -1673,6 +1674,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defsubst non-nils (&rest items)
   (delete nil items))
+
+(defsubst monotonicp (x y z)
+  (declare (fixnum x y z)
+           (optimize speed (safety 1)))
+  (or (< x y z) (> x y z)))
 
 ;;; Core
 
@@ -1690,41 +1696,70 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *timelimit*)
 (defvar *randomness*)
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defconstant +all-dirs+          '(n ne e se s sw w nw))
+  (defconstant +all-opposite-dirs+ '(s sw w nw n ne e se))
+  (defconstant +dir-alist+
+    (mapcar #'cons +all-dirs+ +all-opposite-dirs+))
+
+  (defun opposite (dir)
+    (cdr (assoc dir +dir-alist+)))
+  ) ; eval-when
+
 (defstruct (point (:constructor point
                       (row col)))
-  (row  0 :type uint8)
-  (col  0 :type uint8)
-  (n  nil :type (or null point))
-  (ne nil :type (or null point))
-  (e  nil :type (or null point))
-  (se nil :type (or null point))
-  (s  nil :type (or null point))
-  (sw nil :type (or null point))
-  (w  nil :type (or null point))
-  (nw nil :type (or null point)))
+  (row        0   :type uint8)
+  (col        0   :type uint8)
+  (n-adj      nil :type (or null point))
+  (ne-adj     nil :type (or null point))
+  (e-adj      nil :type (or null point))
+  (se-adj     nil :type (or null point))
+  (s-adj      nil :type (or null point))
+  (sw-adj     nil :type (or null point))
+  (w-adj      nil :type (or null point))
+  (nw-adj     nil :type (or null point))
+  (n-connect  nil :type (or null point))
+  (ne-connect nil :type (or null point))
+  (e-connect  nil :type (or null point))
+  (se-connect nil :type (or null point))
+  (s-connect  nil :type (or null point))
+  (sw-connect nil :type (or null point))
+  (w-connect  nil :type (or null point))
+  (nw-connect nil :type (or null point)))
+
+(defun point-repr (point)
+  (if (null point)
+      ""
+      (with-output-to-string (out)
+        (print-unreadable-object (point out :type t)
+          (format out ":R ~D :C ~D"
+                  (point-row point)
+                  (point-col point))))))
 
 (defmethod print-object ((object point) stream)
-  (print-unreadable-object (object stream :type t :identity t)
-    (format stream ":R ~D :C ~D"
-            (point-row object)
-            (point-col object))))
+  (print-unreadable-object (object stream :type t)
+    (apply #'format stream
+           ":R ~A :C ~A :N ~A :NE ~A :E ~A :SE ~A :S ~A :SW ~A :W ~A :NW ~A"
+           (point-row object) (point-col object)
+           (mapcar (lambda (dir)
+                     (point-repr (funcall (mksym "POINT-~A-CONNECT" dir) object)))
+                   +all-dirs+))))
+            
 
 (deftype cell ()
   '(or null point))
 
 (defstruct (state (:constructor state
-                      (grid points row-edges col-edges ldiag-edges rdiag-edges)))
-  (grid        nil :type (or null (simple-array cell)))
-  (points      nil :type (or null vector))
-  (row-edges   nil :type (or null (simple-array bit)))
-  (col-edges   nil :type (or null (simple-array bit)))
-  (ldiag-edges nil :type (or null (simple-array bit)))
-  (rdiag-edges nil :type (or null (simple-array bit))))
+                      (grid points)))
+  (grid   nil :type (or null (simple-array cell)))
+  (points nil :type (or null vector)))
 
 (defmethod print-object ((object state) stream)
   (print-unreadable-object (object stream :type t :identity t)
     (format stream ":GRID~%")
-    (print-matrix (state-grid object) :stream stream)))
+    (print-matrix (state-grid object)
+                  :key (quantizer #'point-p)
+                  :stream stream)))
 
 (defsubst make-grid (dimensions)
   (make-array dimensions :element-type 'cell :initial-element nil))
@@ -1738,6 +1773,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst blankp (grid r c)
   #@(cell grid)
   (null (aref grid r c)))
+
+(defsubst grid-in-bounds-p (r c)
+  (declare (fixnum r c *n*)
+           (optimize speed (safety 1)))
+  (and (< -1 r *n*)
+       (< -1 c *n*)))
 
 ;;; Points
 
@@ -1815,107 +1856,116 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (find-if*-range #'filledp
                       (1+ row) (ldiag-row-end row col)))))
 
-;;; Edges
+(defun dir (row col r c)
+  (declare (fixnum row col r c)
+           (optimize speed (safety 1)))
+  (let ((dr (signum (- r row)))
+        (dc (signum (- c col))))
+    (declare (fixnum dr dc))
+    (switch (dr :test '=)
+      (-1 (switch (dc :test '=)
+            (-1 'sw)
+            (0  's)
+            (1  'se)))
+      (0  (switch (dc :test '=)
+            (-1 'w)
+            (0  (error "Row-col pairs must not be identical."))
+            (1  'e)))
+      (1  (switch (dc :test '=)
+            (-1 'nw)
+            (0  'n)
+            (1  'ne))))))
 
-(defun valid-row-edge-p (grid row-edges row c1 c2)
-  #@(bit row-edges)
-  (sortf < c1 c2)
-  (always (c c1 c2)
-    (and (or (= c c1)
-             (blankp grid row c))
-         (zerop (sbit row-edges row c)))))
+(defsubst adj-accessor (row col r c)
+  (mksym "POINT-~A-ADJ" (dir row col r c)))
 
-(defun valid-col-edge-p (grid col-edges col r1 r2)
-  #@(bit col-edges)
-  (sortf < r1 r2)
-  (always (r r1 r2)
-    (and (or (= r r1)
-             (blankp grid r col))
-         (zerop (sbit col-edges r col)))))
+(defsubst connect-accessor (row col r c)
+  (mksym "POINT-~A-CONNECT" (dir row col r c)))
 
-(defun valid-ldiag-edge-p (grid ldiag-edges r1 c1 r2 c2)
-  #@(bit ldiag-edges)
-  (if (> r1 r2)
-      (valid-ldiag-edge-p grid ldiag-edges r2 c2 r1 c1)
-      (let ((const (+ r1 c1)))
-        (always (r r1 r2)
-          (and (or (= r r1)
-                   (blankp grid r (- const r)))
-               (zerop (sbit ldiag-edges r (- const r))))))))
+(defmacro %connectedp-aux ()
+  (labels ((aux (dir)
+             `(eq p1 (,(mksym "POINT-~A-CONNECT" dir) p2))))
+    `(or ,@(mapcar #'aux +all-dirs+))))
 
-(defun valid-rdiag-edge-p (grid rdiag-edges r1 c1 r2 c2)
-  #@(bit rdiag-edges)
-  (if (> r1 r2)
-      (valid-rdiag-edge-p grid rdiag-edges r2 c2 r1 c1)
-      (let ((const (- r1 c1)))
-        (always (r r1 r2)
-          (and (or (= r r1)
-                   (blankp grid r (- r const)))
-               (zerop (sbit rdiag-edges r (- r const))))))))
+(defun connectedp (p1 p2)
+  (%connectedp-aux))
 
-;; Ops
+(defun betweenp (p1 p2 r c)
+  (with-accessors ((r1 point-row) (c1 point-col)) p1
+    (with-accessors ((r2 point-row) (c2 point-col)) p2
+      (and (not (and (= r1 r2 r) (= c1 c2 c)))
+           (and (or (= r1 r2 r) (monotonicp r1 r2 r))
+                (or (= c1 c2 c) (monotonicp c1 c2 c)))))))
 
-(defun axis-aligned-valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
-  (with-accessors ((grid state-grid)
-                   (row-edges state-row-edges)
-                   (col-edges state-col-edges))
-      state
-    (and (array-in-bounds-p grid r1 c1)
-         (blankp grid r1 c1)
-         (valid-col-edge-p grid col-edges c1 r1 r2)
-         (valid-row-edge-p grid row-edges r2 c2 c3)
-         (valid-col-edge-p grid col-edges c3 r3 r4)
-         (valid-row-edge-p grid row-edges r4 c4 c1))))
+(defun connectablep (point r c)
+  (let ((row (point-row point))
+        (col (point-col point)))
+    (let ((adj (funcall (adj-accessor row col r c)
+                        point)))
+      (or (null adj)
+          (and (not (connectedp point adj))
+               (not (betweenp point adj r c)))))))
 
-(defun diagonal-valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
-  (with-accessors ((grid state-grid)
-                   (ldiag-edges state-ldiag-edges)
-                   (rdiag-edges state-rdiag-edges))
-      state
-    (and (array-in-bounds-p grid r1 c1)
-         (blankp grid r1 c1)
-         (valid-rdiag-edge-p grid rdiag-edges r1 c1 r2 c2)
-         (valid-ldiag-edge-p grid ldiag-edges r2 c2 r3 c3)
-         (valid-rdiag-edge-p grid rdiag-edges r3 c3 r4 c4)
-         (valid-ldiag-edge-p grid ldiag-edges r4 c4 r1 c1))))
+;;; Ops
 
-(defun make-axis-aligned-op-if-valid (state point row-point col-point)
+(defun print-op (op)
+  (dbind (p1 p2 p3 p4) op
+    (with-accessors ((r1 point-row) (c1 point-col)) p1
+      (with-accessors ((r2 point-row) (c2 point-col)) p2
+        (with-accessors ((r3 point-row) (c3 point-col)) p3
+          (with-accessors ((r4 point-row) (c4 point-col)) p4
+            (format t "~D ~D ~D ~D ~D ~D ~D ~D"
+                    r1 c1 r2 c2 r3 c3 r4 c4)))))))
+
+(defun make-axis-aligned-op-if-valid (grid point row-point col-point)
   (with-accessors ((r3 point-row) (c3 point-col)) point
     (with-accessors ((r2 point-row) (c2 point-col)) row-point
       (with-accessors ((r4 point-row) (c4 point-col)) col-point
         (let ((r1 r4)
               (c1 c2))
-          (when (axis-aligned-valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
-            (list :axis-aligned r1 c1 r2 c2 r3 c3 r4 c4)))))))
+          (when (and (grid-in-bounds-p r1 c1)
+                     (blankp grid r1 c1)
+                     (connectablep row-point r1 c1)
+                     (connectablep col-point r1 c1)
+                     (not (connectedp point row-point))
+                     (not (connectedp point col-point)))
+            (list (point r1 c1) row-point point col-point)))))))
 
-(defun make-diagonal-op-if-valid (state point ldiag-point rdiag-point)
+(defun make-diagonal-op-if-valid (grid point ldiag-point rdiag-point)
   (with-accessors ((r3 point-row) (c3 point-col)) point
     (with-accessors ((r2 point-row) (c2 point-col)) ldiag-point
       (with-accessors ((r4 point-row) (c4 point-col)) rdiag-point
         (let ((r1 (- r4 (- r3 r2)))
               (c1 (+ c4 (- c2 c3))))
-          (when (diagonal-valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
-            (list :diagonal r1 c1 r2 c2 r3 c3 r4 c4)))))))
+          (when (and (grid-in-bounds-p r1 c1)
+                     (blankp grid r1 c1)
+                     (connectablep ldiag-point r1 c1)
+                     (connectablep rdiag-point r1 c1)
+                     (not (connectedp point ldiag-point))
+                     (not (connectedp point rdiag-point)))
+            (list (point r1 c1) ldiag-point point rdiag-point)))))))
 
-(defun find-valid-ops (state point)
+(defun find-valid-ops (grid point)
   (with-accessors ((r point-row) (c point-col)
-                   (n point-n) (ne point-ne) (e point-e) (se point-se)
-                   (s point-s) (sw point-sw) (w point-w) (nw point-nw))
+                   (n point-n-adj) (ne point-ne-adj) (e point-e-adj) (se point-se-adj)
+                   (s point-s-adj) (sw point-sw-adj) (w point-w-adj) (nw point-nw-adj))
       point
     (nconc (lcomp ((rp (non-nils e w))
                    (cp (non-nils n s)))
-               (make-axis-aligned-op-if-valid state point rp cp)
+               (make-axis-aligned-op-if-valid grid point rp cp)
              it)
            (lcomp ((ldp (non-nils se nw))
                    (rdp (non-nils ne sw)))
-               (make-diagonal-op-if-valid state point ldp rdp)
+               (make-diagonal-op-if-valid grid point ldp rdp)
              it))))
 
 (defun random-valid-op (state &optional (r *randomness*))
   (labels ((ret (acc)
              (when acc
                (best #'d acc))))
-    (with-accessors ((points state-points)) state
+    (with-accessors ((grid state-grid)
+                     (points state-points))
+        state
       (shuffle! points)
       (let ((len (length points)))
         (nlet rec ((i 0) (count 0) (acc nil))
@@ -1925,7 +1975,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (>= count r))
               (ret acc)
               (mvbind (ops j) (find-if*-range (lambda (pos)
-                                                (find-valid-ops state (aref points pos)))
+                                                (find-valid-ops grid (aref points pos)))
                                               i len)
                 (declare (type (or null fixnum) j))
                 (if (null j)
@@ -1936,118 +1986,89 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; State update
 
-(defun row-connect! (row-edges row c1 c2)
-  #@(bit row-edges)
-  (sortf < c1 c2)
-  (mapc-range (lambda (c)
-                (setf (sbit row-edges row c) 1))
-              c1 c2))
+(defmacro %update-adjacent-points-slots!-aux ()
+  (labels ((aux (dir)
+             `(awhen (,(mksym "ADJACENT-~A-POINT" dir) grid r c)
+                (let ((old (,(mksym "POINT-~A-ADJ" (opposite dir)) it)))
+                  (setf (,(mksym "POINT-~A-ADJ" dir) point) it
+                        (,(mksym "POINT-~A-ADJ" (opposite dir)) it) point)
+                  (when (and old (connectedp it old))
+                    (dir-connect! point it ',dir)
+                    (dir-connect! point old ',(opposite dir)))))))
+    `(progn
+       ,@(mapcar #'aux +all-dirs+))))
 
-(defun col-connect! (col-edges col r1 r2)
-  #@(bit col-edges)
-  (sortf < r1 r2)
-  (mapc-range (lambda (r)
-                (setf (sbit col-edges r col) 1))
-              r1 r2))
-
-(defun ldiag-connect! (ldiag-edges r1 c1 r2 c2)
-  #@(bit ldiag-edges)
-  (if (> r1 r2)
-      (ldiag-connect! ldiag-edges r2 c2 r1 c1)
-      (let ((const (+ r1 c1)))
-        (mapc-range (lambda (r)
-                      (setf (sbit ldiag-edges r (- const r)) 1))
-                    r1 r2))))
-
-(defun rdiag-connect! (rdiag-edges r1 c1 r2 c2)
-  #@(bit rdiag-edges)
-  (if (> r1 r2)
-      (rdiag-connect! rdiag-edges r2 c2 r1 c1)
-      (let ((const (- r1 c1)))
-        (mapc-range (lambda (r)
-                      (setf (sbit rdiag-edges r (- r const)) 1))
-                    r1 r2))))
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defconstant all-dirs          '(n ne e se s sw w nw))
-  (defconstant all-opposite-dirs '(s sw w nw n ne e se)))
-
-(defmacro %update-adjacent-points!-aux ()
-  (let ((opposit (mapcar #'cons all-dirs all-opposite-dirs)))
-    (labels ((aux (dir)
-               `(awhen (,(mksym "ADJACENT-~A-POINT" dir) grid r c)
-                  (setf (,(mksym "POINT-~A" dir) point) it)
-                  (setf (,(mksym "POINT-~A" (cdr (assoc dir opposit))) it) point))))
-      `(progn
-         ,@(mapcar #'aux all-dirs)))))
-
-(defun update-adjacent-points! (grid point)
+(defun update-adjacent-points-slots! (grid point)
   (with-accessors ((r point-row) (c point-col)) point
-    (%update-adjacent-points!-aux)))
+    (%update-adjacent-points-slots!-aux)))
+
+(defun dir-connect! (p1 p2 dir)
+  (funcall (fdefinition `(setf ,(mksym "POINT-~A-CONNECT" dir)))
+           p2 p1)
+  (funcall (fdefinition `(setf ,(mksym "POINT-~A-CONNECT" (opposite dir))))
+           p1 p2))
+
+(defun connect! (p1 p2)
+  (with-accessors ((row point-row) (col point-col)) p1
+    (with-accessors ((r point-row) (c point-col)) p2
+      (funcall (fdefinition `(setf ,(connect-accessor row col r c)))
+               p2 p1)
+      (funcall (fdefinition `(setf ,(connect-accessor r c row col)))
+               p1 p2))))
+
+(defun connect-rect! (op)
+  (dbind (p1 p2 p3 p4) op
+    (connect! p1 p2)
+    (connect! p2 p3)
+    (connect! p3 p4)
+    (connect! p4 p1)))
 
 (defun operate! (state op)
-  (with-accessors ((grid state-grid)
-                   (points state-points)
-                   (row-edges state-row-edges)
-                   (col-edges state-col-edges)
-                   (ldiag-edges state-ldiag-edges)
-                   (rdiag-edges state-rdiag-edges))
-      state
-    (dbind (type r1 c1 r2 c2 r3 c3 r4 c4) op
-      (ecase type
-        (:axis-aligned
-         (col-connect! col-edges c1 r1 r2)
-         (row-connect! row-edges r2 c2 c3)
-         (col-connect! col-edges c3 r3 r4)
-         (row-connect! row-edges r4 c4 c1))
-        (:diagonal
-         (rdiag-connect! rdiag-edges r1 c1 r2 c2)
-         (ldiag-connect! ldiag-edges r2 c2 r3 c3)
-         (rdiag-connect! rdiag-edges r3 c3 r4 c4)
-         (ldiag-connect! ldiag-edges r4 c4 r1 c1)))
-      (let ((p1 (point r1 c1)))
-        (setf (aref grid r1 c1) p1)
-        (vector-push-extend p1 points)
-        (update-adjacent-points! grid p1))))
+  (let* ((p1 (first op))
+         (r1 (point-row p1))
+         (c1 (point-col p1)))
+    (with-accessors ((grid state-grid)
+                     (points state-points))
+        state
+      (update-adjacent-points-slots! grid p1)
+      (connect-rect! op)
+      (setf (aref grid r1 c1) p1)
+      (vector-push-extend p1 points)))
   state)
 
 (defun init-state (xys)
   (let* ((ds (list *n* *n*))
          (grid (make-grid ds))
-         (points (make-adj-array))
-         (row-edges (make-bit-array ds))
-         (col-edges (make-bit-array ds))
-         (ldiag-edges (make-bit-array ds))
-         (rdiag-edges (make-bit-array ds)))
+         (points (make-adj-array)))
     #@(cell grid)
     (mapc (dlambda ((x . y))
             (setf (aref grid x y) (point x y)))
           xys)
     (mapc (rcurry #'vector-push-extend points)
           (points grid))
-    (map nil (curry #'update-adjacent-points! grid)
+    (map nil (curry #'update-adjacent-points-slots! grid)
          points)
-    (state grid points row-edges col-edges ldiag-edges rdiag-edges)))
+    (state grid points)))
 
 (defun d (op)
-  (let ((r (second op))
-        (c (third op)))
-    (+ (^2 (- r *center*))
-       (^2 (- c *center*)))))
+  (let* ((p1 (first op))
+         (r1 (point-row p1))
+         (c1 (point-col p1)))
+    (+ (^2 (- r1 *center*))
+       (^2 (- c1 *center*)))))
 
 (defun score (ops)
   (reduce #'+ ops :initial-value 0 :key #'d))
 
 (defun generate-cand (xys)
-  (let ((state (init-state xys)))
-    (nlet rec ((state state) (ops nil))
-      (let ((op (random-valid-op state)))
-        (if (null op)
-            (list (score ops)
-                  (length ops)
-                  (mapcar #'cdr (nreverse ops)))
-            (rec (operate! state op)
-                 (cons op ops)))))))
+  (nlet rec ((state (init-state xys)) (ops nil))
+    (let ((op (random-valid-op state)))
+      (if (null op)
+          (list (score ops)
+                (length ops)
+                (nreverse ops))
+          (rec (operate! state op)
+               (cons op ops))))))
 
 (defun solve (xys)
   (let ((cands (with-timelimit (*timelimit*)
@@ -2074,7 +2095,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (mvbind (k ops) (solve xys)
           (bulk-stdout
             (println k)
-            (mapc #'join-print ops)))))))
+            (mapc (lambda (op)
+                    (print-op op) (fresh-line))
+                  ops)))))))
 
 #-swank (main)
 
