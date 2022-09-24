@@ -1972,7 +1972,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (c1 (+ c4 (- c2 c3))))
           (make-op-if-valid grid r1 c1 ldiag-point point rdiag-point))))))
 
-(defun find-valid-axis-aligned-ops (grid point)
+(defun valid-axis-aligned-ops (grid point)
   (with-accessors ((n point-n-adj) (e point-e-adj)
                    (s point-s-adj) (w point-w-adj))
       point
@@ -1981,7 +1981,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (make-axis-aligned-op-if-valid grid point rp cp)
       it)))
 
-(defun find-valid-diagonal-ops (grid point)
+(defun valid-diagonal-ops (grid point)
   (with-accessors ((ne point-ne-adj) (se point-se-adj)
                    (sw point-sw-adj) (nw point-nw-adj))
       point
@@ -1990,11 +1990,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (make-diagonal-op-if-valid grid point ldp rdp)
       it)))
 
-(defun find-valid-ops (grid point)
-  (nconc (find-valid-axis-aligned-ops grid point)
-         (find-valid-diagonal-ops grid point)))
+(defun valid-ops (grid point)
+  (nconc (valid-axis-aligned-ops grid point)
+         (valid-diagonal-ops grid point)))
 
-(defun random-valid-op (state &optional (finder #'find-valid-ops) (r *randomness*))
+(defun random-valid-op (state &optional (finder #'valid-ops) (r *randomness*))
   (labels ((ret (acc)
              (when acc
                (best #'d acc))))
@@ -2020,10 +2020,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                          (nconc ops acc))))))))))
 
 (defsubst random-valid-axis-aligned-op (state &optional (r *randomness*))
-  (random-valid-op state #'find-valid-axis-aligned-ops r))
+  (random-valid-op state #'valid-axis-aligned-ops r))
 
 (defsubst random-valid-diagonal-op (state &optional (r *randomness*))
-  (random-valid-op state #'find-valid-diagonal-ops r))
+  (random-valid-op state #'valid-diagonal-ops r))
 
 ;;; State update
 
