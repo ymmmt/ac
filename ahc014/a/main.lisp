@@ -2027,22 +2027,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; State update
 
-(defmacro %update-adjacent-points-slots!-aux ()
-  (labels ((aux (dir)
-             `(awhen (,(mksym "ADJACENT-~A-POINT" dir) grid r c)
-                (let ((old (,(mksym "POINT-~A-ADJ" (opposite dir)) it)))
-                  (setf (,(mksym "POINT-~A-ADJ" dir) point) it
-                        (,(mksym "POINT-~A-ADJ" (opposite dir)) it) point)
-                  (when (and old (connectedp it old))
-                    (dir-connect! point it ',dir)
-                    (dir-connect! point old ',(opposite dir)))))))
-    `(progn
-       ,@(mapcar #'aux +dirs+))))
-
-(defun update-adjacent-points-slots! (grid point)
-  (with-accessors ((r point-row) (c point-col)) point
-    (%update-adjacent-points-slots!-aux)))
-
 (defun dir-connect! (p1 p2 dir)
   (funcall (fdefinition `(setf ,(connect-accessor dir)))
            p2 p1)
@@ -2070,6 +2054,22 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (connect! p2 p3)
     (connect! p3 p4)
     (connect! p4 p1)))
+
+(defmacro %update-adjacent-points-slots!-aux ()
+  (labels ((aux (dir)
+             `(awhen (,(mksym "ADJACENT-~A-POINT" dir) grid r c)
+                (let ((old (,(mksym "POINT-~A-ADJ" (opposite dir)) it)))
+                  (setf (,(mksym "POINT-~A-ADJ" dir) point) it
+                        (,(mksym "POINT-~A-ADJ" (opposite dir)) it) point)
+                  (when (and old (connectedp it old))
+                    (dir-connect! point it ',dir)
+                    (dir-connect! point old ',(opposite dir)))))))
+    `(progn
+       ,@(mapcar #'aux +dirs+))))
+
+(defun update-adjacent-points-slots! (grid point)
+  (with-accessors ((r point-row) (c point-col)) point
+    (%update-adjacent-points-slots!-aux)))
 
 (defun operate! (state op)
   (let* ((p1 (first op))
