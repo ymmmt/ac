@@ -1972,21 +1972,29 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (c1 (+ c4 (- c2 c3))))
           (make-op-if-valid grid r1 c1 ldiag-point point rdiag-point))))))
 
-(defun find-valid-ops (grid point)
-  (with-accessors ((r point-row) (c point-col)
-                   (n point-n-adj) (ne point-ne-adj) (e point-e-adj) (se point-se-adj)
-                   (s point-s-adj) (sw point-sw-adj) (w point-w-adj) (nw point-nw-adj))
+(defun find-valid-axis-aligned-ops (grid point)
+  (with-accessors ((n point-n-adj) (e point-e-adj)
+                   (s point-s-adj) (w point-w-adj))
       point
-    (nconc (lcomp ((rp (non-nils e w))
-                   (cp (non-nils n s)))
-               (make-axis-aligned-op-if-valid grid point rp cp)
-             it)
-           (lcomp ((ldp (non-nils se nw))
-                   (rdp (non-nils ne sw)))
-               (make-diagonal-op-if-valid grid point ldp rdp)
-             it))))
+    (lcomp ((rp (non-nils e w))
+            (cp (non-nils n s)))
+        (make-axis-aligned-op-if-valid grid point rp cp)
+      it)))
 
-(defun random-valid-op (state &optional (r *randomness*))
+(defun find-valid-diagonal-ops (grid point)
+  (with-accessors ((ne point-ne-adj) (se point-se-adj)
+                   (sw point-sw-adj) (nw point-nw-adj))
+      point
+    (lcomp ((ldp (non-nils se nw))
+            (rdp (non-nils ne sw)))
+        (make-diagonal-op-if-valid grid point ldp rdp)
+      it)))
+
+(defun find-valid-ops (grid point)
+  (nconc (find-valid-axis-aligned-ops grid point)
+         (find-valid-diagonal-ops grid point)))
+
+(defun random-valid-op (state &optional (finder #'find-valid-ops) (r *randomness*))
   (labels ((ret (acc)
              (when acc
                (best #'d acc))))
@@ -2002,7 +2010,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (>= count r))
               (ret acc)
               (mvbind (ops j) (find-if*-range (lambda (pos)
-                                                (find-valid-ops grid (aref points pos)))
+                                                (funcall finder grid (aref points pos)))
                                               i len)
                 (declare (type (or null fixnum) j))
                 (if (null j)
@@ -2010,6 +2018,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     (rec (1+ j)
                          (+ count (length ops))
                          (nconc ops acc))))))))))
+
+(defsubst random-valid-axis-aligned-op (state &optional (r *randomness*))
+  (random-valid-op state #'find-valid-axis-aligned-ops r))
+
+(defsubst random-valid-diagonal-op (state &optional (r *randomness*))
+  (random-valid-op state #'find-valid-diagonal-ops r))
 
 ;;; State update
 
@@ -2163,13 +2177,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;                  (testcase-score (testcase-filename test-dir id)
 ;;                                  randomness))))
 
+;; (defconstant +ks+ '(1 3 5 8 15 20 30))
+
 ;; (defun benchmark ()
 ;;   (let ((dir (sb-ext:posix-getenv "dir")))
 ;;     (println dir)
 ;;     (mapc (lambda (r)
 ;;             (dbg 'randomness r)
 ;;             (dbg 'total-score (total-score dir r)))
-;;           (range 1 11))))
+;;           +ks+)))
 
 ;; (trace testcase-score)
 ;; (benchmark)
