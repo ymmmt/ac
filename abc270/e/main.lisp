@@ -2162,49 +2162,68 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                 (rec (1- n) (1+ pos) (cdr list)))
             (rec n (1+ pos) (cdr list))))))
 
-;; 次のようなアルゴリズムと以下のコードは等価:
-;; (1) 残っているかごのうち最小個数のりんごの数をcount、
-;; 残っているかごの数をnとする。
-;; もし(* count n) <= kであれば、残りのかごを一律
-;; count個減らし、減らした分をkからも引きkを更新する。
-;; また(* count n) > kであれば、まず残ったかごから一律に減らせるだけ
-;; (= (floor k n)個)減らし、残りは残ったかごのから番号が若い順に
-;; 1ずつ減らす。
+;; ;; 次のようなアルゴリズムと以下のコードは等価:
+;; ;; (1) 残っているかごのうち最小個数のりんごの数をcount、
+;; ;; 残っているかごの数をnとする。
+;; ;; もし(* count n) <= kであれば、残りのかごを一律
+;; ;; count個減らし、減らした分をkからも引きkを更新する。
+;; ;; また(* count n) > kであれば、まず残ったかごから一律に減らせるだけ
+;; ;; (= (floor k n)個)減らし、残りは残ったかごのから番号が若い順に
+;; ;; 1ずつ減らす。
+;; (defun solve (n k as)
+;;   (if (= n 1)
+;;       (list (- (car as) k))
+;;       (mvbind (base k*)
+;;           (nlet rec ((as (sort (copy-list as) #'<))
+;;                      (n n)
+;;                      (base 0)
+;;                      (k k))
+;;             (if (null as)
+;;                 (progn
+;;                   ;; りんごの総数=kのケース
+;;                   (assert (zerop k))
+;;                   (values base 0))
+;;                 (let* ((a (car as))
+;;                        (count (max 0 (- a base))))
+;;                   (cond ((zerop count)
+;;                          (rec (cdr as) (1- n) base k))
+;;                         ((<= (* count n) k)
+;;                          (rec (cdr as) (1- n)
+;;                               (+ base count)
+;;                               (- k (* count n))))
+;;                         (t              ; (> (* count n) k)
+;;                          (mvbind (q r) (floor k n)
+;;                            (values (+ base q) r)))))))
+;;         (let* ((as* (mapcar (lambda (a)
+;;                               (max 0 (- a base)))
+;;                             as)))
+;;           (if (zerop k*)
+;;               as*
+;;               (let ((pos (nth-value 1 (nth-if (1- k*) #'plusp as*))))
+;;                 (mvbind (l r) (split-at (1+ pos) as*)
+;;                   (nconc (mapcar (lambda (a)
+;;                                    (max 0 (1- a)))
+;;                                  l)
+;;                          r))))))))
+
+;; https://atcoder.jp/contests/abc270/editorial/4848
 (defun solve (n k as)
-  (if (= n 1)
-      (list (- (car as) k))
-      (mvbind (base k*)
-          (nlet rec ((as (sort (copy-list as) #'<))
-                     (n n)
-                     (base 0)
-                     (k k))
-            (if (null as)
-                (progn
-                  ;; りんごの総数=kのケース
-                  (assert (zerop k))
-                  (values base 0))
-                (let* ((a (car as))
-                       (count (max 0 (- a base))))
-                  (cond ((zerop count)
-                         (rec (cdr as) (1- n) base k))
-                        ((<= (* count n) k)
-                         (rec (cdr as) (1- n)
-                              (+ base count)
-                              (- k (* count n))))
-                        (t              ; (> (* count n) k)
-                         (mvbind (q r) (floor k n)
-                           (values (+ base q) r)))))))
-        (let* ((as* (mapcar (lambda (a)
-                              (max 0 (- a base)))
-                            as)))
-          (if (zerop k*)
-              as*
-              (let ((pos (nth-value 1 (nth-if (1- k*) #'plusp as*))))
-                (mvbind (l r) (split-at (1+ pos) as*)
-                  (nconc (mapcar (lambda (a)
-                                   (max 0 (1- a)))
-                                 l)
-                         r))))))))
+  (labels ((apples (m)
+             (reduce #'+ as :key (curry #'min m))))
+    (let* ((m (binary-search 0 (1+ (reduce #'max as))
+                             (compose #<=k #'apples)))
+           (as* (mapcar (lambda (a)
+                          (max 0 (- a m)))
+                        as))
+           (k* (- k (apples m))))
+      (if (zerop k*)
+          as*
+          (let ((pos (nth-value 1 (nth-if (1- k*) #'plusp as*))))
+            (mapcar (lambda (a i)
+                      (if (and (plusp a) (<= i pos))
+                          (1- a)
+                          a))
+                    as* (range n)))))))
 
 (defun main ()
   (readlet (n k)
