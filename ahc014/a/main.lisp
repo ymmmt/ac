@@ -1932,8 +1932,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (adj (funcall (adj-accessor dir)
                        point)))
     (or (null adj)
-        (and (not (connectedp point adj))
-             (not (betweenp point adj r c))))))
+        (not (or (connectedp point adj)
+                 (betweenp point adj r c))))))
 
 ;;; Ops
 
