@@ -2070,6 +2070,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (vector-push-extend p1 points)))
   state)
 
+;;; Main
+
 (defun init-state (xys)
   (let* ((ds (list *n* *n*))
          (grid (make-grid ds))
