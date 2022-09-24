@@ -1,3 +1,5 @@
+(declaim (sb-ext:muffle-conditions sb-ext:compiler-note))
+
 (in-package :cl-user)
 
 #-swank
