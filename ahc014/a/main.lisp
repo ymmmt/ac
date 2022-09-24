@@ -1940,8 +1940,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (list (point r1 c1) p2 p3 p4)))
   
 (defun make-axis-aligned-op-if-valid (grid point row-point col-point)
-  (with-accessors ((r2 point-row) (c2 point-col)) row-point
-    (with-accessors ((r4 point-row) (c4 point-col)) col-point
+  (with-accessors ((c2 point-col)) row-point
+    (with-accessors ((r4 point-row)) col-point
       (let ((r1 r4)
             (c1 c2))
         (make-op-if-valid grid r1 c1 row-point point col-point)))))
@@ -2012,19 +2012,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (%update-adjacent-points-slots!-aux)))
 
 (defun dir-connect! (p1 p2 dir)
-  (funcall (fdefinition `(setf ,(mksym "POINT-~A-CONNECT" dir)))
+  (funcall (fdefinition `(setf ,(connect-accessor dir)))
            p2 p1)
-  (funcall (fdefinition `(setf ,(mksym "POINT-~A-CONNECT" (opposite dir))))
+  (funcall (fdefinition `(setf ,(connect-accessor (opposite dir))))
            p1 p2))
 
 (defun connect! (p1 p2)
   (with-accessors ((row point-row) (col point-col)) p1
     (with-accessors ((r point-row) (c point-col)) p2
-      (let ((dir (dir row col r c)))
-        (funcall (fdefinition `(setf ,(connect-accessor dir)))
-                 p2 p1)
-        (funcall (fdefinition `(setf ,(connect-accessor (opposite dir))))
-                 p1 p2)))))
+      (dir-connect! p1 p2 (dir row col r c)))))
 
 (defun connect-rect! (op)
   (dbind (p1 p2 p3 p4) op
