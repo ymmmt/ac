@@ -1757,7 +1757,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defstruct (state (:constructor state
                       (grid points)))
   (grid   nil :type (or null (simple-array cell)))
-  (points nil :type (or null vector)))
+  (points nil :type list))
 
 (defmethod print-object ((object state) stream)
   (print-unreadable-object (object stream :type t :identity t)
@@ -1994,36 +1994,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (nconc (valid-axis-aligned-ops grid point)
          (valid-diagonal-ops grid point)))
 
-(defun random-valid-op (state &optional (finder #'valid-ops) (r *randomness*))
-  (labels ((ret (acc)
-             (when acc
-               (best #'d acc))))
-    (with-accessors ((grid state-grid)
-                     (points state-points))
-        state
-      (shuffle! points)
-      (let ((len (length points)))
-        (nlet rec ((i 0) (count 0) (acc nil))
-          (declare (type fixnum len i count r)
-                   (optimize speed (safety 1)))
-          (if (or (>= i len)
-                  (>= count r))
-              (ret acc)
-              (mvbind (ops j) (find-if*-range (lambda (pos)
-                                                (funcall finder grid (aref points pos)))
-                                              i len)
-                (declare (type (or null fixnum) j))
-                (if (null j)
-                    (ret acc)
-                    (rec (1+ j)
-                         (+ count (length ops))
-                         (nconc ops acc))))))))))
-
-(defsubst random-valid-axis-aligned-op (state &optional (r *randomness*))
-  (random-valid-op state #'valid-axis-aligned-ops r))
-
-(defsubst random-valid-diagonal-op (state &optional (r *randomness*))
-  (random-valid-op state #'valid-diagonal-ops r))
+(defsubst best-valid-op (state)
+  (with-accessors ((grid state-grid)
+                   (points state-points))
+      state
+    (aand (mapcan (curry #'valid-ops grid)
+                  points)
+          (best #'d it))))
 
 ;;; State update
 
@@ -2081,24 +2058,20 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (update-adjacent-points-slots! grid p1)
       (connect-rect! op)
       (setf (aref grid r1 c1) p1)
-      (vector-push-extend p1 points)))
+      (push p1 points)))
   state)
 
 ;;; Main
 
 (defun init-state (xys)
-  (let* ((ds (list *n* *n*))
-         (grid (make-grid ds))
-         (points (make-adj-array)))
+  (let ((grid (make-grid (list *n* *n*))))
     #@(cell grid)
-    (mapc (dlambda ((x . y))
-            (setf (aref grid x y) (point x y)))
-          xys)
-    (mapc (rcurry #'vector-push-extend points)
-          (points grid))
-    (map nil (curry #'update-adjacent-points-slots! grid)
-         points)
-    (state grid points)))
+    (let ((points (mapcar (dlambda ((x . y))
+                            (setf (aref grid x y) (point x y)))
+                          xys)))
+      (mapc (curry #'update-adjacent-points-slots! grid)
+            points)
+      (state grid points))))
 
 (defun d (op)
   (let* ((p1 (first op))
@@ -2112,7 +2085,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun generate-cand (xys)
   (nlet rec ((state (init-state xys)) (ops nil))
-    (let ((op (random-valid-op state)))
+    (let ((op (best-valid-op state)))
       (if (null op)
           (list (score ops)
                 (length ops)
