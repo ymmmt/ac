@@ -1423,6 +1423,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (values it (car list))
                (rec (cdr list)))))))
 
+(defun nth-if (n predicate list)
+  (nlet rec ((n n) (pos 0) (list list))
+    (if (null list)
+        (values nil -1)
+        (if (funcall predicate (car list))
+            (if (zerop n)
+                (values (car list) pos)
+                (rec (1- n) (1+ pos) (cdr list)))
+            (rec n (1+ pos) (cdr list))))))
+
 (defun best (function list)
   (assert (consp list))
   (mvfoldl (lambda (item argmax max)
