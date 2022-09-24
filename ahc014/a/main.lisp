@@ -38,7 +38,11 @@
       `(format t "~A => ~A~%" ',(car forms) ,(car forms))
       `(format t "~A => ~A~%" ',forms `(,,@forms))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(defmacro eval-always (&body body)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     ,@body))
+
+(eval-always
   (defun mksym (control-string &rest format-arguments)
     (intern (apply #'format nil control-string format-arguments))))
 
@@ -99,7 +103,7 @@
                                 ,@definition))))))
          ,@body))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun ensure-form (body)
     (cond ((null body)
            nil)
@@ -134,7 +138,7 @@
                             definitions tables)
              ,@body)))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun ensure-list (x)
     (if (listp x)
         x
@@ -223,7 +227,7 @@
               (apply function value more-values))
       value))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun extract-function-name (spec)
     (if (and (consp spec)
              (member (first spec) '(quote function)))
@@ -266,7 +270,7 @@
                           &body clauses)
   (generate-switch-body whole object clauses test key '(cerror "Return NIL from CSWITCH.")))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defmacro ensure-key (key expr)
     `(aif ,key
           (funcall it ,expr)
@@ -274,7 +278,7 @@
 
 ;;; Read macros
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (set-dispatch-macro-character
    #\# #\^
    (lambda (stream char num)
@@ -284,7 +288,7 @@
                      collect (mksym "%~d" i))
         ,(read stream t nil t)))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (set-dispatch-macro-character
    #\# #\<
    (lambda (stream char num)
@@ -295,7 +299,7 @@
            (t
             `(lambda (x) (< x ,(read stream t nil t))))))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (set-dispatch-macro-character
    #\# #\>
    (lambda (stream char num)
@@ -306,7 +310,7 @@
            (t
             `(lambda (x) (> x ,(read stream t nil t))))))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (set-dispatch-macro-character
    #\# #\%
    (lambda (stream char num)
@@ -476,7 +480,7 @@
         (rec (1- n)
              (funcall f x)))))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun tree-find (item tree &key (test #'eql) (key #'identity))
     (labels ((rec (tree)
                (cond ((funcall test item (funcall key tree))
@@ -673,7 +677,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (mod x +mod+))
 
 ;; from cp/mod-operations
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defvar *modulus* 0))
 (declaim ((unsigned-byte 31) *modulus*)
          #+sbcl (sb-ext:always-bound *modulus*))
@@ -701,7 +705,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (mod (- (car args)) ,divisor)))
 
        #+sbcl
-       (eval-when (:compile-toplevel :load-toplevel :execute)
+       (eval-always
          (locally (declare (sb-ext:muffle-conditions warning))
            (sb-c:define-source-transform ,mod* (&rest args)
              (case (length args)
@@ -748,7 +752,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst df (x)
   (coerce x 'double-float))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun mappend (function list)
     (loop for item in list
           append (funcall function item))))
@@ -911,7 +915,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst row-major-index (i j n-cols)
   (+ (* i n-cols) j))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun var-and-dimension-spec->loop (var-and-dimension-spec body)
     (dbind (var upper-bound &key downward) var-and-dimension-spec
       (if downward
@@ -966,7 +970,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun coerce-list (object)
   (coerce object 'list))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun singletonp (list)
     (and (consp list) (null (cdr list)))))
 
@@ -1266,7 +1270,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (values (drop (length prefix) list) t)
       (values list nil)))
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun last1 (sequence)
     (etypecase sequence
       (list (car (last sequence)))
@@ -1546,7 +1550,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Accumulations
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defun loop-for-clause (var &rest args)
     (ecase (length args)
       (1 `(loop for ,var in ,(car args)))
@@ -1682,7 +1686,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Core
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (set-dispatch-macro-character
    #\# #\@
    (lambda (stream char num)
@@ -1696,7 +1700,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *timelimit*)
 (defvar *randomness*)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
   (defconstant +dirs+          '(n ne e se s sw w nw))
   (defconstant +opposite-dirs+ '(s sw w nw n ne e se))
   (defconstant +dir-alist+
@@ -1886,16 +1890,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (w  'point-w-adj)
     (nw 'point-nw-adj)))
 
-(defsubst connect-accessor (dir)
-  (ecase dir
-    (n  'point-n-connect)
-    (ne 'point-ne-connect)
-    (e  'point-e-connect)
-    (se 'point-se-connect)
-    (s  'point-s-connect)
-    (sw 'point-sw-connect)
-    (w  'point-w-connect)
-    (nw 'point-nw-connect)))
+(eval-always
+ (defsubst connect-accessor (dir)
+   (ecase dir
+     (n  'point-n-connect)
+     (ne 'point-ne-connect)
+     (e  'point-e-connect)
+     (se 'point-se-connect)
+     (s  'point-s-connect)
+     (sw 'point-sw-connect)
+     (w  'point-w-connect)
+     (nw 'point-nw-connect))))
 
 ;; naive implementation
 ;; (defsubst connectedp (p1 p2)
@@ -2027,6 +2032,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            p2 p1)
   (funcall (fdefinition `(setf ,(connect-accessor (opposite dir))))
            p1 p2))
+
+(define-compiler-macro dir-connect! (&whole whole p1 p2 dir)
+  (if (and (consp dir)
+           (eq (first dir) 'quote)
+           (symbolp (second dir)))
+      (let ((dirsym (mksym (symbol-name (second dir)))))
+        (sb-ext::once-only ((p1 p1) (p2 p2))
+          `(setf (,(connect-accessor dirsym) ,p1) ,p2
+                 (,(connect-accessor (opposite dirsym)) ,p2) ,p1)))
+      whole))
 
 (defun connect! (p1 p2)
   (with-accessors ((row point-row) (col point-col)) p1
