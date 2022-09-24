@@ -1672,7 +1672,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (fresh-line stream))
 
 (defun shuffle! (vector)
-  (loop for i from (length vector) downto 2
+  (declare (vector vector)
+           (optimize speed (safety 1)))
+  (loop for i fixnum from (length vector) downto 2
         do (rotatef (aref vector (random i))
                     (aref vector (1- i)))))
 
