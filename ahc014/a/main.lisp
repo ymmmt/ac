@@ -1949,10 +1949,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun make-op-if-valid (grid r1 c1 p2 p3 p4)
   (when (and (grid-in-bounds-p r1 c1)
              (blankp grid r1 c1)
-             (connectablep p2 r1 c1)
-             (connectablep p4 r1 c1)
              (not (connectedp p2 p3))
-             (not (connectedp p3 p4)))
+             (not (connectedp p3 p4))
+             (connectablep p2 r1 c1)
+             (connectablep p4 r1 c1))
     (list (point r1 c1) p2 p3 p4)))
   
 (defun make-axis-aligned-op-if-valid (grid point row-point col-point)
