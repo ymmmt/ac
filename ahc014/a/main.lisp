@@ -1897,10 +1897,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (w  'point-w-connect)
     (nw 'point-nw-connect)))
 
+;; naive implementation
+;; (defsubst connectedp (p1 p2)
+;;   (some (lambda (dir)
+;;           (eq p1 (funcall (connect-accessor dir) p2)))
+;;         +dirs+))
+
+(defmacro %connectedp-aux (p1 p2)
+  (sb-ext::once-only ((p1 p1) (p2 p2))
+    (labels ((aux (dir)
+               `(eq ,p1 (,(connect-accessor dir) ,p2))))
+      `(or
+        ,@(mapcar #'aux +dirs+)))))
+
 (defsubst connectedp (p1 p2)
-  (some (lambda (dir)
-          (eq p1 (funcall (connect-accessor dir) p2)))
-        +dirs+))
+  (%connectedp-aux p1 p2))
 
 (defun betweenp (p1 p2 r c)
   (with-accessors ((r1 point-row) (c1 point-col)) p1
@@ -2083,6 +2094,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                        acc
                        (rec (cons (generate-cand xys)
                                   acc)))))))
+;;    (dbg (length cands))
     (dbind (score k ops) (best #'car cands)
       (declare (ignore score))
       (values k ops))))
