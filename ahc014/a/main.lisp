@@ -1707,6 +1707,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *center*)
 (defvar *timelimit*)
 (defvar *randomness*)
+(defvar *initial-cands*)
+(defvar *threshold-ratio*)
+(defvar *k-threshold* +inf+)
 
 (eval-always
   (defconstant +dirs+          '(n ne e se s sw w nw))
@@ -2121,22 +2124,37 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (+ (^2 (- r1 *center*))
        (^2 (- c1 *center*)))))
 
-(defun score (ops)
-  (reduce #'+ ops :initial-value 0 :key #'d))
+;; (defun score (ops)
+;;   (reduce #'+ ops :initial-value 0 :key #'d))
 
-(defun generate-cand (xys)
-  (nlet rec ((state (init-state xys)) (ops nil))
+(defun generate-cand (xys max-score)
+  (nlet rec ((state (init-state xys))
+             (score 0)
+             (k 0)
+             (ops nil))
     (let ((op (random-valid-op state)))
-      (if (null op)
-          (values (score ops)
-                  (length ops)
-                  (nreverse ops))
+      (if (or (null op)
+              (and (= k *k-threshold*)
+                   (< score (* *threshold-ratio* max-score))))
+          (values score k (nreverse ops))
           (rec (operate! state op)
+               (+ score (d op))
+               (1+ k)
                (cons op ops))))))
+
+(defun compute-k-threshold! (xys)
+  (let ((cands (collect *initial-cands*
+                 (mvlist (generate-cand xys 0)))))
+    (setf *k-threshold*
+          (floor (* *threshold-ratio*
+                    (reduce #'+ cands :key #'second)
+                    (/ 1 *initial-cands*))))
+;;    (dbg *k-threshold*)
+    (values-list (best #'car cands))))
 
 (defun solve (xys)
   (let ((count 0))
-    (mvbind (score* k* ops*) (generate-cand xys)
+    (mvbind (score* k* ops*) (compute-k-threshold! xys)
       (with-timelimit (*timelimit*)
         (nlet rec ((score* score*)
                    (k* k*)
@@ -2146,22 +2164,24 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (progn
 ;;                (dbg count)
                 (values k* ops*))
-              (mvbind (score k ops) (generate-cand xys)
+              (mvbind (score k ops) (generate-cand xys score*)
                 (if (> score score*)
                     (rec score k ops)
                     (rec score* k* ops*)))))))))
 
-(defun set-vars (n randomness)
+(defun set-vars! (n randomness threshold-ratio)
   (setf *n* n
         *center* (ash n -1)
         *timelimit* 2.5
-        *randomness* randomness))
+        *randomness* randomness
+        *initial-cands* 5
+        *threshold-ratio* threshold-ratio))
 
-(defun main (&optional (stream *standard-input*) (randomness 4))
+(defun main (&optional (stream *standard-input*) (randomness 4) (threshold-ratio 1/2))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars n randomness)
+        (set-vars! n randomness threshold-ratio)
         (mvbind (k ops) (solve xys)
           (bulk-stdout
             (println k)
@@ -2178,7 +2198,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; (defun testcase-filename (test-dir test-id)
 ;;   (format nil "~A/sample-~4,'0D.in" test-dir test-id))
 
-;; (defun testcase-score (filename randomness)
+;; (defun testcase-score (filename randomness threshold-ratio)
 ;;   (with-open-stream (in (-> (uiop:launch-program
 ;;                              (list "cat" filename)
 ;;                              :output :stream)
@@ -2186,25 +2206,27 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (let ((*standard-input* in))
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
-;;           (set-vars n randomness)
+;;           (set-vars! n randomness threshold-ratio)
 ;;           (mvbind (k ops) (solve xys)
 ;;             (reduce #'+ ops :key #'d)))))))
 
-;; (defun total-score (test-dir randomness)
+;; (defun total-score (test-dir randomness threshold-ratio)
 ;;   (reduce #'+ (range 10)
 ;;           :key (lambda (id)
 ;;                  (testcase-score (testcase-filename test-dir id)
-;;                                  randomness))))
+;;                                  randomness
+;;                                  threshold-ratio))))
 
-;; (defconstant +ks+ '(1 3 5 8 15 20 30))
+;; (defconstant +rand+ '(1 3 5 8))
+;; (defconstant +thrs+ '(1/4 1/3 1/2 2/3))
 
 ;; (defun benchmark ()
 ;;   (let ((dir (sb-ext:posix-getenv "dir")))
 ;;     (println dir)
-;;     (mapc (lambda (r)
-;;             (dbg 'randomness r)
-;;             (dbg 'total-score (total-score dir r)))
-;;           +ks+)))
+;;     (dolist (r +rand+)
+;;       (dolist (th +thrs+)
+;;         (dbg 'randomness r 'threshold-ratio th)
+;;         (dbg 'total-score (total-score dir r th))))))
 
 ;; (trace testcase-score)
 ;; (benchmark)
