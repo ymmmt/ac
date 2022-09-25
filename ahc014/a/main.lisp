@@ -2154,7 +2154,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun set-vars (n randomness)
   (setf *n* n
         *center* (ash n -1)
-        *timelimit* 2.5
+        *timelimit* 4.5
         *randomness* randomness))
 
 (defun main (&optional (stream *standard-input*) (randomness 4))
