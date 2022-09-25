@@ -1761,7 +1761,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   '(or null point))
 
 (eval-always
-  ;; eval-always to give information to compiler
   (defstruct (state (:constructor state
                         (grid points)))
     (grid   nil :type (or null (simple-array cell)))
