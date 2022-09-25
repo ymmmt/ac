@@ -1702,7 +1702,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  (optimize speed (safety 1))))))
   ) ;eval-always
 
-
 (defvar *n*)
 (defvar *center*)
 (defvar *timelimit*)
@@ -2177,7 +2176,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *initial-cands* 5
         *threshold-ratio* threshold-ratio))
 
-(defun main (&optional (stream *standard-input*) (randomness 4) (threshold-ratio 1/2))
+(defun main (&optional (stream *standard-input*) (randomness 5) (threshold-ratio 1/4))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
