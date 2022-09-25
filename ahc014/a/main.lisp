@@ -1921,8 +1921,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (%connectedp-aux p1 p2))
 
 (defun betweenp (p1 p2 r c)
+  (declare (point p1 p2)
+           (optimize speed (safety 1)))
   (with-accessors ((r1 point-row) (c1 point-col)) p1
     (with-accessors ((r2 point-row) (c2 point-col)) p2
+      (declare (fixnum r c r1 c1 r2 c2))
       (and (not (and (= r1 r2 r) (= c1 c2 c)))
            (and (or (= r1 r2 r) (monotonicp r1 r2 r))
                 (or (= c1 c2 c) (monotonicp c1 c2 c)))))))
@@ -1958,6 +1961,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (list (point r1 c1) p2 p3 p4)))
   
 (defun make-axis-aligned-op-if-valid (grid point row-point col-point)
+  (declare (point point row-point col-point)
+           (optimize speed (safety 1)))
   (with-accessors ((c2 point-col)) row-point
     (with-accessors ((r4 point-row)) col-point
       (let ((r1 r4)
@@ -1965,6 +1970,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (make-op-if-valid grid r1 c1 row-point point col-point)))))
 
 (defun make-diagonal-op-if-valid (grid point ldiag-point rdiag-point)
+  (declare (point point ldiag-point rdiag-point)
+           (optimize speed (safety 1)))
   (with-accessors ((r3 point-row) (c3 point-col)) point
     (with-accessors ((r2 point-row) (c2 point-col)) ldiag-point
       (with-accessors ((r4 point-row) (c4 point-col)) rdiag-point
