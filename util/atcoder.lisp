@@ -1,3 +1,9 @@
+(defun map-subseq (function sequence start end)
+  (let ((copy (copy-seq sequence)))
+    (setf (subseq copy start end)
+          (funcall function (subseq copy start end)))
+  copy))
+
 (defsubst non-nils (list)
   (delete nil list))
 
