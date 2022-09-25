@@ -2170,6 +2170,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (lambda (x)
     (apply #'max x more-numbers)))
 
+(defun map-subseq (function sequence start end)
+  (let ((copy (copy-seq sequence)))
+    (setf (subseq copy start end)
+          (funcall function (subseq copy start end)))
+  copy))
+
 ;; ;; 次のようなアルゴリズムと以下のコードは等価:
 ;; ;; (1) 残っているかごのうち最小個数のりんごの数をcount、
 ;; ;; 残っているかごの数をnとする。
@@ -2215,7 +2221,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;                          r))))))))
 
 ;; https://atcoder.jp/contests/abc270/editorial/4848
-(defun solve (n k as)
+(defun solve (k as)
   (labels ((apples (m)
              (reduce #'+ as :key (miner m))))
     (let* ((m (binary-search 0 (1+ (reduce #'max as))
@@ -2226,13 +2232,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (if (zerop k*)
           as*
           (let ((pos (nth-value 1 (nth-if (1- k*) #'plusp as*))))
-            (mvbind (l r) (split-at (1+ pos) as*)
-              (nconc (mapcar (compose (maxer 0) #'1-) l)
-                     r)))))))
+            (map-subseq (curry #'mapcar (compose (maxer 0) #'1-))
+                        as* 0 (1+ pos)))))))
 
 (defun main ()
   (readlet (n k)
+    (declare (ignore n))
     (let ((as (readlist)))
-      (join-print (solve n k as)))))
+      (join-print (solve k as)))))
 
 #-swank (main)
