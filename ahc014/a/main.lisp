@@ -2120,16 +2120,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (rec (operate! state op)
                (cons op ops))))))
 
+(defun better-cand (c1 c2)
+  (if (< (car c1) (car c2))
+      c2 c1))
+
 (defun solve (xys)
-  (let ((cands (with-timelimit (*timelimit*)
-                 (nlet rec ((acc nil))
-                   (if (time-up-p)
-                       acc
-                       (rec (cons (generate-cand xys)
-                                  acc)))))))
-;;    (dbg (length cands))
-    (dbind (score k ops) (best #'car cands)
+  (let ((count 0))
+    (dbind (score k ops)
+        (with-timelimit (*timelimit*)
+          (nlet rec ((best (generate-cand xys)))
+            (incf count)
+            (if (time-up-p)
+                best
+                (rec (better-cand best (generate-cand xys))))))
       (declare (ignore score))
+;;      (dbg count)
       (values k ops))))
 
 (defun set-vars (n randomness)
