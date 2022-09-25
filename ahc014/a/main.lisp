@@ -1689,13 +1689,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Core
 
 (eval-always
+  (defun |#@-aux| (typespec)
+    (dbind (type-specifier . args) typespec
+      `(type ,type-specifier ,@args)))
+
   (set-dispatch-macro-character
    #\# #\@
    (lambda (stream char num)
      (declare (ignore char num))
-     (dbind (element-type . arrays) (read stream t nil t)
-       `(declare (type (simple-array ,element-type) ,@arrays)
-                 (optimize speed (safety 1)))))))
+     (let ((typespecs (read stream t nil t)))
+       `(declare ,(|#@-aux| typespecs)
+                 (optimize speed (safety 1))))))
+  ) ;eval-always
+
 
 (defvar *n*)
 (defvar *center*)
@@ -1710,28 +1716,28 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
   (defun opposite (dir)
     (cdr (assoc dir +dir-alist+)))
-  ) ; eval-when
 
-(defstruct (point (:constructor point
-                      (row col)))
-  (row        0   :type uint8)
-  (col        0   :type uint8)
-  (n-adj      nil :type (or null point))
-  (ne-adj     nil :type (or null point))
-  (e-adj      nil :type (or null point))
-  (se-adj     nil :type (or null point))
-  (s-adj      nil :type (or null point))
-  (sw-adj     nil :type (or null point))
-  (w-adj      nil :type (or null point))
-  (nw-adj     nil :type (or null point))
-  (n-connect  nil :type (or null point))
-  (ne-connect nil :type (or null point))
-  (e-connect  nil :type (or null point))
-  (se-connect nil :type (or null point))
-  (s-connect  nil :type (or null point))
-  (sw-connect nil :type (or null point))
-  (w-connect  nil :type (or null point))
-  (nw-connect nil :type (or null point)))
+  (defstruct (point (:constructor point
+                        (row col)))
+    (row        0   :type uint8)
+    (col        0   :type uint8)
+    (n-adj      nil :type (or null point))
+    (ne-adj     nil :type (or null point))
+    (e-adj      nil :type (or null point))
+    (se-adj     nil :type (or null point))
+    (s-adj      nil :type (or null point))
+    (sw-adj     nil :type (or null point))
+    (w-adj      nil :type (or null point))
+    (nw-adj     nil :type (or null point))
+    (n-connect  nil :type (or null point))
+    (ne-connect nil :type (or null point))
+    (e-connect  nil :type (or null point))
+    (se-connect nil :type (or null point))
+    (s-connect  nil :type (or null point))
+    (sw-connect nil :type (or null point))
+    (w-connect  nil :type (or null point))
+    (nw-connect nil :type (or null point)))
+  ) ; eval-always
 
 (defun point-repr (point)
   (if (null point)
@@ -1754,10 +1760,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (deftype cell ()
   '(or null point))
 
-(defstruct (state (:constructor state
-                      (grid points)))
-  (grid   nil :type (or null (simple-array cell)))
-  (points nil :type (or null vector)))
+(eval-always
+  ;; eval-always to give information to compiler
+  (defstruct (state (:constructor state
+                        (grid points)))
+    (grid   nil :type (or null (simple-array cell)))
+    (points nil :type (or null (vector point)))))
 
 (defmethod print-object ((object state) stream)
   (print-unreadable-object (object stream :type t :identity t)
@@ -1772,16 +1780,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Predicates
 
 (defsubst filledp (grid r c)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (aref grid r c))
 
 (defsubst blankp (grid r c)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (null (aref grid r c)))
 
 (defsubst grid-in-bounds-p (r c)
-  (declare (fixnum r c *n*)
-           (optimize speed (safety 1)))
+  #@(fixnum r c *n*)
   (and (< -1 r *n*)
        (< -1 c *n*)))
 
@@ -1804,18 +1811,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (min *n* (+ const *n*))))
 
 (defun points (grid)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (lcomp ((r 0 *n*) (c 0 *n*))
       (filledp grid r c)
     it))
 
 (defsubst adjacent-n-point (grid row col)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (find-if*-range (curry* #'filledp grid % col)
                   (1+ row) *n*))
 
 (defsubst adjacent-ne-point (grid row col)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (let ((const (- row col)))
     (flet ((filledp (r)
              (filledp grid r (- r const))))
@@ -1823,12 +1830,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                       (1+ row) (rdiag-row-end row col)))))
 
 (defsubst adjacent-e-point (grid row col)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (find-if*-range (curry* #'filledp grid row %)
                   (1+ col) *n*))
 
 (defsubst adjacent-se-point (grid row col)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (let ((const (+ row col)))
     (flet ((filledp (r)
              (filledp grid r (- const r))))
@@ -1836,12 +1843,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                        (ldiag-row-start row col) row))))
 
 (defsubst adjacent-s-point (grid row col)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (find-if*-drange (curry* #'filledp grid % col)
                    0 row))
 
 (defsubst adjacent-sw-point (grid row col)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (let ((const (- row col)))
     (flet ((filledp (r)
              (filledp grid r (- r const))))
@@ -1849,12 +1856,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                        (rdiag-row-start row col) row))))
 
 (defsubst adjacent-w-point (grid row col)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (find-if*-drange (curry* #'filledp grid row %)
                    0 col))
 
 (defsubst adjacent-nw-point (grid row col)
-  #@(cell grid)
+  #@((simple-array cell) grid)
   (let ((const (+ row col)))
     (flet ((filledp (r)
              (filledp grid r (- const r))))
@@ -1862,11 +1869,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                       (1+ row) (ldiag-row-end row col)))))
 
 (defun dir (row col r c)
-  (declare (fixnum row col r c)
-           (optimize speed (safety 1)))
+  #@(fixnum row col r c)
   (let ((dr (signum (- r row)))
         (dc (signum (- c col))))
-    (declare (fixnum dr dc))
+    #@(fixnum dr dc)
     (switch (dr :test '=)
       (-1 (switch (dc :test '=)
             (-1 'sw)
@@ -1921,11 +1927,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (%connectedp-aux p1 p2))
 
 (defun betweenp (p1 p2 r c)
-  (declare (point p1 p2)
-           (optimize speed (safety 1)))
+  #@(point p1 p2)
   (with-accessors ((r1 point-row) (c1 point-col)) p1
     (with-accessors ((r2 point-row) (c2 point-col)) p2
-      (declare (fixnum r c r1 c1 r2 c2))
+      #@(fixnum r c r1 c1 r2 c2)
       (and (not (and (= r1 r2 r) (= c1 c2 c)))
            (and (or (= r1 r2 r) (monotonicp r1 r2 r))
                 (or (= c1 c2 c) (monotonicp c1 c2 c)))))))
@@ -1961,8 +1966,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (list (point r1 c1) p2 p3 p4)))
   
 (defun make-axis-aligned-op-if-valid (grid point row-point col-point)
-  (declare (point point row-point col-point)
-           (optimize speed (safety 1)))
+  #@(point point row-point col-point)
   (with-accessors ((c2 point-col)) row-point
     (with-accessors ((r4 point-row)) col-point
       (let ((r1 r4)
@@ -1970,8 +1974,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (make-op-if-valid grid r1 c1 row-point point col-point)))))
 
 (defun make-diagonal-op-if-valid (grid point ldiag-point rdiag-point)
-  (declare (point point ldiag-point rdiag-point)
-           (optimize speed (safety 1)))
+  #@(point point ldiag-point rdiag-point)
   (with-accessors ((r3 point-row) (c3 point-col)) point
     (with-accessors ((r2 point-row) (c2 point-col)) ldiag-point
       (with-accessors ((r4 point-row) (c4 point-col)) rdiag-point
@@ -1980,6 +1983,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (make-op-if-valid grid r1 c1 ldiag-point point rdiag-point))))))
 
 (defun valid-axis-aligned-ops (grid point)
+  #@(point point)
   (with-accessors ((n point-n-adj) (e point-e-adj)
                    (s point-s-adj) (w point-w-adj))
       point
@@ -1989,6 +1993,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       it)))
 
 (defun valid-diagonal-ops (grid point)
+  #@(point point)
   (with-accessors ((ne point-ne-adj) (se point-se-adj)
                    (sw point-sw-adj) (nw point-nw-adj))
       point
@@ -2002,6 +2007,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (valid-diagonal-ops grid point)))
 
 (defun random-valid-op (state &optional (finder #'valid-ops) (r *randomness*))
+  #@(state state)
   (labels ((ret (acc)
              (when acc
                (best #'d acc))))
@@ -2011,15 +2017,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (shuffle! points)
       (let ((len (length points)))
         (nlet rec ((i 0) (count 0) (acc nil))
-          (declare (type fixnum len i count r)
-                   (optimize speed (safety 1)))
+          #@(fixnum len i count r)
           (if (or (>= i len)
                   (>= count r))
               (ret acc)
               (mvbind (ops j) (find-if*-range (lambda (pos)
                                                 (funcall finder grid (aref points pos)))
                                               i len)
-                (declare (type (or null fixnum) j))
+                #@((or null fixnum) j)
                 (if (null j)
                     (ret acc)
                     (rec (1+ j)
@@ -2051,6 +2056,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       whole))
 
 (defun connect! (p1 p2)
+  #@(point p1 p2)
   (with-accessors ((row point-row) (col point-col)) p1
     (with-accessors ((r point-row) (c point-col)) p2
       (dir-connect! p1 p2 (dir row col r c)))))
@@ -2075,10 +2081,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
        ,@(mapcar #'aux +dirs+))))
 
 (defun update-adjacent-points-slots! (grid point)
+  #@(point point)
   (with-accessors ((r point-row) (c point-col)) point
     (%update-adjacent-points-slots!-aux)))
 
 (defun operate! (state op)
+  #@(state state)
   (let* ((p1 (first op))
          (r1 (point-row p1))
          (c1 (point-col p1)))
@@ -2097,7 +2105,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (let* ((ds (list *n* *n*))
          (grid (make-grid ds))
          (points (make-adj-array)))
-    #@(cell grid)
+    #@((simple-array cell) grid)
     (mapc (dlambda ((x . y))
             (setf (aref grid x y) (point x y)))
           xys)
