@@ -123,7 +123,7 @@
                             (dbind ,lambda-list ,args
                               ,@body))))))))
 
-  ) ; eval-when
+  ) ; eval-always
 
 (defmacro with-memos (definitions &body body)
   (if (null definitions)
@@ -256,7 +256,7 @@
                                    ,@forms))))
                          clauses)
                (t ,default)))))
-  ) ; eval-when
+  ) ; eval-always
 
 (defmacro switch (&whole whole (object &key (test 'eql) (key 'identity))
                   &body clauses)
