@@ -556,6 +556,14 @@
 (defsubst diver (&rest numbers)
   (lambda (x) (apply #'/ x numbers)))
 
+(defsubst miner (&rest more-numbers)
+  (lambda (x)
+    (apply #'min x more-numbers)))
+
+(defsubst maxer (&rest more-numbers)
+  (lambda (x)
+    (apply #'max x more-numbers)))
+
 (defun foldl (function initial-value sequence)
   (reduce function sequence :initial-value initial-value))
 
