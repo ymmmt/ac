@@ -2162,6 +2162,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                 (rec (1- n) (1+ pos) (cdr list)))
             (rec n (1+ pos) (cdr list))))))
 
+(defsubst miner (&rest more-numbers)
+  (lambda (x)
+    (apply #'min x more-numbers)))
+
+(defsubst maxer (&rest more-numbers)
+  (lambda (x)
+    (apply #'max x more-numbers)))
+
 ;; ;; 次のようなアルゴリズムと以下のコードは等価:
 ;; ;; (1) 残っているかごのうち最小個数のりんごの数をcount、
 ;; ;; 残っているかごの数をnとする。
@@ -2209,21 +2217,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; https://atcoder.jp/contests/abc270/editorial/4848
 (defun solve (n k as)
   (labels ((apples (m)
-             (reduce #'+ as :key (curry #'min m))))
+             (reduce #'+ as :key (miner m))))
     (let* ((m (binary-search 0 (1+ (reduce #'max as))
                              (compose #<=k #'apples)))
-           (as* (mapcar (lambda (a)
-                          (max 0 (- a m)))
+           (as* (mapcar (compose (maxer 0) (suber m))
                         as))
            (k* (- k (apples m))))
       (if (zerop k*)
           as*
           (let ((pos (nth-value 1 (nth-if (1- k*) #'plusp as*))))
-            (mapcar (lambda (a i)
-                      (if (and (plusp a) (<= i pos))
-                          (1- a)
-                          a))
-                    as* (range n)))))))
+            (mvbind (l r) (split-at (1+ pos) as*)
+              (nconc (mapcar (compose (maxer 0) #'1-) l)
+                     r)))))))
 
 (defun main ()
   (readlet (n k)
