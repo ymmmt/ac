@@ -2035,6 +2035,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                          (+ count (length ops))
                          (nconc ops acc))))))))))
 
+(defun random-valid-op2 (state)
+  #@(state state)
+  (with-accessors ((grid state-grid)
+                   (points state-points))
+      state
+    (shuffle! points)
+    (find-if*-range (lambda (pos)
+                      (funcall finder grid (aref points pos)))
+                    0 (length points))))
+
 (defsubst random-valid-axis-aligned-op (state &optional (r *randomness*))
   (random-valid-op state #'valid-axis-aligned-ops r))
 
