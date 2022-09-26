@@ -1680,14 +1680,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Core
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
+(eval-always
+  (defun |#@-aux| (typespec)
+    (dbind (type-specifier . args) typespec
+      `(type ,type-specifier ,@args)))
+
   (set-dispatch-macro-character
    #\# #\@
    (lambda (stream char num)
      (declare (ignore char num))
-     (let ((arrays (read stream t nil t)))
-       `(declare (type (simple-array bit) ,@(ensure-list arrays))
-                 (optimize speed (safety 1)))))))
+     (let ((typespecs (read stream t nil t)))
+       `(declare ,(|#@-aux| typespecs)
+                 (optimize speed (safety 1))))))
+  ) ;eval-always
 
 (defvar *n*)
 (defvar *array-dimensions*)
@@ -1695,15 +1700,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *timelimit*)
 
 (defsubst pointp (grid r c)
-  #@grid
+  #@((simple-array bit) grid)
   (plusp (sbit grid r c)))
 
 (defsubst blankp (grid r c)
-  #@grid
+  #@((simple-array bit) grid)
   (zerop (sbit grid r c)))
 
 (defsubst point-cell-p (grid r c)
-  #@grid
+  #@((simple-array bit) grid)
   (when (pointp grid r c)
     (cons r c)))
 
@@ -1726,13 +1731,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (min *n* (+ const *n*))))
 
 (defun points (grid)
-  #@grid
+  #@((simple-array bit) grid)
   (lcomp ((r 0 *n*) (c 0 *n*))
       (pointp grid r c)
     (cons r c)))
 
 (defun adja-row-points (grid row col)
-  #@grid
+  #@((simple-array bit) grid)
   (->> (list (find-if*-drange (curry* #'point-cell-p grid row %)
                               0 col)
              (find-if*-range (curry* #'point-cell-p grid row %)
@@ -1740,7 +1745,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
        (delete nil)))
 
 (defun adja-col-points (grid row col)
-  #@grid
+  #@((simple-array bit) grid)
   (->> (list (find-if*-drange (curry* #'point-cell-p grid % col)
                               0 row)
              (find-if*-range (curry* #'point-cell-p grid % col)
@@ -1748,7 +1753,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
        (delete nil)))
 
 (defun adja-ldiag-points (grid row col)
-  #@grid
+  #@((simple-array bit) grid)
   (let ((const (+ row col)))
     (flet ((point-cell-p (r)
              (point-cell-p grid r (- const r))))
@@ -1759,7 +1764,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (delete nil)))))
 
 (defun adja-rdiag-points (grid row col)
-  #@grid
+  #@((simple-array bit) grid)
   (let ((const (- row col)))
     (flet ((point-cell-p (r)
              (point-cell-p grid r (- r const))))
@@ -1816,7 +1821,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Edges
 
 (defun valid-row-edge-p (grid row-edges row c1 c2)
-  #@(grid row-edges)
+  #@((simple-array bit) grid row-edges)
   (sortf < c1 c2)
   (always (c c1 c2)
     (and (or (= c c1)
@@ -1824,7 +1829,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (zerop (sbit row-edges row c)))))
 
 (defun valid-col-edge-p (grid col-edges col r1 r2)
-  #@(grid col-edges)
+  #@((simple-array bit) grid col-edges)
   (sortf < r1 r2)
   (always (r r1 r2)
     (and (or (= r r1)
@@ -1832,7 +1837,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (zerop (sbit col-edges r col)))))
 
 (defun valid-ldiag-edge-p (grid ldiag-edges r1 c1 r2 c2)
-  #@(grid ldiag-edges)
+  #@((simple-array bit) grid ldiag-edges)
   (if (> r1 r2)
       (valid-ldiag-edge-p grid ldiag-edges r2 c2 r1 c1)
       (let ((const (+ r1 c1)))
@@ -1842,7 +1847,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (zerop (sbit ldiag-edges r (- const r))))))))
 
 (defun valid-rdiag-edge-p (grid rdiag-edges r1 c1 r2 c2)
-  #@(grid rdiag-edges)
+  #@((simple-array bit) grid rdiag-edges)
   (if (> r1 r2)
       (valid-rdiag-edge-p grid rdiag-edges r2 c2 r1 c1)
       (let ((const (- r1 c1)))
@@ -1920,21 +1925,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; State update
 
 (defun row-connect! (row-edges row c1 c2)
-  #@row-edges
+  #@((simple-array bit) row-edges)
   (sortf < c1 c2)
   (mapc-range (lambda (c)
                 (setf (sbit row-edges row c) 1))
               c1 c2))
 
 (defun col-connect! (col-edges col r1 r2)
-  #@col-edges
+  #@((simple-array bit) col-edges)
   (sortf < r1 r2)
   (mapc-range (lambda (r)
                 (setf (sbit col-edges r col) 1))
               r1 r2))
 
 (defun ldiag-connect! (ldiag-edges r1 c1 r2 c2)
-  #@ldiag-edges
+  #@((simple-array bit) ldiag-edges)
   (if (> r1 r2)
       (ldiag-connect! ldiag-edges r2 c2 r1 c1)
       (let ((const (+ r1 c1)))
@@ -1943,7 +1948,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     r1 r2))))
 
 (defun rdiag-connect! (rdiag-edges r1 c1 r2 c2)
-  #@rdiag-edges
+  #@((simple-array bit) rdiag-edges)
   (if (> r1 r2)
       (rdiag-connect! rdiag-edges r2 c2 r1 c1)
       (let ((const (- r1 c1)))
@@ -1988,7 +1993,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (col-edges (make-bit-array *array-dimensions*))
          (ldiag-edges (make-bit-array *array-dimensions*))
          (rdiag-edges (make-bit-array *array-dimensions*)))
-    #@grid
+    #@((simple-array bit) grid)
     (mapc (dlambda ((x . y))
             (setf (sbit grid x y) 1))
           xys)
