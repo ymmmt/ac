@@ -1800,7 +1800,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (col-edges   nil :type (or null (simple-array bit)))
   (ldiag-edges nil :type (or null (simple-array bit)))
   (rdiag-edges nil :type (or null (simple-array bit)))
-  (score         0 :type fixnum))
+  (score         0 :type fixnum)
+  (haltp       nil :type boolean))
 
 (defmethod print-object ((object state) stream)
   (print-unreadable-object (object stream)
@@ -1832,6 +1833,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (copy-simple-bit-array ldiag-edges)
            (copy-simple-bit-array rdiag-edges)
            score)))
+
+(defsubst halt! (state)
+  (setf (state-haltp state) t))
 
 ;;; Edges
 
@@ -1943,8 +1947,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                it)))))
 
 (defun valid-ops (state)
-  (mapcan (curry #'find-valid-ops state)
-          (state-points state)))
+  (if (state-haltp state)
+      nil
+      (let ((ops (mapcan (curry #'find-valid-ops state)
+                         (state-points state))))
+        (when (null ops)
+          (halt! state))
+        ops)))
 
 ;;; Connect
 
@@ -2026,33 +2035,39 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (make-bit-array *array-dimensions*)
            0)))
 
-(defun all-neighbor-states1 (state)
-  (mapcar (curry #'operate state)
-          (valid-ops state)))
+(defun beam-search (states width)
+  (let ((ss (foldl (lambda (acc state)
+                     (let ((valid-ops (valid-ops state)))
+                       (if (null valid-ops)
+                           (cons state acc)
+                           (nconc (mapcar (curry #'cons state)
+                                          valid-ops)
+                                  acc))))
+                   nil states)))
+    (labels ((score (s)
+               (if (state-p s)
+                   (state-score s)
+                   (dbind (state . op) s
+                     (+ (state-score state)
+                        (d op)))))
+             (operate-if-needed (s)
+               (if (state-p s)
+                   s
+                   (dbind (state . op) s
+                     (operate state op)))))
+      (->> (nbest-k width ss #'> :key #'score)
+           (mapcar #'operate-if-needed)))))
 
-(defun all-neighbor-states (state neighbor-size)
-  (if (zerop neighbor-size)
-      (list state)
-      (mapcan #'all-neighbor-states1
-              (all-neighbor-states state (1- neighbor-size)))))
-
-(defun best-neighbor-state (state neighbor-size)
-  (aand (all-neighbor-states state neighbor-size)
-        ;;        (when it (dbg (length it)) it)
-        (best #'state-score it)))
-
-(defun solve (xys neighbor-size)
-  (labels ((ret (state)
-             (let ((ops (reverse (state-ops state))))
+(defun solve (xys beam-search-width)
+  (labels ((ret (states)
+             (let* ((best (best #'state-score states))
+                    (ops (reverse (state-ops best))))
                (values (length ops) ops))))
     (with-timelimit (*timelimit*)
-      (nlet rec ((state (init-state xys)))
-        (acond ((time-up-p)
-                (ret state))
-               ((best-neighbor-state state neighbor-size)
-                (rec it))
-               (t
-                (ret state)))))))
+      (nlet rec ((states (collect beam-search-width (init-state xys))))
+        (if (time-up-p)
+            (ret states)
+            (rec (beam-search states beam-search-width)))))))
 
 (defun set-vars (n)
   (setf *n* n
@@ -2060,12 +2075,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *center* (ash n -1)
         *timelimit* 4.5))
 
-(defun main (&optional (stream *standard-input*) (neighbor-size 2))
+(defun main (&optional (stream *standard-input*) (beam-search-width 10))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
         (set-vars n)
-        (mvbind (k ops) (solve xys neighbor-size)
+        (mvbind (k ops) (solve xys beam-search-width)
           (bulk-stdout
             (println k)
             (mapc #'print-op ops)))))))
