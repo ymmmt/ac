@@ -1871,6 +1871,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                    (blankp grid r (- r const)))
                (zerop (sbit rdiag-edges r (- r const))))))))
 
+(defun valid-edge-p (state r1 c1 r2 c2)
+  (ecase (dir r1 c1 r2 c2)
+    ((:e :w)   (valid-row-edge-p (state-grid state)
+                                 (state-row-edges state)
+                                 r1 c1 c2))
+    ((:n :s)   (valid-col-edge-p (state-grid state)
+                                 (state-col-edges state)
+                                 c1 r1 r2))
+    ((:se :nw) (valid-ldiag-edge-p (state-grid state)
+                                   (state-ldiag-edges state)
+                                   r1 c1 r2 c2))
+    ((:ne :sw) (valid-rdiag-edge-p (state-grid state)
+                                   (state-rdiag-edges state)
+                                   r1 c1 r2 c2))))
+
 ;;; Ops
 
 (defmacro make-op (type &rest point-plist)
@@ -1879,29 +1894,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst print-op (op)
   (join-print (cdr op)))
 
-(defun axis-aligned-valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
-  (with-accessors ((grid state-grid)
-                   (row-edges state-row-edges)
-                   (col-edges state-col-edges))
-      state
+(defun valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
+  (with-accessors ((grid state-grid)) state
     (and (array-in-bounds-p grid r1 c1)
          (blankp grid r1 c1)
-         (valid-col-edge-p grid col-edges c1 r1 r2)
-         (valid-row-edge-p grid row-edges r2 c2 c3)
-         (valid-col-edge-p grid col-edges c3 r3 r4)
-         (valid-row-edge-p grid row-edges r4 c4 c1))))
-
-(defun diagonal-valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
-  (with-accessors ((grid state-grid)
-                   (ldiag-edges state-ldiag-edges)
-                   (rdiag-edges state-rdiag-edges))
-      state
-    (and (array-in-bounds-p grid r1 c1)
-         (blankp grid r1 c1)
-         (valid-rdiag-edge-p grid rdiag-edges r1 c1 r2 c2)
-         (valid-ldiag-edge-p grid ldiag-edges r2 c2 r3 c3)
-         (valid-rdiag-edge-p grid rdiag-edges r3 c3 r4 c4)
-         (valid-ldiag-edge-p grid ldiag-edges r4 c4 r1 c1))))
+         (valid-edge-p state r1 c1 r2 c2)
+         (valid-edge-p state r2 c2 r3 c3)
+         (valid-edge-p state r3 c3 r4 c4)
+         (valid-edge-p state r4 c4 r1 c1))))
 
 (defun make-axis-aligned-op-if-valid (state point row-point col-point)
   (dbind (r3 . c3) point
@@ -1909,7 +1909,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (dbind (r4 . c4) col-point
         (let ((r1 r4)
               (c1 c2))
-          (when (axis-aligned-valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
+          (when (valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
             (make-op :axis-aligned r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun make-diagonal-op-if-valid (state point ldiag-point rdiag-point)
@@ -1918,7 +1918,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (dbind (r4 . c4) rdiag-point
         (let ((r1 (- r4 (- r3 r2)))
               (c1 (+ c4 (- c2 c3))))
-          (when (diagonal-valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
+          (when (valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
             (make-op :diagonal r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun find-valid-ops (state point)
