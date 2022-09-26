@@ -1780,7 +1780,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (score         0 :type fixnum))
 
 (defmethod print-object ((object state) stream)
-  (print-matrix (state-grid object)))
+  (print-unreadable-object (object stream)
+    (with-accessors ((ops state-ops) (score state-score)) object
+    (format stream ":K ~A :SCORE ~D" (length ops) score))))
 
 (defun copy-simple-bit-array (array)
   (let ((copy (make-bit-array *array-dimensions*)))
@@ -2009,6 +2011,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun best-neighbor-state (state neighbor-size)
   (aand (all-neighbor-states state neighbor-size)
+        ;;        (when it (dbg (length it)) it)
         (best #'state-score it)))
 
 (defun solve (xys neighbor-size)
@@ -2030,7 +2033,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *center* (ash n -1)
         *timelimit* 4.5))
 
-(defun main (&optional (stream *standard-input*) (neighbor-size 1))
+(defun main (&optional (stream *standard-input*) (neighbor-size 2))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
