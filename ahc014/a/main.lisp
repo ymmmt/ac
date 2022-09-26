@@ -1808,9 +1808,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (format stream ":K ~A :SCORE ~D" (length ops) score))))
 
 (defun copy-simple-bit-array (array)
+  #@((simple-array bit) array)
   (let ((copy (make-bit-array *array-dimensions*)))
     (domatrix (cij i j copy)
-      (setf cij (the bit (aref array i j))))
+      (setf cij (the bit (sbit array i j))))
     copy))
 
 (defun copy-state (state)
