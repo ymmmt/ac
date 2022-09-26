@@ -1804,7 +1804,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (haltp       nil :type boolean))
 
 (defmethod print-object ((object state) stream)
-  (print-unreadable-object (object stream)
+  (print-unreadable-object (object stream :identity t)
     (with-accessors ((ops state-ops) (score state-score)) object
     (format stream ":K ~A :SCORE ~D" (length ops) score))))
 
@@ -1955,6 +1955,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (halt! state))
         ops)))
 
+(defun random-valid-op (state)
+  (random-choice (valid-ops state)))
+
 ;;; Connect
 
 (defun row-connect! (row-edges row c1 c2)
@@ -2020,6 +2023,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (incf score (d op)))
     copy))
 
+(defun random-operate (state)
+  (operate state (random-valid-op state)))
+
 (defun init-state (xys)
   (let ((grid (make-bit-array *array-dimensions*)))
     #@((simple-array bit) grid)
@@ -2035,6 +2041,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (make-bit-array *array-dimensions*)
            0)))
 
+(defun beam-search-initial-states (xys ops-count width)
+  (apply-n ops-count
+           (curry #'mapcar #'random-operate)
+           (collect width
+             (init-state xys))))
+
 (defun beam-search (states width)
   (let ((ss (foldl (lambda (acc state)
                      (let ((valid-ops (valid-ops state)))
@@ -2044,6 +2056,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                           valid-ops)
                                   acc))))
                    nil states)))
+;;    (dbg ss)
     (labels ((score (s)
                (if (state-p s)
                    (state-score s)
@@ -2058,16 +2071,23 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (->> (nbest-k width ss #'> :key #'score)
            (mapcar #'operate-if-needed)))))
 
-(defun solve (xys beam-search-width)
+(defun solve (xys initial-random-ops-count beam-search-width)
   (labels ((ret (states)
              (let* ((best (best #'state-score states))
                     (ops (reverse (state-ops best))))
                (values (length ops) ops))))
     (with-timelimit (*timelimit*)
-      (nlet rec ((states (collect beam-search-width (init-state xys))))
+      (nlet rec ((states (beam-search-initial-states xys
+                                                     initial-random-ops-count
+                                                     beam-search-width))
+                 (count 0))
+;;        (dbg count)
+        ;; (let ((ss (mapcar #'state-score states)))
+        ;;   (dbg ss))
         (if (time-up-p)
             (ret states)
-            (rec (beam-search states beam-search-width)))))))
+            (rec (beam-search states beam-search-width)
+                 (1+ count)))))))
 
 (defun set-vars (n)
   (setf *n* n
@@ -2075,12 +2095,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *center* (ash n -1)
         *timelimit* 4.5))
 
-(defun main (&optional (stream *standard-input*) (beam-search-width 10))
+(defun main (&optional (stream *standard-input*)
+               (initial-random-ops-count 5)
+               (beam-search-width 300))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
         (set-vars n)
-        (mvbind (k ops) (solve xys beam-search-width)
+        (mvbind (k ops) (solve xys initial-random-ops-count beam-search-width)
           (bulk-stdout
             (println k)
             (mapc #'print-op ops)))))))
@@ -2094,7 +2116,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; (defun testcase-filename (test-dir test-id)
 ;;   (format nil "~A/sample-~4,'0D.in" test-dir test-id))
 
-;; (defun testcase-score (filename randomness)
+;; (defun testcase-score (filename initial-random-ops-count beam-search-width)
 ;;   (with-open-stream (in (-> (uiop:launch-program
 ;;                              (list "cat" filename)
 ;;                              :output :stream)
@@ -2102,23 +2124,29 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (let ((*standard-input* in))
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
-;;           (set-vars n randomness)
-;;           (mvbind (k ops) (solve xys #'high-weight-random-selector)
+;;           (set-vars n)
+;;           (mvbind (k ops)
+;;               (solve xys initial-random-ops-count beam-search-width)
 ;;             (reduce #'+ ops :key #'d)))))))
 
-;; (defun total-score (test-dir randomness)
+;; (defun total-score (test-dir initial-random-ops-count beam-search-width)
 ;;   (reduce #'+ (range 10)
 ;;           :key (lambda (id)
 ;;                  (testcase-score (testcase-filename test-dir id)
-;;                                  randomness))))
+;;                                  initial-random-ops-count
+;;                                  beam-search-width))))
+
+;; (defconstant +cs+ '(10 15 20 25 30))
+;; (defconstant +ws+ '(100))
 
 ;; (defun benchmark ()
 ;;   (let ((dir (sb-ext:posix-getenv "dir")))
 ;;     (println dir)
-;;     (mapc (lambda (r)
-;;             (dbg 'randomness r)
-;;             (dbg 'total-score (total-score dir r)))
-;;           (range 1 11))))
+;;     (dolist (c +cs+)
+;;       (dolist (w +ws+)
+;;         (dbg 'beam-search-width w)
+;;         (dbg 'initial-random-ops-count c)
+;;         (dbg 'total-score (total-score dir c w))))))
 
 ;; (trace testcase-score)
 ;; (benchmark)
