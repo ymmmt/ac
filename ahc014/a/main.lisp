@@ -1732,30 +1732,30 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (dc (signum (- c col))))
     #@(fixnum dr dc)
     (switch (dr :test '=)
-      (-1 (switch (dc :test '=)
-            (-1 :sw)
-            (0  :s)
-            (1  :se)))
+      (1  (switch (dc :test '=)
+            (-1 :nw)
+            (0  :n)
+            (1  :ne)))
       (0  (switch (dc :test '=)
             (-1 :w)
             (0  (error "Row-col pairs must not be identical."))
             (1  :e)))
-      (1  (switch (dc :test '=)
-            (-1 :nw)
-            (0  :n)
-            (1  :ne))))))
+      (-1 (switch (dc :test '=)
+            (-1 :sw)
+            (0  :s)
+            (1  :se))))))
 
 (declaim (ftype (function (symbol) (values fixnum fixnum)) dir-delta))
 (defun dir-delta (dir)
   (ecase dir
-    (:n  (values  1  0))
-    (:ne (values  1  1))
-    (:e  (values  0  1))
-    (:se (values -1  1))
-    (:s  (values -1  0))
+    (:n  (values 1  0))
+    (:ne (values 1  1))
+    (:e  (values 0  1))
+    (:se (values -1 1))
+    (:s  (values -1 0))
     (:sw (values -1 -1))
-    (:w  (values  0 -1))
-    (:nw (values  1 -1))))
+    (:w  (values 0  -1))
+    (:nw (values 1  -1))))
 
 ;;; Points
 
@@ -1873,12 +1873,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun valid-edge-p (state r1 c1 r2 c2)
   (ecase (dir r1 c1 r2 c2)
-    ((:e :w)   (valid-row-edge-p (state-grid state)
-                                 (state-row-edges state)
-                                 r1 c1 c2))
-    ((:n :s)   (valid-col-edge-p (state-grid state)
-                                 (state-col-edges state)
-                                 c1 r1 r2))
+    ((:e :w)   (valid-row-edge-p   (state-grid state)
+                                   (state-row-edges state)
+                                   r1 c1 c2))
+    ((:n :s)   (valid-col-edge-p   (state-grid state)
+                                   (state-col-edges state)
+                                   c1 r1 r2))
     ((:se :nw) (valid-ldiag-edge-p (state-grid state)
                                    (state-ldiag-edges state)
                                    r1 c1 r2 c2))
@@ -1888,11 +1888,20 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Ops
 
-(defmacro make-op (type &rest point-plist)
-  `(list ,type ,@point-plist))
+(defmacro make-op (&rest point-plist)
+  `(list ,@point-plist))
 
 (defsubst print-op (op)
-  (join-print (cdr op)))
+  (join-print op))
+
+(defun d (op)
+  (let ((r (first op))
+        (c (second op)))
+    (+ (^2 (- r *center*))
+       (^2 (- c *center*)))))
+
+(defun score (ops)
+  (reduce #'+ ops :initial-value 0 :key #'d))
 
 (defun valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
   (with-accessors ((grid state-grid)) state
@@ -1910,7 +1919,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (let ((r1 r4)
               (c1 c2))
           (when (valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
-            (make-op :axis-aligned r1 c1 r2 c2 r3 c3 r4 c4)))))))
+            (make-op r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun make-diagonal-op-if-valid (state point ldiag-point rdiag-point)
   (dbind (r3 . c3) point
@@ -1919,7 +1928,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (let ((r1 (- r4 (- r3 r2)))
               (c1 (+ c4 (- c2 c3))))
           (when (valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
-            (make-op :diagonal r1 c1 r2 c2 r3 c3 r4 c4)))))))
+            (make-op r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun find-valid-ops (state point)
   (dbind (r . c) point
@@ -1937,7 +1946,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (mapcan (curry #'find-valid-ops state)
           (state-points state)))
 
-;;; State update
+;;; Connect
 
 (defun row-connect! (row-edges row c1 c2)
   #@((simple-array bit) row-edges)
@@ -1971,36 +1980,36 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                       (setf (sbit rdiag-edges r (- r const)) 1))
                     r1 r2))))
 
+(defsubst connect! (state r1 c1 r2 c2)
+  (ecase (dir r1 c1 r2 c2)
+    ((:e :w)   (row-connect!   (state-row-edges state)
+                               r1 c1 c2))
+    ((:n :s)   (col-connect!   (state-col-edges state)
+                               c1 r1 r2))
+    ((:se :nw) (ldiag-connect! (state-ldiag-edges state)
+                               r1 c1 r2 c2))
+    ((:ne :sw) (rdiag-connect! (state-rdiag-edges state)
+                               r1 c1 r2 c2))))
+
+;;; Main
+
 (defun operate (state op)
   (let ((copy (copy-state state)))
     (with-accessors ((grid state-grid)
                      (points state-points)
                      (ops state-ops)
-                     (row-edges state-row-edges)
-                     (col-edges state-col-edges)
-                     (ldiag-edges state-ldiag-edges)
-                     (rdiag-edges state-rdiag-edges)
                      (score state-score))
         copy
-      (dbind (type r1 c1 r2 c2 r3 c3 r4 c4) op
-        (ecase type
-          (:axis-aligned
-           (col-connect! col-edges c1 r1 r2)
-           (row-connect! row-edges r2 c2 c3)
-           (col-connect! col-edges c3 r3 r4)
-           (row-connect! row-edges r4 c4 c1))
-          (:diagonal
-           (rdiag-connect! rdiag-edges r1 c1 r2 c2)
-           (ldiag-connect! ldiag-edges r2 c2 r3 c3)
-           (rdiag-connect! rdiag-edges r3 c3 r4 c4)
-           (ldiag-connect! ldiag-edges r4 c4 r1 c1)))
+      (dbind (r1 c1 r2 c2 r3 c3 r4 c4) op
+        (connect! copy r1 c1 r2 c2)
+        (connect! copy r2 c2 r3 c3)
+        (connect! copy r3 c3 r4 c4)
+        (connect! copy r4 c4 r1 c1)
         (setf (sbit grid r1 c1) 1)
         (push (cons r1 c1) points))
       (push op ops)
       (incf score (d op)))
     copy))
-
-;;; Main
 
 (defun init-state (xys)
   (let* ((grid (make-bit-array *array-dimensions*))
@@ -2013,15 +2022,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (setf (sbit grid x y) 1))
           xys)
     (state grid (points grid) nil row-edges col-edges ldiag-edges rdiag-edges 0)))
-
-(defun d (op)
-  (let ((r (second op))
-        (c (third op)))
-    (+ (^2 (- r *center*))
-       (^2 (- c *center*)))))
-
-(defun score (ops)
-  (reduce #'+ ops :initial-value 0 :key #'d))
 
 (defun all-neighbor-states1 (state)
   (mapcar (curry #'operate state)
