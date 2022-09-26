@@ -1927,6 +1927,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst connectedp (p1 p2)
   (%connectedp-aux p1 p2))
 
+(defsubst connectedp2 (p1 p2 dir)
+  #@(point p1 p2)
+  (eq (funcall (connect-accessor dir) p1)
+      p2))
+
 (defun betweenp (p1 p2 r c)
   #@(point p1 p2)
   (with-accessors ((r1 point-row) (c1 point-col)) p1
@@ -1943,7 +1948,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (adj (funcall (adj-accessor dir)
                        point)))
     (or (null adj)
-        (not (or (connectedp point adj)
+        (not (or (connectedp2 point adj dir)
                  (betweenp point adj r c))))))
 
 ;;; Ops
