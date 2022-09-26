@@ -1811,6 +1811,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun copy-simple-bit-array (array)
   #@((simple-array bit) array)
   (let ((copy (make-bit-array *array-dimensions*)))
+    #@((simple-array bit) copy)
     (domatrix (cij i j copy)
       (setf cij (the bit (sbit array i j))))
     copy))
@@ -2096,8 +2097,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *timelimit* 4.5))
 
 (defun main (&optional (stream *standard-input*)
-               (initial-random-ops-count 5)
-               (beam-search-width 300))
+               (initial-random-ops-count 15)
+               (beam-search-width 100))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
