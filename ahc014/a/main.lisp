@@ -1666,10 +1666,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (fresh-line))
   (fresh-line))
 
-(defun shuffle! (vector)
-  (loop for i from (length vector) downto 2
-        do (rotatef (aref vector (random i))
-                    (aref vector (1- i)))))
+(defmacro domatrix ((element i j matrix) &body body)
+  (let ((gmat (gensym)))
+    `(let ((,gmat ,matrix))
+       (symbol-macrolet ((,element (aref ,gmat ,i ,j))) 
+         (dotimes (,i (array-dimension ,gmat 0))
+           (dotimes (,j (array-dimension ,gmat 1))
+             ,@body))))))
 
 ;;; Core
 
@@ -1683,9 +1686,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  (optimize speed (safety 1)))))))
 
 (defvar *n*)
+(defvar *array-dimensions*)
 (defvar *center*)
 (defvar *timelimit*)
-(defvar *randomness*)
 
 (defsubst pointp (grid r c)
   #@grid
@@ -1699,6 +1702,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   #@grid
   (when (pointp grid r c)
     (cons r c)))
+
+;;; Points
 
 (defsubst ldiag-row-start (row col)
   (let ((const (+ row col)))
@@ -1760,19 +1765,49 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                  (1+ row) (rdiag-row-end row col)))
            (delete nil)))))
 
-;;; Main
+;;; States
 
 (defstruct (state (:constructor state
-                      (grid points row-edges col-edges ldiag-edges rdiag-edges)))
-  (grid nil :type (or null (simple-array bit)))
-  (points nil :type (or null vector))
-  (row-edges nil :type (or null (simple-array bit)))
-  (col-edges nil :type (or null (simple-array bit)))
+                      (grid points ops row-edges col-edges ldiag-edges rdiag-edges score))
+                  (:copier nil))
+  (grid        nil :type (or null (simple-array bit)))
+  (points      nil :type list)
+  (ops         nil :type list)
+  (row-edges   nil :type (or null (simple-array bit)))
+  (col-edges   nil :type (or null (simple-array bit)))
   (ldiag-edges nil :type (or null (simple-array bit)))
-  (rdiag-edges nil :type (or null (simple-array bit))))
+  (rdiag-edges nil :type (or null (simple-array bit)))
+  (score         0 :type fixnum))
 
 (defmethod print-object ((object state) stream)
   (print-matrix (state-grid object)))
+
+(defun copy-simple-bit-array (array)
+  (let ((copy (make-bit-array *array-dimensions*)))
+    (domatrix (cij i j copy)
+      (setf cij (the bit (aref array i j))))
+    copy))
+
+(defun copy-state (state)
+  (with-accessors ((grid state-grid)
+                   (points state-points)
+                   (ops state-ops)
+                   (row-edges state-row-edges)
+                   (col-edges state-col-edges)
+                   (ldiag-edges state-ldiag-edges)
+                   (rdiag-edges state-rdiag-edges)
+                   (score state-score))
+      state
+    (state (copy-simple-bit-array grid)
+           points
+           ops
+           (copy-simple-bit-array row-edges)
+           (copy-simple-bit-array col-edges)
+           (copy-simple-bit-array ldiag-edges)
+           (copy-simple-bit-array rdiag-edges)
+           score)))
+
+;;; Edges
 
 (defun valid-row-edge-p (grid row-edges row c1 c2)
   #@(grid row-edges)
@@ -1810,6 +1845,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                    (blankp grid r (- r const)))
                (zerop (sbit rdiag-edges r (- r const))))))))
 
+;;; Ops
+
+(defmacro make-op (type &rest point-plist)
+  `(list ,type ,@point-plist))
+
+(defsubst print-op (op)
+  (join-print (cdr op)))
+
 (defun axis-aligned-valid-op-p (state r1 c1 r2 c2 r3 c3 r4 c4)
   (with-accessors ((grid state-grid)
                    (row-edges state-row-edges)
@@ -1841,7 +1884,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (let ((r1 r4)
               (c1 c2))
           (when (axis-aligned-valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
-            (list :axis-aligned r1 c1 r2 c2 r3 c3 r4 c4)))))))
+            (make-op :axis-aligned r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun make-diagonal-op-if-valid (state point ldiag-point rdiag-point)
   (dbind (r3 . c3) point
@@ -1850,7 +1893,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (let ((r1 (- r4 (- r3 r2)))
               (c1 (+ c4 (- c2 c3))))
           (when (diagonal-valid-op-p state r1 c1 r2 c2 r3 c3 r4 c4)
-            (list :diagonal r1 c1 r2 c2 r3 c3 r4 c4)))))))
+            (make-op :diagonal r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
 (defun find-valid-ops (state point)
   (dbind (r . c) point
@@ -1868,28 +1911,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (mapcan (curry #'find-valid-ops state)
           (state-points state)))
 
-(defun random-valid-op (state &optional (r *randomness*))
-  (labels ((ret (acc)
-             (when acc
-               (best #'d acc))))
-    (with-accessors ((points state-points)) state
-      (shuffle! points)
-      (let ((len (length points)))
-        (nlet rec ((i 0) (count 0) (acc nil))
-          (declare (type fixnum len i count r)
-                   (optimize speed (safety 1)))
-          (if (or (>= i len)
-                  (>= count r))
-              (ret acc)
-              (mvbind (ops j) (find-if*-range (lambda (pos)
-                                                (find-valid-ops state (aref points pos)))
-                                              i len)
-                (declare (type (or null fixnum) j))
-                (if (null j)
-                    (ret acc)
-                    (rec (1+ j)
-                         (+ count (length ops))
-                         (nconc ops acc))))))))))
+;;; State update
 
 (defun row-connect! (row-edges row c1 c2)
   #@row-edges
@@ -1924,44 +1946,47 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     r1 r2))))
 
 (defun operate (state op)
-  (with-accessors ((grid state-grid)
-                   (points state-points)
-                   (row-edges state-row-edges)
-                   (col-edges state-col-edges)
-                   (ldiag-edges state-ldiag-edges)
-                   (rdiag-edges state-rdiag-edges))
-      state
-    (dbind (type r1 c1 r2 c2 r3 c3 r4 c4) op
-      (ecase type
-        (:axis-aligned
-         (col-connect! col-edges c1 r1 r2)
-         (row-connect! row-edges r2 c2 c3)
-         (col-connect! col-edges c3 r3 r4)
-         (row-connect! row-edges r4 c4 c1))
-        (:diagonal
-         (rdiag-connect! rdiag-edges r1 c1 r2 c2)
-         (ldiag-connect! ldiag-edges r2 c2 r3 c3)
-         (rdiag-connect! rdiag-edges r3 c3 r4 c4)
-         (ldiag-connect! ldiag-edges r4 c4 r1 c1)))
-      (setf (sbit grid r1 c1) 1)
-      (vector-push-extend (cons r1 c1) points)))
-  state)
+  (let ((copy (copy-state state)))
+    (with-accessors ((grid state-grid)
+                     (points state-points)
+                     (ops state-ops)
+                     (row-edges state-row-edges)
+                     (col-edges state-col-edges)
+                     (ldiag-edges state-ldiag-edges)
+                     (rdiag-edges state-rdiag-edges)
+                     (score state-score))
+        copy
+      (dbind (type r1 c1 r2 c2 r3 c3 r4 c4) op
+        (ecase type
+          (:axis-aligned
+           (col-connect! col-edges c1 r1 r2)
+           (row-connect! row-edges r2 c2 c3)
+           (col-connect! col-edges c3 r3 r4)
+           (row-connect! row-edges r4 c4 c1))
+          (:diagonal
+           (rdiag-connect! rdiag-edges r1 c1 r2 c2)
+           (ldiag-connect! ldiag-edges r2 c2 r3 c3)
+           (rdiag-connect! rdiag-edges r3 c3 r4 c4)
+           (ldiag-connect! ldiag-edges r4 c4 r1 c1)))
+        (setf (sbit grid r1 c1) 1)
+        (push (cons r1 c1) points))
+      (push op ops)
+      (incf score (d op)))
+    copy))
+
+;;; Main
 
 (defun init-state (xys)
-  (let* ((dims (list *n* *n*))
-         (grid (make-bit-array dims))
-         (points (make-adj-array))
-         (row-edges (make-bit-array dims))
-         (col-edges (make-bit-array dims))
-         (ldiag-edges (make-bit-array dims))
-         (rdiag-edges (make-bit-array dims)))
+  (let* ((grid (make-bit-array *array-dimensions*))
+         (row-edges (make-bit-array *array-dimensions*))
+         (col-edges (make-bit-array *array-dimensions*))
+         (ldiag-edges (make-bit-array *array-dimensions*))
+         (rdiag-edges (make-bit-array *array-dimensions*)))
     #@grid
     (mapc (dlambda ((x . y))
             (setf (sbit grid x y) 1))
           xys)
-    (mapc (rcurry #'vector-push-extend points)
-          (points grid))
-    (state grid points row-edges col-edges ldiag-edges rdiag-edges)))
+    (state grid (points grid) nil row-edges col-edges ldiag-edges rdiag-edges 0)))
 
 (defun d (op)
   (let ((r (second op))
@@ -1972,44 +1997,48 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun score (ops)
   (reduce #'+ ops :initial-value 0 :key #'d))
 
-(defun generate-ops (xys)
-  (let ((state (init-state xys)))
-    (nlet rec ((state state) (ops nil))
-      (let ((op (random-valid-op state)))
-        (if (null op)
-            (list (score ops)
-                  (length ops)
-                  (mapcar #'cdr (nreverse ops)))
-            (rec (operate state op)
-                 (cons op ops)))))))
+(defun all-neighbor-states1 (state)
+  (mapcar (curry #'operate state)
+          (valid-ops state)))
 
-(defun solve (xys)
-  (let ((cands (with-timelimit (*timelimit*)
-                 (nlet rec ((acc nil))
-                   (if (time-up-p)
-                       acc
-                       (rec (cons (generate-ops xys)
-                                  acc)))))))
-    (dbind (score k ops) (best #'car cands)
-      (declare (ignore score))
-      (values k ops))))
+(defun all-neighbor-states (state neighbor-size)
+  (if (zerop neighbor-size)
+      (list state)
+      (mapcan #'all-neighbor-states1
+              (all-neighbor-states state (1- neighbor-size)))))
 
-(defun set-vars (n randomness)
+(defun best-neighbor-state (state neighbor-size)
+  (aand (all-neighbor-states state neighbor-size)
+        (best #'state-score it)))
+
+(defun solve (xys neighbor-size)
+  (labels ((ret (state)
+             (let ((ops (reverse (state-ops state))))
+               (values (length ops) ops))))
+    (with-timelimit (*timelimit*)
+      (nlet rec ((state (init-state xys)))
+        (acond ((time-up-p)
+                (ret state))
+               ((best-neighbor-state state neighbor-size)
+                (rec it))
+               (t
+                (ret state)))))))
+
+(defun set-vars (n)
   (setf *n* n
+        *array-dimensions* (list n n)
         *center* (ash n -1)
-        *timelimit* 2.5
-        *randomness* randomness))
+        *timelimit* 4.5))
 
-(defun main (&optional (stream *standard-input*) (randomness 7))
+(defun main (&optional (stream *standard-input*) (neighbor-size 1))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars n randomness)
-        (mvbind (k ops) (solve xys)
+        (set-vars n)
+        (mvbind (k ops) (solve xys neighbor-size)
           (bulk-stdout
             (println k)
-            (dolist (op ops)
-              (join-print op))))))))
+            (mapc #'print-op ops)))))))
 
 #-swank (main)
 
