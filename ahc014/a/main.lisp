@@ -2012,16 +2012,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     copy))
 
 (defun init-state (xys)
-  (let* ((grid (make-bit-array *array-dimensions*))
-         (row-edges (make-bit-array *array-dimensions*))
-         (col-edges (make-bit-array *array-dimensions*))
-         (ldiag-edges (make-bit-array *array-dimensions*))
-         (rdiag-edges (make-bit-array *array-dimensions*)))
+  (let ((grid (make-bit-array *array-dimensions*)))
     #@((simple-array bit) grid)
     (mapc (dlambda ((x . y))
             (setf (sbit grid x y) 1))
           xys)
-    (state grid (points grid) nil row-edges col-edges ldiag-edges rdiag-edges 0)))
+    (state grid
+           (points grid)
+           nil
+           (make-bit-array *array-dimensions*)
+           (make-bit-array *array-dimensions*)
+           (make-bit-array *array-dimensions*)
+           (make-bit-array *array-dimensions*)
+           0)))
 
 (defun all-neighbor-states1 (state)
   (mapcar (curry #'operate state)
