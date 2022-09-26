@@ -1871,7 +1871,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                    (blankp grid r (- r const)))
                (zerop (sbit rdiag-edges r (- r const))))))))
 
-(defun valid-edge-p (state r1 c1 r2 c2)
+(defsubst valid-edge-p (state r1 c1 r2 c2)
   (ecase (dir r1 c1 r2 c2)
     ((:e :w)   (valid-row-edge-p   (state-grid state)
                                    (state-row-edges state)
