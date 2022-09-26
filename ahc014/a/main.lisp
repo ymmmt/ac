@@ -1699,6 +1699,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *center*)
 (defvar *timelimit*)
 
+;;; Predicates
+
 (defsubst pointp (grid r c)
   #@((simple-array bit) grid)
   (plusp (sbit grid r c)))
@@ -1712,23 +1714,50 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (when (pointp grid r c)
     (cons r c)))
 
+;;; Dirs
+
+(eval-always
+  (defconstant +dirs+          '(:n :ne :e :se :s :sw :w :nw))
+  (defconstant +opposite-dirs+ '(:s :sw :w :nw :n :ne :e :se))
+  (defconstant +dir-alist+
+    (mapcar #'cons +dirs+ +opposite-dirs+))
+
+  (defun opposite (dir)
+    (cdr (assoc dir +dir-alist+)))
+  ) ; eval-always
+
+(defun dir (row col r c)
+  #@(fixnum row col r c)
+  (let ((dr (signum (- r row)))
+        (dc (signum (- c col))))
+    #@(fixnum dr dc)
+    (switch (dr :test '=)
+      (-1 (switch (dc :test '=)
+            (-1 :sw)
+            (0  :s)
+            (1  :se)))
+      (0  (switch (dc :test '=)
+            (-1 :w)
+            (0  (error "Row-col pairs must not be identical."))
+            (1  :e)))
+      (1  (switch (dc :test '=)
+            (-1 :nw)
+            (0  :n)
+            (1  :ne))))))
+
+(declaim (ftype (function (symbol) (values fixnum fixnum)) dir-delta))
+(defun dir-delta (dir)
+  (ecase dir
+    (:n  (values  1  0))
+    (:ne (values  1  1))
+    (:e  (values  0  1))
+    (:se (values -1  1))
+    (:s  (values -1  0))
+    (:sw (values -1 -1))
+    (:w  (values  0 -1))
+    (:nw (values  1 -1))))
+
 ;;; Points
-
-(defsubst ldiag-row-start (row col)
-  (let ((const (+ row col)))
-    (max 0 (- (1+ const) *n*))))
-
-(defsubst ldiag-row-end (row col)
-  (let ((const (+ row col)))
-    (min *n* (1+ const))))
-
-(defsubst rdiag-row-start (row col)
-  (let ((const (- row col)))
-    (max 0 const)))
-
-(defsubst rdiag-row-end (row col)
-  (let ((const (- row col)))
-    (min *n* (+ const *n*))))
 
 (defun points (grid)
   #@((simple-array bit) grid)
@@ -1736,43 +1765,28 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (pointp grid r c)
     (cons r c)))
 
-(defun adja-row-points (grid row col)
+(defun adjacent-point (grid row col dir)
   #@((simple-array bit) grid)
-  (->> (list (find-if*-drange (curry* #'point-cell-p grid row %)
-                              0 col)
-             (find-if*-range (curry* #'point-cell-p grid row %)
-                             (1+ col) *n*))
-       (delete nil)))
+  #@(fixnum row col)
+  (mvbind (dr dc) (dir-delta dir)
+    (loop for r fixnum = (+ row dr) then (+ r dr)
+          for c fixnum = (+ col dc) then (+ c dc)
+          while (array-in-bounds-p grid r c)
+          thereis (point-cell-p grid r c))))
 
-(defun adja-col-points (grid row col)
-  #@((simple-array bit) grid)
-  (->> (list (find-if*-drange (curry* #'point-cell-p grid % col)
-                              0 row)
-             (find-if*-range (curry* #'point-cell-p grid % col)
-                             (1+ row) *n*))
-       (delete nil)))
+(defmacro define-adjacent-points-finders ()
+  (labels ((def (name dirs)
+             `(defsubst ,(mksym "ADJACENT-~A-POINTS" name) (grid row col)
+                (->> (list ,@(mapcar (lambda (dir)
+                                       `(adjacent-point grid row col ,dir))
+                                     dirs))
+                     (delete nil)))))
+    `(progn
+       ,@(mapcar #'def
+                 '(row col ldiag rdiag)
+                 '((:e :w) (:n :s) (:se :nw) (:ne :sw))))))
 
-(defun adja-ldiag-points (grid row col)
-  #@((simple-array bit) grid)
-  (let ((const (+ row col)))
-    (flet ((point-cell-p (r)
-             (point-cell-p grid r (- const r))))
-      (->> (list (find-if*-drange #'point-cell-p
-                                  (ldiag-row-start row col) row)
-                 (find-if*-range #'point-cell-p
-                                 (1+ row) (ldiag-row-end row col)))
-           (delete nil)))))
-
-(defun adja-rdiag-points (grid row col)
-  #@((simple-array bit) grid)
-  (let ((const (- row col)))
-    (flet ((point-cell-p (r)
-             (point-cell-p grid r (- r const))))
-      (->> (list (find-if*-drange #'point-cell-p
-                                  (rdiag-row-start row col) row)
-                 (find-if*-range #'point-cell-p
-                                 (1+ row) (rdiag-row-end row col)))
-           (delete nil)))))
+(define-adjacent-points-finders)
 
 ;;; States
 
@@ -1909,12 +1923,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun find-valid-ops (state point)
   (dbind (r . c) point
     (with-accessors ((grid state-grid)) state
-      (nconc (lcomp ((rp (adja-row-points grid r c))
-                     (cp (adja-col-points grid r c)))
+      (nconc (lcomp ((rp (adjacent-row-points grid r c))
+                     (cp (adjacent-col-points grid r c)))
                  (make-axis-aligned-op-if-valid state point rp cp)
                it)
-             (lcomp ((ldp (adja-ldiag-points grid r c))
-                     (rdp (adja-rdiag-points grid r c)))
+             (lcomp ((ldp (adjacent-ldiag-points grid r c))
+                     (rdp (adjacent-rdiag-points grid r c)))
                  (make-diagonal-op-if-valid state point ldp rdp)
                it)))))
 
