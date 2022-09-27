@@ -2154,27 +2154,23 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (c1 (point-col p1)))
     (d-from-center r1 c1)))
 
-(defun d2 (op)
-  (reduce #'min op
-          :key (lambda (p)
-                 (d-from-center (point-row p) (point-col p)))))
+;; (defun d2 (op)
+;;   (reduce #'min op
+;;           :key (lambda (p)
+;;                  (d-from-center (point-row p) (point-col p)))))
 
 ;; (defun score (ops)
 ;;   (reduce #'+ ops :initial-value 0 :key #'d))
 
-(defun generate-cand (xys max-score)
-  (nlet rec ((state (init-state xys))
-             (score 0)
-             (k 0)
-             (ops nil))
-    (let ((op (random-valid-op state)))
-      (if (or (null op)
-              (and (= k *k-threshold*)
-                   (< score (* *threshold-ratio* max-score))))
-          (values score k (nreverse ops))
+(defun generate-cand (xys)
+  (nlet rec ((state (init-state xys)) (score 0) (ops nil))
+    (mvbind (op d) (random-valid-op state)
+      (if (null op)
+          (values score
+                  (length ops)
+                  (nreverse ops))
           (rec (operate! state op)
-               (+ score (d op))
-               (1+ k)
+               (+ score d)
                (cons op ops))))))
 
 (defun compute-k-threshold! (xys)
