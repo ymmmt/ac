@@ -2024,46 +2024,50 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (nconc (valid-axis-aligned-ops grid point)
          (valid-diagonal-ops grid point)))
 
-(defun random-valid-op (state &optional (finder #'valid-ops) (r *randomness*))
-  #@(state state)
-  (labels ((ret (acc)
-             (when acc
-               (best #'d acc))))
-    (with-accessors ((grid state-grid)
-                     (points state-points))
-        state
-      (shuffle! points)
-      (let ((len (length points)))
-        (nlet rec ((i 0) (count 0) (acc nil))
-          #@(fixnum len i count r)
-          (if (or (>= i len)
-                  (>= count r))
-              (ret acc)
-              (mvbind (ops j) (find-if*-range (lambda (pos)
-                                                (funcall finder grid (aref points pos)))
-                                              i len)
-                #@((or null fixnum) j)
-                (if (null j)
-                    (ret acc)
-                    (rec (1+ j)
-                         (+ count (length ops))
-                         (nconc ops acc))))))))))
+;; (defun random-valid-op (state &optional (finder #'valid-ops) (r *randomness*))
+;;   #@(state state)
+;;   (labels ((ret (acc)
+;;              (when acc
+;;                (best #'d acc))))
+;;     (with-accessors ((grid state-grid)
+;;                      (points state-points))
+;;         state
+;;       (shuffle! points)
+;;       (let ((len (length points)))
+;;         (nlet rec ((i 0) (count 0) (acc nil))
+;;           #@(fixnum len i count r)
+;;           (if (or (>= i len)
+;;                   (>= count r))
+;;               (ret acc)
+;;               (mvbind (ops j) (find-if*-range (lambda (pos)
+;;                                                 (funcall finder grid (aref points pos)))
+;;                                               i len)
+;;                 #@((or null fixnum) j)
+;;                 (if (null j)
+;;                     (ret acc)
+;;                     (rec (1+ j)
+;;                          (+ count (length ops))
+;;                          (nconc ops acc))))))))))
 
-(defun random-valid-op2 (state)
-  #@(state state)
-  (with-accessors ((grid state-grid)
-                   (points state-points))
-      state
-    (shuffle! points)
-    (find-if*-range (lambda (pos)
-                      (valid-ops grid (aref points pos)))
-                    0 (length points))))
+;; (defsubst random-valid-axis-aligned-op (state &optional (r *randomness*))
+;;   (random-valid-op state #'valid-axis-aligned-ops r))
 
-(defsubst random-valid-axis-aligned-op (state &optional (r *randomness*))
-  (random-valid-op state #'valid-axis-aligned-ops r))
+;; (defsubst random-valid-diagonal-op (state &optional (r *randomness*))
+;;   (random-valid-op state #'valid-diagonal-ops r))
 
-(defsubst random-valid-diagonal-op (state &optional (r *randomness*))
-  (random-valid-op state #'valid-diagonal-ops r))
+;; (defun random-valid-op2 (state)
+;;   #@(state state)
+;;   (with-accessors ((grid state-grid)
+;;                    (points state-points))
+;;       state
+;;     (shuffle! points)
+;;     (find-if*-range (lambda (pos)
+;;                       (valid-ops grid (aref points pos)))
+;;                     0 (length points))))
+
+(defun best-valid-op (grid point)
+  (aand (valid-ops grid point)
+        (best #'d it)))
 
 ;;; State update
 
@@ -2128,6 +2132,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (update-bounds! r1 c1))
   state)
 
+(defun all-points-greedy-operate! (state)
+  (with-accessors ((grid state-grid)
+                   (points state-points))
+      state
+    (let ((m (length points)))
+      (nlet rec ((state state) (i 0) (ops nil))
+        (if (= i m)
+            (values state ops)
+            (let ((op (best-valid-op grid (aref points i))))
+              (if (null op)
+                  (rec state (1+ i) ops)
+                  (rec (operate! state op)
+                       (1+ i)
+                       (cons op ops)))))))))
+
 ;;; Main
 
 (defun init-state (xys)
@@ -2159,19 +2178,29 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;           :key (lambda (p)
 ;;                  (d-from-center (point-row p) (point-col p)))))
 
-;; (defun score (ops)
-;;   (reduce #'+ ops :initial-value 0 :key #'d))
+(defun score (ops)
+  (reduce #'+ ops :initial-value 0 :key #'d))
 
-(defun generate-cand (xys)
-  (nlet rec ((state (init-state xys)) (score 0) (ops nil))
-    (mvbind (op d) (random-valid-op state)
-      (if (null op)
-          (values score
+;; (defun generate-cand (xys)
+;;   (nlet rec ((state (init-state xys)) (score 0) (ops nil))
+;;     (mvbind (op d) (random-valid-op state)
+;;       (if (null op)
+;;           (values score
+;;                   (length ops)
+;;                   (nreverse ops))
+;;           (rec (operate! state op)
+;;                (+ score d)
+;;                (cons op ops))))))
+
+(defun generate-cand-kernighan-lin (xys)
+  (nlet rec ((state (init-state xys)) (ops nil))
+    (shuffle! (state-points state))
+    (mvbind (s* ops*) (all-points-greedy-operate! state)
+      (if (null ops*)
+          (values (score ops)
                   (length ops)
                   (nreverse ops))
-          (rec (operate! state op)
-               (+ score d)
-               (cons op ops))))))
+          (rec s* (nconc ops* ops))))))                   
 
 (defun compute-k-threshold! (xys)
   (let ((cands (collect *initial-cands*
@@ -2183,9 +2212,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;    (dbg *k-threshold*)
     (values-list (best #'car cands))))
 
-(defun solve (xys)
+(defun solve (xys generator)
   (let ((count 0))
-    (mvbind (score* k* ops*) (compute-k-threshold! xys)
+    (mvbind (score* k* ops*) (funcall generator xys)
       (with-timelimit (*timelimit*)
         (nlet rec ((score* score*)
                    (k* k*)
@@ -2195,11 +2224,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (progn
 ;;                (dbg count)
                 (values k* ops*))
-              (mvbind (score k ops) (generate-cand xys score*)
+              (mvbind (score k ops) (funcall generator xys)
                 (if (> score score*)
                     (rec score k ops)
                     (rec score* k* ops*)))))))))
-
+   
 (defun update-bounds! (r c)
   (minf *r-min* r)
   (maxf *r-max* r)
@@ -2225,7 +2254,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (readlet (n m)
       (let ((xys (read-conses m)))
         (set-vars! n m xys randomness threshold-ratio)
-        (mvbind (k ops) (solve xys)
+        (mvbind (k ops) (solve xys #'generate-cand-kernighan-lin)
           (bulk-stdout
             (println k)
             (mapc (lambda (op)
@@ -2250,7 +2279,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
 ;;           (set-vars! n m xys randomness threshold-ratio)
-;;           (mvbind (k ops) (solve xys)
+;;           (mvbind (k ops) (solve xys #'generate-cand-kernighan-lin)
 ;;             (reduce #'+ ops :key #'d)))))))
 
 ;; (defun total-score (test-dir randomness threshold-ratio)
