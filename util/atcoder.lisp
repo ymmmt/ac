@@ -1,3 +1,7 @@
+(defun vector-mapcan (function vector)
+  (nconcing (i 0 (length vector))
+    (funcall function (aref vector i))))
+
 (defun map-subseq (function sequence start end)
   (let ((copy (copy-seq sequence)))
     (setf (subseq copy start end)
