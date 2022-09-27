@@ -1703,6 +1703,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
            (optimize speed (safety 1)))
   (or (< x y z) (> x y z)))
 
+(define-modify-macro minf (&rest more-numbers) min)
+
+(define-modify-macro maxf (&rest more-numbers) max)
+
 ;;; Core
 
 (defvar *n*)
@@ -1713,6 +1717,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *initial-cands*)
 (defvar *threshold-ratio*)
 (defvar *k-threshold* +inf+)
+(defvar *r-min*)
+(defvar *r-max*)
+(defvar *c-min*)
+(defvar *c-max*)
 
 (eval-always
   (defconstant +dirs+          '(n ne e se s sw w nw))
@@ -1801,19 +1809,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defsubst ldiag-row-start (row col)
   (let ((const (+ row col)))
-    (max 0 (- (1+ const) *n*))))
+    (max *r-min* (- const *c-max*))))
 
 (defsubst ldiag-row-end (row col)
   (let ((const (+ row col)))
-    (min *n* (1+ const))))
+    (1+ (min *r-max* (- const *c-min*)))))
 
 (defsubst rdiag-row-start (row col)
   (let ((const (- row col)))
-    (max 0 const)))
+    (max *r-min* (+ const *c-min*))))
 
 (defsubst rdiag-row-end (row col)
   (let ((const (- row col)))
-    (min *n* (+ const *n*))))
+    (1+ (min *r-max* (+ const *c-max*)))))
 
 (defun points (grid)
   #@((simple-array cell) grid)
@@ -1824,7 +1832,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst adjacent-n-point (grid row col)
   #@((simple-array cell) grid)
   (find-if*-range (curry* #'filledp grid % col)
-                  (1+ row) *n*))
+                  (1+ row) (1+ *r-max*)))
 
 (defsubst adjacent-ne-point (grid row col)
   #@((simple-array cell) grid)
@@ -1837,7 +1845,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst adjacent-e-point (grid row col)
   #@((simple-array cell) grid)
   (find-if*-range (curry* #'filledp grid row %)
-                  (1+ col) *n*))
+                  (1+ col) (1+ *c-max*)))
 
 (defsubst adjacent-se-point (grid row col)
   #@((simple-array cell) grid)
@@ -1850,7 +1858,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst adjacent-s-point (grid row col)
   #@((simple-array cell) grid)
   (find-if*-drange (curry* #'filledp grid % col)
-                   0 row))
+                   *r-min* row))
 
 (defsubst adjacent-sw-point (grid row col)
   #@((simple-array cell) grid)
@@ -1863,7 +1871,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst adjacent-w-point (grid row col)
   #@((simple-array cell) grid)
   (find-if*-drange (curry* #'filledp grid row %)
-                   0 col))
+                   *c-min* col))
 
 (defsubst adjacent-nw-point (grid row col)
   #@((simple-array cell) grid)
@@ -2020,7 +2028,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   #@(state state)
   (labels ((ret (acc)
              (when acc
-               (best #'d2 acc))))
+               (best #'d acc))))
     (with-accessors ((grid state-grid)
                      (points state-points))
         state
@@ -2116,7 +2124,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (update-adjacent-points-slots! grid p1)
       (connect-rect! op)
       (setf (aref grid r1 c1) p1)
-      (vector-push-extend p1 points)))
+      (vector-push-extend p1 points))
+    (update-bounds! r1 c1))
   state)
 
 ;;; Main
@@ -2195,7 +2204,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     (rec score k ops)
                     (rec score* k* ops*)))))))))
 
-(defun set-vars! (n m randomness threshold-ratio)
+(defun update-bounds! (r c)
+  (minf *r-min* r)
+  (maxf *r-max* r)
+  (minf *c-min* c)
+  (maxf *c-max* c))
+
+(defun set-vars! (n m xys randomness threshold-ratio)
   (setf *n* n
         *m* m
         *center* (ash n -1)
@@ -2203,12 +2218,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *randomness* randomness
         *initial-cands* 5
         *threshold-ratio* threshold-ratio))
+        *r-min* n
+        *r-max* 0
+        *c-min* n
+        *c-max* 0)
+  (mapc (cons-applier #'update-bounds!) xys))
 
 (defun main (&optional (stream *standard-input*) (randomness 5) (threshold-ratio 1/2))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars! n m randomness threshold-ratio)
+        (set-vars! n m xys randomness threshold-ratio)
         (mvbind (k ops) (solve xys)
           (bulk-stdout
             (println k)
@@ -2233,7 +2253,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (let ((*standard-input* in))
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
-;;           (set-vars! n m randomness threshold-ratio)
+;;           (set-vars! n m xys randomness threshold-ratio)
 ;;           (mvbind (k ops) (solve xys)
 ;;             (reduce #'+ ops :key #'d)))))))
 
