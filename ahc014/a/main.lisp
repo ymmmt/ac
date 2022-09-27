@@ -536,6 +536,10 @@
   (lambda (args)
     (apply fn args)))
 
+(defsubst cons-applier (fn)
+  (dlambda ((a . b))
+    (funcall fn a b)))
+
 (defsubst arefer (array)
   (lambda (&rest subscripts)
     (apply #'aref array subscripts)))
@@ -2016,7 +2020,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   #@(state state)
   (labels ((ret (acc)
              (when acc
-               (best #'d acc))))
+               (best #'d2 acc))))
     (with-accessors ((grid state-grid)
                      (points state-points))
         state
@@ -2044,7 +2048,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       state
     (shuffle! points)
     (find-if*-range (lambda (pos)
-                      (funcall finder grid (aref points pos)))
+                      (valid-ops grid (aref points pos)))
                     0 (length points))))
 
 (defsubst random-valid-axis-aligned-op (state &optional (r *randomness*))
@@ -2131,12 +2135,20 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          points)
     (state grid points)))
 
+(defsubst d-from-center (r c)
+  (+ (^2 (- r *center*))
+     (^2 (- c *center*))))
+
 (defun d (op)
   (let* ((p1 (first op))
          (r1 (point-row p1))
          (c1 (point-col p1)))
-    (+ (^2 (- r1 *center*))
-       (^2 (- c1 *center*)))))
+    (d-from-center r1 c1)))
+
+(defun d2 (op)
+  (reduce #'min op
+          :key (lambda (p)
+                 (d-from-center (point-row p) (point-col p)))))
 
 ;; (defun score (ops)
 ;;   (reduce #'+ ops :initial-value 0 :key #'d))
