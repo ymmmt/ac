@@ -2171,12 +2171,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun set-vars! (n randomness threshold-ratio)
   (setf *n* n
         *center* (ash n -1)
-        *timelimit* 2.5
+        *timelimit* 4.5
         *randomness* randomness
         *initial-cands* 5
         *threshold-ratio* threshold-ratio))
 
-(defun main (&optional (stream *standard-input*) (randomness 5) (threshold-ratio 1/4))
+(defun main (&optional (stream *standard-input*) (randomness 5) (threshold-ratio 1/2))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
