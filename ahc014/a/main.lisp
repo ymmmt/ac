@@ -1721,6 +1721,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *r-max*)
 (defvar *c-min*)
 (defvar *c-max*)
+(defvar *k-threshold-ratio*)
+(defvar *start-time*)
 
 (eval-always
   (defconstant +dirs+          '(n ne e se s sw w nw))
@@ -2192,15 +2194,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;                (+ score d)
 ;;                (cons op ops))))))
 
-(defun generate-cand-kernighan-lin (xys)
-  (nlet rec ((state (init-state xys)) (ops nil))
-    (shuffle! (state-points state))
-    (mvbind (s* ops*) (all-points-greedy-operate! state)
-      (if (null ops*)
-          (values (score ops)
-                  (length ops)
-                  (nreverse ops))
-          (rec s* (nconc ops* ops))))))                   
+;; (defun compute-k-threshold! (xys cand-generator)
+;;   (let ((cands (collect *initial-cands*
+;;                  (mvlist (funcall cand-generator xys 0)))))
+;;     (setf *k-threshold*
+;;           (floor (* *threshold-ratio*
+;;                     (reduce #'+ cands :key #'second)
+;;                     (/ 1 *initial-cands*))))
+;; ;;    (dbg *k-threshold*)
+;;     (values-list (best #'car cands))))
 
 (defun compute-k-threshold! (xys)
   (let ((cands (collect *initial-cands*
@@ -2212,22 +2214,63 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;    (dbg *k-threshold*)
     (values-list (best #'car cands))))
 
-(defun solve (xys generator)
+;; (defun abortp (max-score score k)
+;;   (and (>= k *k-threshold*)
+;;        (< score (* *threshold-ratio* max-score))))
+
+(defun erapsed-seconds ()
+  (/ (- (get-internal-real-time)
+        *start-time*)
+     internal-time-units-per-second))
+
+(defun score-threshold-ratio ()
+  (* 1/2 (+ 1 (/ (erapsed-seconds) *timelimit*))))
+
+(defun abortp (score k best-score best-k k-threshold)
+  (and (>= k k-threshold)
+       (< (* score best-k)
+          (* best-score k (score-threshold-ratio)))))
+
+(let ((count 0)
+      (abort-count 0))
+  (defun generate-cand-kernighan-lin (xys best-score best-k)
+    (labels ((ret (score k ops abortedp)
+               (incf count)
+               (when abortedp (incf abort-count))
+;;               (dbg count abort-count)
+               (values score k (nreverse ops))))
+      (let ((k-thrs (* *k-threshold-ratio* best-k)))
+        (nlet rec ((state (init-state xys))
+                   (score 0)
+                   (k 0)
+                   (ops nil))
+          (shuffle! (state-points state))
+          (mvbind (s* ops*) (all-points-greedy-operate! state)
+            (if (null ops*)
+                (ret score k ops nil)
+                (let ((score* (+ score (reduce #'+ ops* :key #'d)))
+                      (k* (+ k (length ops*))))
+                  (if (abortp score* k* best-score best-k k-thrs)
+                      (ret score* k* nil t)
+                      (rec s* score* k*
+                           (nconc ops* ops)))))))))))                   
+
+(defun solve (xys cand-generator)
   (let ((count 0))
-    (mvbind (score* k* ops*) (funcall generator xys)
+    (mvbind (score k ops) (funcall cand-generator xys 0 +inf+)
       (with-timelimit (*timelimit*)
-        (nlet rec ((score* score*)
-                   (k* k*)
-                   (ops* ops*))
+        (nlet rec ((score score)
+                   (k k)
+                   (ops ops))
           (incf count)
           (if (time-up-p)
               (progn
-;;                (dbg count)
-                (values k* ops*))
-              (mvbind (score k ops) (funcall generator xys)
-                (if (> score score*)
-                    (rec score k ops)
-                    (rec score* k* ops*)))))))))
+                ;;                (dbg count)
+                (values k ops))
+              (mvbind (score* k* ops*) (funcall cand-generator xys score k)
+                (if (> score* score)
+                    (rec score* k* ops*)
+                    (rec score k ops)))))))))
    
 (defun update-bounds! (r c)
   (minf *r-min* r)
@@ -2235,7 +2278,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (minf *c-min* c)
   (maxf *c-max* c))
 
-(defun set-vars! (n m xys randomness threshold-ratio)
+(defun set-vars! (n xys randomness k-threshold-ratio)
   (setf *n* n
         *m* m
         *center* (ash n -1)
@@ -2246,14 +2289,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *r-min* n
         *r-max* 0
         *c-min* n
-        *c-max* 0)
+        *c-max* 0
+        *k-threshold-ratio* k-threshold-ratio
+        *start-time* (get-internal-real-time))
   (mapc (cons-applier #'update-bounds!) xys))
 
-(defun main (&optional (stream *standard-input*) (randomness 5) (threshold-ratio 1/2))
+(defun main (&optional (stream *standard-input*)
+               (randomness 4)
+               (k-threshold-ratio 1/2))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars! n m xys randomness threshold-ratio)
+        (set-vars! n m xys randomness k-threshold-ratio)
         (mvbind (k ops) (solve xys #'generate-cand-kernighan-lin)
           (bulk-stdout
             (println k)
@@ -2278,7 +2325,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (let ((*standard-input* in))
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
-;;           (set-vars! n m xys randomness threshold-ratio)
+;;           (set-vars! n m xys randomness k-threshold-ratio)
 ;;           (mvbind (k ops) (solve xys #'generate-cand-kernighan-lin)
 ;;             (reduce #'+ ops :key #'d)))))))
 
@@ -2289,16 +2336,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;                                  randomness
 ;;                                  threshold-ratio))))
 
-;; (defconstant +rand+ '(1 3 5 8))
-;; (defconstant +thrs+ '(1/4 1/3 1/2 2/3))
+;; (defconstant +rs+ '(1))
+;; (defconstant +ths+ '(1/3 1/2 2/3))
 
 ;; (defun benchmark ()
 ;;   (let ((dir (sb-ext:posix-getenv "dir")))
 ;;     (println dir)
-;;     (dolist (r +rand+)
-;;       (dolist (th +thrs+)
+;;     (dolist (r +rs+)
+;;       (dolist (th +ths+)
 ;;         (dbg 'randomness r 'threshold-ratio th)
-;;         (dbg 'total-score (total-score dir r th))))))
+;;         (dbg 'total-score (total-score dir r th))
+;;         (terpri)))))
 
 ;; (trace testcase-score)
 ;; (benchmark)
