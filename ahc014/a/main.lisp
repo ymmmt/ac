@@ -1648,6 +1648,20 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; More utilities
 
+(eval-always
+  (defun |#@-aux| (typespec)
+    (dbind (type-specifier . args) typespec
+      `(type ,type-specifier ,@args)))
+
+  (set-dispatch-macro-character
+   #\# #\@
+   (lambda (stream char num)
+     (declare (ignore char num))
+     (let ((typespecs (read stream t nil t)))
+       `(declare ,(|#@-aux| typespecs)
+                 (optimize speed (safety 1))))))
+  ) ;eval-always
+
 (defsubst random-choice (list)
   (nth (random (length list)) list))
 
@@ -1672,8 +1686,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (fresh-line stream))
 
 (defun shuffle! (vector)
-  (declare (vector vector)
-           (optimize speed (safety 1)))
+  #@(vector vector)
   (loop for i fixnum from (length vector) downto 2
         do (rotatef (aref vector (random i))
                     (aref vector (1- i)))))
@@ -1688,21 +1701,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Core
 
-(eval-always
-  (defun |#@-aux| (typespec)
-    (dbind (type-specifier . args) typespec
-      `(type ,type-specifier ,@args)))
-
-  (set-dispatch-macro-character
-   #\# #\@
-   (lambda (stream char num)
-     (declare (ignore char num))
-     (let ((typespecs (read stream t nil t)))
-       `(declare ,(|#@-aux| typespecs)
-                 (optimize speed (safety 1))))))
-  ) ;eval-always
-
 (defvar *n*)
+(defvar *m*)
 (defvar *center*)
 (defvar *timelimit*)
 (defvar *randomness*)
@@ -2105,12 +2105,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun init-state (xys)
   (let* ((ds (list *n* *n*))
          (grid (make-grid ds))
-         (points (make-adj-array)))
+         (points (make-adj-array *m*)))
     #@((simple-array cell) grid)
     (mapc (dlambda ((x . y))
             (setf (aref grid x y) (point x y)))
           xys)
-    (mapc (rcurry #'vector-push-extend points)
+    (mapc (rcurry #'vector-push points)
           (points grid))
     (map nil (curry #'update-adjacent-points-slots! grid)
          points)
@@ -2168,8 +2168,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     (rec score k ops)
                     (rec score* k* ops*)))))))))
 
-(defun set-vars! (n randomness threshold-ratio)
+(defun set-vars! (n m randomness threshold-ratio)
   (setf *n* n
+        *m* m
         *center* (ash n -1)
         *timelimit* 4.5
         *randomness* randomness
@@ -2180,7 +2181,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars! n randomness threshold-ratio)
+        (set-vars! n m randomness threshold-ratio)
         (mvbind (k ops) (solve xys)
           (bulk-stdout
             (println k)
@@ -2205,7 +2206,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (let ((*standard-input* in))
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
-;;           (set-vars! n randomness threshold-ratio)
+;;           (set-vars! n m randomness threshold-ratio)
 ;;           (mvbind (k ops) (solve xys)
 ;;             (reduce #'+ ops :key #'d)))))))
 
