@@ -1784,8 +1784,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (eval-always
   (defstruct (state (:constructor state
                         (grid points)))
-    (grid   nil :type (or null (simple-array cell)))
-    (points nil :type (or null (vector point)))))
+    (grid   #() :type (simple-array cell))
+    (points #() :type (vector point))))
 
 (defmethod print-object ((object state) stream)
   (print-unreadable-object (object stream :type t :identity t)
