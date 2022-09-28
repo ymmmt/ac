@@ -2339,9 +2339,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (let ((count 0))
     (mvbind (score k ops) (funcall cand-generator xys 0 +inf+)
       (with-timelimit (*timelimit*)
-        (nlet rec ((score score)
-                   (k k)
-                   (ops ops))
+        (nlet rec ((score score) (k k) (ops ops))
           (incf count)
           (if (time-up-p)
               (progn
