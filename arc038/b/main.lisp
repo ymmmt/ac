@@ -1677,7 +1677,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (char= (aref s i j) #\#)))
     (with-memos ((cant-move-to-p (i j)
                    (or (not (array-in-bounds-p s i j))
-                       (not (array-in-bounds-p s i j))
                        (obstaclep i j)))
                  (lose-cell-p (i j)
                    (and (array-in-bounds-p s i j)
