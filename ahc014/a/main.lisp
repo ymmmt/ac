@@ -1709,6 +1709,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Core
 
+(defvar *point-id* -1)
 (defvar *n*)
 (defvar *m*)
 (defvar *center*)
@@ -1734,7 +1735,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (cdr (assoc dir +dir-alist+)))
 
   (defstruct (point (:constructor point
-                        (row col &key deletable)))
+                        (row col &key (id (incf *point-id*))
+                                   deletable)))
+    (id         -1  :type fixnum)
     (row        0   :type uint8)
     (col        0   :type uint8)
     (n-adj      nil :type (or null point))
@@ -1761,15 +1764,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       ""
       (with-output-to-string (out)
         (print-unreadable-object (point out :type t)
-          (format out ":R ~D :C ~D"
+          (format out ":ID ~D :R ~D :C ~D"
+                  (point-id point)
                   (point-row point)
                   (point-col point))))))
 
 (defmethod print-object ((object point) stream)
   (print-unreadable-object (object stream :type t)
     (apply #'format stream
-           ":R ~A :C ~A :N ~A :NE ~A :E ~A :SE ~A :S ~A :SW ~A :W ~A :NW ~A"
-           (point-row object) (point-col object)
+           ":ID ~D :R ~A :C ~A :N ~A :NE ~A :E ~A :SE ~A :S ~A :SW ~A :W ~A :NW ~A"
+           (point-id object) (point-row object) (point-col object)
            (mapcar (lambda (dir)
                      (point-repr (funcall (mksym "POINT-~A-CONNECT" dir) object)))
                    +dirs+))))
