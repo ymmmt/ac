@@ -1695,6 +1695,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         do (rotatef (aref vector (random i))
                     (aref vector (1- i)))))
 
+(defun judge (probability)
+  (< (random 1.0) probability))
+
 (defsubst non-nils (&rest items)
   (delete nil items))
 
@@ -2061,6 +2064,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;                       (valid-ops grid (aref points pos)))
 ;;                     0 (length points))))
 
+(let ((valid-ops-fns
+        (vector 'valid-axis-aligned-ops 'valid-diagonal-ops)))
+  (defun random-valid-op (grid point)
+    (when (judge 0.5)
+      (shuffle! valid-ops-fns))
+    (aand (or (funcall (aref valid-ops-fns 0)
+                       grid point)
+              (funcall (aref valid-ops-fns 1)
+                       grid point))
+          (best #'d it))))
+
 (defun best-valid-op (grid point)
   (aand (valid-ops grid point)
         (best #'d it)))
@@ -2136,7 +2150,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (nlet rec ((state state) (i 0) (ops nil))
         (if (= i m)
             (values state ops)
-            (let ((op (best-valid-op grid (aref points i))))
+            (let ((op (random-valid-op grid (aref points i))))
               (if (null op)
                   (rec state (1+ i) ops)
                   (rec (operate! state op)
@@ -2202,7 +2216,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (labels ((ret (score k ops abortedp)
                ;; (incf count)
                ;; (when abortedp (incf abort-count))
-               ;; (dbg count abort-count)
+               ;; (when (zerop (mod count 100))
+               ;;   (dbg count abort-count))
                (values score k (nreverse ops))))
       (let ((k-thrs (* *k-threshold-ratio* best-k)))
         (nlet rec ((state (init-state xys))
@@ -2230,7 +2245,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (incf count)
           (if (time-up-p)
               (progn
-;;                (dbg count)
+                (dbg count)
                 (values k ops))
               (mvbind (score* k* ops*) (funcall cand-generator xys score k)
                 (if (> score* score)
@@ -2280,7 +2295,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; (defun testcase-filename (test-dir test-id)
 ;;   (format nil "~A/sample-~4,'0D.in" test-dir test-id))
 
-;; (defun testcase-score (filename randomness threshold-ratio)
+;; (defun testcase-score (filename randomness k-threshold-ratio)
 ;;   (with-open-stream (in (-> (uiop:launch-program
 ;;                              (list "cat" filename)
 ;;                              :output :stream)
@@ -2292,12 +2307,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;           (mvbind (k ops) (solve xys #'generate-cand-kernighan-lin)
 ;;             (reduce #'+ ops :key #'d)))))))
 
-;; (defun total-score (test-dir randomness threshold-ratio)
+;; (defun total-score (test-dir randomness k-threshold-ratio)
 ;;   (reduce #'+ (range 10)
 ;;           :key (lambda (id)
 ;;                  (testcase-score (testcase-filename test-dir id)
 ;;                                  randomness
-;;                                  threshold-ratio))))
+;;                                  k-threshold-ratio))))
 
 ;; (defconstant +rs+ '(1))
 ;; (defconstant +ths+ '(1/3 1/2 2/3))
@@ -2307,7 +2322,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (println dir)
 ;;     (dolist (r +rs+)
 ;;       (dolist (th +ths+)
-;;         (dbg 'randomness r 'threshold-ratio th)
+;;         (dbg 'randomness r 'k-threshold-ratio th)
 ;;         (dbg 'total-score (total-score dir r th))
 ;;         (terpri)))))
 
