@@ -2204,16 +2204,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; ;;    (dbg *k-threshold*)
 ;;     (values-list (best #'car cands))))
 
-(defun compute-k-threshold! (xys)
-  (let ((cands (collect *initial-cands*
-                 (mvlist (generate-cand xys 0)))))
-    (setf *k-threshold*
-          (floor (* *threshold-ratio*
-                    (reduce #'+ cands :key #'second)
-                    (/ 1 *initial-cands*))))
-;;    (dbg *k-threshold*)
-    (values-list (best #'car cands))))
-
 ;; (defun abortp (max-score score k)
 ;;   (and (>= k *k-threshold*)
 ;;        (< score (* *threshold-ratio* max-score))))
@@ -2278,14 +2268,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (minf *c-min* c)
   (maxf *c-max* c))
 
-(defun set-vars! (n xys randomness k-threshold-ratio)
+(defun set-vars! (n m xys randomness k-threshold-ratio)
   (setf *n* n
         *m* m
         *center* (ash n -1)
         *timelimit* 4.5
         *randomness* randomness
-        *initial-cands* 5
-        *threshold-ratio* threshold-ratio))
         *r-min* n
         *r-max* 0
         *c-min* n
