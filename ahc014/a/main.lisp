@@ -1695,9 +1695,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         do (rotatef (aref vector (random i))
                     (aref vector (1- i)))))
 
-(defun judge (probability)
-  (< (random 1.0) probability))
-
 (defsubst non-nils (&rest items)
   (delete nil items))
 
@@ -2064,17 +2061,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;                       (valid-ops grid (aref points pos)))
 ;;                     0 (length points))))
 
-(let ((valid-ops-fns
-        (vector 'valid-axis-aligned-ops 'valid-diagonal-ops)))
-  (defun random-valid-op (grid point)
-    (when (judge 0.5)
-      (shuffle! valid-ops-fns))
-    (aand (or (funcall (aref valid-ops-fns 0)
-                       grid point)
-              (funcall (aref valid-ops-fns 1)
-                       grid point))
-          (best #'d it))))
-
 (defun best-valid-op (grid point)
   (aand (valid-ops grid point)
         (best #'d it)))
@@ -2150,7 +2136,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (nlet rec ((state state) (i 0) (ops nil))
         (if (= i m)
             (values state ops)
-            (let ((op (random-valid-op grid (aref points i))))
+            (let ((op (best-valid-op grid (aref points i))))
               (if (null op)
                   (rec state (1+ i) ops)
                   (rec (operate! state op)
