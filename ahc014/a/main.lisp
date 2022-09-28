@@ -1925,12 +1925,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
      (w  'point-w-connect)
      (nw 'point-nw-connect))))
 
-;; naive implementation
-;; (defsubst connectedp (p1 p2)
-;;   (some (lambda (dir)
-;;           (eq p1 (funcall (connect-accessor dir) p2)))
-;;         +dirs+))
-
 (defmacro %connectedp-aux (p1 p2)
   (sb-ext::once-only ((p1 p1) (p2 p2))
     (labels ((aux (dir)
@@ -2175,11 +2169,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (c1 (point-col p1)))
     (d-from-center r1 c1)))
 
-;; (defun d2 (op)
-;;   (reduce #'min op
-;;           :key (lambda (p)
-;;                  (d-from-center (point-row p) (point-col p)))))
-
 (defun score (ops)
   (reduce #'+ ops :initial-value 0 :key #'d))
 
@@ -2193,20 +2182,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;           (rec (operate! state op)
 ;;                (+ score d)
 ;;                (cons op ops))))))
-
-;; (defun compute-k-threshold! (xys cand-generator)
-;;   (let ((cands (collect *initial-cands*
-;;                  (mvlist (funcall cand-generator xys 0)))))
-;;     (setf *k-threshold*
-;;           (floor (* *threshold-ratio*
-;;                     (reduce #'+ cands :key #'second)
-;;                     (/ 1 *initial-cands*))))
-;; ;;    (dbg *k-threshold*)
-;;     (values-list (best #'car cands))))
-
-;; (defun abortp (max-score score k)
-;;   (and (>= k *k-threshold*)
-;;        (< score (* *threshold-ratio* max-score))))
 
 (defun erapsed-seconds ()
   (/ (- (get-internal-real-time)
