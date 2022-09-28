@@ -1914,25 +1914,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  (t (err))))
           (t (error "Row-col pairs are not adjacent.")))))
 
-;; (defun dir (row col r c)
-;;   #@(fixnum row col r c)
-;;   (let ((dr (signum (- r row)))
-;;         (dc (signum (- c col))))
-;;     #@(fixnum dr dc)
-;;     (switch (dr :test '=)
-;;       (-1 (switch (dc :test '=)
-;;             (-1 'sw)
-;;             (0  's)
-;;             (1  'se)))
-;;       (0  (switch (dc :test '=)
-;;             (-1 'w)
-;;             (0  (error "Row-col pairs must not be identical."))
-;;             (1  'e)))
-;;       (1  (switch (dc :test '=)
-;;             (-1 'nw)
-;;             (0  'n)
-;;             (1  'ne))))))
-
 (eval-always
   (defsubst adj-accessor (dir)
     (ecase dir
