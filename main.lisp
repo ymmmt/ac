@@ -639,6 +639,22 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (error "Empty list.")
       (scanr function (car (last list)) (nbutlast list))))
 
+(defun unfoldl (function initial-value)
+  (nlet rec ((value initial-value) (acc nil))
+    (mvbind (expansion next-value) (funcall function value)
+      (if (null expansion)
+          acc
+          (rec next-value
+               (cons expansion acc))))))
+
+(defun unfoldr (function initial-value)
+  (nlet rec ((value initial-value) (acc nil))
+    (mvbind (expansion next-value) (funcall function value)
+      (if (null expansion)
+          (nreverse acc)
+          (rec next-value
+               (cons expansion acc))))))
+
 (defun ensure-function (sym-or-func)
   (cond ((symbolp sym-or-func) `',sym-or-func)
         ((or (functionp sym-or-func)
