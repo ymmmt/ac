@@ -1707,6 +1707,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (define-modify-macro maxf (&rest more-numbers) max)
 
+(defun stable-set-difference (list1 list2 &key (test #'eql))
+  (nlet rec ((list1 list1) (acc nil))
+    (if (null list1)
+        (nreverse acc)
+        (rec (cdr list1)
+             (if (member (car list1) list2 :test test)
+                 acc
+                 (cons (car list1) acc))))))
+
 ;;; Core
 
 (defvar *point-id* -1)
@@ -1796,6 +1805,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   :key (quantizer #'point-p)
                   :stream stream)))
 
+(defun print-state (state)
+  (let ((ops (reverse (state-ops state))))
+    (bulk-stdout
+      (println (length ops))
+      (mapc (lambda (op)
+              (print-op op) (fresh-line))
+            ops))))
+
 (defsubst make-grid (dimensions)
   (make-array dimensions :element-type 'cell :initial-element nil))
 
@@ -1816,7 +1833,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defsubst deletablep (point)
   #@(point point)
-  (deletable point))
+  (point-deletable point))
 
 ;;; Points
 
@@ -2168,7 +2185,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (update-bounds! r1 c1))
   state)
 
-(defun delete-connects! (grid start-point goal-point)
+(defun delete-connects! (start-point goal-point)
   (let ((adj-accessor (adj-accessor (dir-from start-point goal-point))))
     (nlet rec ((p start-point))
       (unless (eq p goal-point)
@@ -2177,30 +2194,50 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (disconnect! p adj)
           (rec adj))))))
 
-(defun undo-operate! (state op)
+(defun ops-to-delete (ops point)
+  #@(point point)
+  (assert (deletablep point))
+  (let ((ops-to-check (member point (reverse ops) :key #'car :test #'eq)))
+    (mvfoldl (lambda (op ops-to-delete points-to-delete)
+               (if (intersection op points-to-delete :test #'eq)
+                   (values (cons op ops-to-delete)
+                           (cons (first op) points-to-delete))
+                   (values ops-to-delete points-to-delete)))
+             (cdr ops-to-check)
+             (list (car ops-to-check))
+             (list point))))
+
+(defun delete-point! (state point)
   #@(state state)
-  (dbind (p1 p2 p3 p4) op
-    (with-accessors ((id1 point-id)
-                     (r1 point-row)
-                     (c1 point-col))
-        p1
-      (with-accessors ((grid state-grid)
-                       (points state-points))
-          state
-        (delete-connects! grid p1 p2)
-        (delete-connects! grid p2 p3)
-        (delete-connects! grid p3 p4)
-        (delete-connects! grid p4 p1)
-        (setf (aref grid r1 c1) nil)
-        (mapc (curry #'update-adjacent-points-slots! grid)
-              (all-adjacent-points p1))
-        (setf points (delete p1 points :test #'eq))
-        (let ((deleted-points (mapcan (curry #'undo-operate! state)
-                                      (filter (conjoin #'deletablep
-                                                       (compose #>id1 #'point-id))
-                                              (cdr op)))))
-          (values state
-                  (cons p1 deleted-points)))))))
+  #@(point point)
+  (let* ((ops-to-delete (ops-to-delete (state-ops state) point))
+         (points-to-delete (mapcar #'first ops-to-delete)))
+    (let ((grid (state-grid state)))
+      (mapc (lambda (op)
+              (dbind (p1 p2 p3 p4) op
+                (delete-connects! p1 p2)
+                (delete-connects! p2 p3)
+                (delete-connects! p3 p4)
+                (delete-connects! p4 p1)))
+            ops-to-delete)
+      (mapc (lambda (p1)
+              (let ((r1 (point-row p1))
+                    (c1 (point-col p1)))
+                (setf (aref grid r1 c1) nil)))
+            points-to-delete)
+      (mapc (lambda (p1)
+              (mapc (curry #'update-adjacent-points-slots! grid)
+                    (all-adjacent-points p1)))
+            points-to-delete))
+    (with-accessors ((points state-points)
+                     (ops state-ops)
+                     (score state-score))
+        state
+      (decf score (reduce #'+ ops-to-delete :key #'d :initial-value 0))
+      (setf ops (stable-set-difference ops ops-to-delete))
+      (setf points (delete-if (curry* #'member % points-to-delete :test #'eq)
+                              points)))
+    (values state points-to-delete)))
 
 (defun all-points-greedy-operate! (state)
   (let ((s (state-score state)))
@@ -2294,17 +2331,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun generate-cand-test-undo-operate! (xys best-score best-k)
   (mvbind (score k ops state) (generate-cand xys best-score best-k)
-    (let* ((op (car ops))
-           (deleted (nth-value 1 (undo-operate! state op)))
-           (ops* (delete-if (lambda (op)
-                              (member (car op) deleted :test #'eq))
-                            ops)))
-      ;; (dbg 'delete (car op))
-      ;; (dbg 'deleted deleted)
-      (values (score ops*)
-              (length ops*)
-              ops*))))
-    
+    (print-state state)
+    (print-state (delete-point! state (caar ops)))
+    (cand state)))
+
 (defun solve (xys cand-generator)
   (let ((count 0))
     (mvbind (score k ops) (funcall cand-generator xys 0 +inf+)
@@ -2349,7 +2379,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (readlet (n m)
       (let ((xys (read-conses m)))
         (set-vars! n m xys randomness k-threshold-ratio)
-        (mvbind (k ops) (solve xys #'generate-cand)
+        (mvbind (k ops) (solve xys #'generate-cand-test-undo-operate!)
           (bulk-stdout
             (println k)
             (mapc (lambda (op)
