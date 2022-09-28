@@ -1734,7 +1734,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (cdr (assoc dir +dir-alist+)))
 
   (defstruct (point (:constructor point
-                        (row col)))
+                        (row col &key deletable)))
     (row        0   :type uint8)
     (col        0   :type uint8)
     (n-adj      nil :type (or null point))
@@ -1752,7 +1752,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (s-connect  nil :type (or null point))
     (sw-connect nil :type (or null point))
     (w-connect  nil :type (or null point))
-    (nw-connect nil :type (or null point)))
+    (nw-connect nil :type (or null point))
+    (deletable  nil :type boolean))
   ) ; eval-always
 
 (defun point-repr (point)
@@ -1977,7 +1978,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (not (connectedp p3 p4))
              (connectablep p2 r1 c1)
              (connectablep p4 r1 c1))
-    (list (point r1 c1) p2 p3 p4)))
+    (list (point r1 c1 :deletable t) p2 p3 p4)))
   
 (defun make-axis-aligned-op-if-valid (grid point row-point col-point)
   #@(point point row-point col-point)
