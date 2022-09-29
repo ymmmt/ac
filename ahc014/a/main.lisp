@@ -2352,6 +2352,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (cand state)
           (rec (operate! state op))))))
 
+;;; Kernighan-lin
+
 (defun erapsed-seconds ()
   (/ (- (get-internal-real-time)
         *start-time*)
@@ -2385,11 +2387,52 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                       (ret s* t)
                       (rec s*))))))))))
 
+;;; Anneal
+
 (defun generate-cand-test-undo-operate! (xys best-score best-k)
   (mvbind (score k ops state) (generate-cand xys best-score best-k)
     (print-state state)
     (print-state (delete-point! state (caar ops)))
     (cand state)))
+
+(defsubst terminatep (temperature)
+  (<= temperature *epsilon*))
+
+(defun prob (score-delta temperature)
+  (expt 2.7 (/ score-delta temperature)))
+
+(defun maybe-random-operate! (state)
+  (let ((op (random-valid-op2 state)))
+    (if op
+        (operate! state op)
+        state)))
+
+(defsubst decrease-temperature (temperature)
+  (* *temperature-decrease-ratio* temperature))
+
+(defun generate-cand-anneal (xys best-score best-k)
+  (declare (ignore best-score best-k))
+  (nlet rec ((state (init-state xys))
+             (temp *initial-temperature*))
+    ;; (let ((s (state-score state))
+    ;;       (k (length (state-ops state))))
+    ;;   (dbg s k temp))
+    (if (terminatep temp)
+        (cand state)
+        (with-accessors ((points state-points)
+                         (ops state-ops)
+                         (score state-score))
+            state
+          (if (and (plusp score)
+                   (judge *delete-point-prob*))
+              (let* ((point (random-deletable-point points))
+                     (score-delta (point-deletion-score-delta state point)))
+                (rec (if (judge (prob score-delta temp))
+                         (delete-point! state point)
+                         (maybe-random-operate! state))
+                     (decrease-temperature temp)))
+              (rec (maybe-random-operate! state)
+                   (decrease-temperature temp)))))))
 
 (defun solve (xys cand-generator)
   (let ((count 0))
@@ -2406,44 +2449,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     (rec score* k* ops*)
                     (rec score k ops)))))))))
 
-(defsubst terminatep (temperature)
-  (<= temperature *epsilon*))
-
-(defsubst prob (score-delta temperature)
-  (expt 2.7 (/ score-delta temperature)))
-
-(defun maybe-random-operate! (state)
-  (let ((op (random-valid-op2 state)))
-    (if op
-        (operate! state op)
-        state)))
-
-(defsubst decrease-temperature (temperature)
-  (* *temperature-decrease-ratio* temperature))
-
-(defun solve-anneal (xys)
-  (with-timelimit (*timelimit*)
-    (nlet rec ((state (init-state xys))
-               (temp *initial-temperature*))
-;;      (dbg state temp)
-      (with-accessors ((points state-points)
-                       (ops state-ops)
-                       (score state-score))
-          state
-        (if (or (terminatep temp)
-                (time-up-p))
-            (values (length ops) (reverse ops))
-            (if (and (plusp score)
-                     (judge *delete-point-prob*))
-                (let* ((point (random-deletable-point points))
-                       (score-delta (point-deletion-score-delta state point)))
-                  (rec (if (judge (prob score-delta temp))
-                           (delete-point! state point)
-                           (maybe-random-operate! state))
-                       (decrease-temperature temp)))
-                (rec (maybe-random-operate! state)
-                     (decrease-temperature temp))))))))
-
 (defun update-bounds! (r c)
   (minf *r-min* r)
   (maxf *r-max* r)
@@ -2455,7 +2460,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (setf *n* n
         *m* m
         *center* (ash n -1)
-        *timelimit* 4.5
+        *timelimit* 3.7
         *randomness* randomness
         *r-min* n
         *r-max* 0
@@ -2472,15 +2477,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun main (&optional (stream *standard-input*)
                (randomness 4)
                (k-threshold-ratio 1/2)
-               (initial-temperature 10000)
-               (delete-point-prob 0.5))
+               (initial-temperature 20000)
+               (delete-point-prob 0.3))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
         (set-vars! n m xys randomness k-threshold-ratio initial-temperature
                    delete-point-prob)
-        (mvbind (k ops) (solve-anneal xys)
-            ;; (solve xys #'generate-cand-test-undo-operate!)
+        (mvbind (k ops)
+            (solve xys #'generate-cand-anneal)
           (bulk-stdout
             (println k)
             (mapc (lambda (op)
@@ -2508,8 +2513,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;           (set-vars! n m xys randomness k-threshold-ratio
 ;;                      initial-temperature delete-point-prob)
 ;;           (mvbind (k ops)
-;;               ;; (solve xys #'generate-cand-kernighan-lin)
-;;               (solve-anneal xys)
+;;               (solve xys #'generate-cand-anneal)
 ;;             (reduce #'+ ops :key #'d)))))))
 
 ;; (defun total-score (test-dir randomness k-threshold-ratio
@@ -2524,8 +2528,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;; (defconstant +rs+    '(1))
 ;; (defconstant +ths+   '(1/2))
-;; (defconstant +temps+ '(10000 20000 50000))
-;; (defconstant +ds     '(0.3 0.5 0.7))
+;; (defconstant +temps+ '(1000 5000 10000 20000 50000))
+;; (defconstant +ds     '(0.1 0.3 0.5 0.7 0.9))
 
 ;; (defun benchmark ()
 ;;   (let ((dir (sb-ext:posix-getenv "dir")))
