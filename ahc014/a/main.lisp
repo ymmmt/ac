@@ -2295,38 +2295,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           ops-to-delete)
     state))
 
-;; (defun delete-point! (state point)
-;;   #@(state state)
-;;   #@(point point)
-;;   (let* ((ops-to-delete (ops-to-delete (state-ops state) point))
-;;          (points-to-delete (mapcar #'first ops-to-delete)))
-;;     (dbg ops-to-delete)
-;;     (dbg points-to-delete)
-;;     (mapc (lambda (op)
-;;             (dbind (p1 p2 p3 p4) op
-;;               (delete-connects! p1 p2)
-;;               (delete-connects! p1 p4)
-;;               (delete-connects! p3 p4)
-;;               (delete-connects! p2 p3)
-;;               (update-adjacent-points-slots!-delete point)))
-;;           ops-to-delete)
-;;     (print-state state)
-;;     (let ((grid (state-grid state)))
-;;       (mapc (lambda (p1)
-;;               (let ((r1 (point-row p1))
-;;                     (c1 (point-col p1)))
-;;                 (setf (aref grid r1 c1) nil)))
-;;             points-to-delete))
-;;     (with-accessors ((points state-points)
-;;                      (ops state-ops)
-;;                      (score state-score))
-;;         state
-;;       (decf score (reduce #'+ ops-to-delete :key #'d :initial-value 0))
-;;       (setf ops (stable-set-difference ops ops-to-delete :test #'equal))
-;;       (setf points (delete-if (curry* #'member % points-to-delete :test #'eq)
-;;                               points)))
-;;     (values state points-to-delete)))
-
 (defun all-points-greedy-operate! (state)
   (let ((s (state-score state)))
     (with-accessors ((grid state-grid)
@@ -2482,7 +2450,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (minf *c-min* c)
   (maxf *c-max* c))
 
-(defun set-vars! (n m xys randomness k-threshold-ratio)
+(defun set-vars! (n m xys randomness k-threshold-ratio
+                  initial-temperature delete-point-prob)
   (setf *n* n
         *m* m
         *center* (ash n -1)
@@ -2494,19 +2463,22 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *c-max* 0
         *k-threshold-ratio* k-threshold-ratio
         *start-time* (get-internal-real-time)
-        *initial-temperature* 1000
-        *temperature-decrease-ratio* 0.99
-        *delete-point-prob* 0.5
+        *initial-temperature* initial-temperature
+        *temperature-decrease-ratio* 0.999
+        *delete-point-prob* delete-point-prob
         *epsilon* 1)
   (mapc (cons-applier #'update-bounds!) xys))
 
 (defun main (&optional (stream *standard-input*)
                (randomness 4)
-               (k-threshold-ratio 1/2))
+               (k-threshold-ratio 1/2)
+               (initial-temperature 10000)
+               (delete-point-prob 0.5))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars! n m xys randomness k-threshold-ratio)
+        (set-vars! n m xys randomness k-threshold-ratio initial-temperature
+                   delete-point-prob)
         (mvbind (k ops) (solve-anneal xys)
             ;; (solve xys #'generate-cand-test-undo-operate!)
           (bulk-stdout
@@ -2524,7 +2496,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; (defun testcase-filename (test-dir test-id)
 ;;   (format nil "~A/sample-~4,'0D.in" test-dir test-id))
 
-;; (defun testcase-score (filename randomness k-threshold-ratio)
+;; (defun testcase-score (filename randomness k-threshold-ratio
+;;                        initial-temperature delete-point-prob)
 ;;   (with-open-stream (in (-> (uiop:launch-program
 ;;                              (list "cat" filename)
 ;;                              :output :stream)
@@ -2532,28 +2505,39 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (let ((*standard-input* in))
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
-;;           (set-vars! n m xys randomness k-threshold-ratio)
-;;           (mvbind (k ops) (solve xys #'generate-cand-kernighan-lin)
+;;           (set-vars! n m xys randomness k-threshold-ratio
+;;                      initial-temperature delete-point-prob)
+;;           (mvbind (k ops)
+;;               ;; (solve xys #'generate-cand-kernighan-lin)
+;;               (solve-anneal xys)
 ;;             (reduce #'+ ops :key #'d)))))))
 
-;; (defun total-score (test-dir randomness k-threshold-ratio)
+;; (defun total-score (test-dir randomness k-threshold-ratio
+;;                     initial-temperature delete-point-prob)
 ;;   (reduce #'+ (range 10)
 ;;           :key (lambda (id)
 ;;                  (testcase-score (testcase-filename test-dir id)
 ;;                                  randomness
-;;                                  k-threshold-ratio))))
+;;                                  k-threshold-ratio
+;;                                  initial-temperature
+;;                                  delete-point-prob))))
 
-;; (defconstant +rs+ '(1))
-;; (defconstant +ths+ '(1/3 1/2 2/3))
+;; (defconstant +rs+    '(1))
+;; (defconstant +ths+   '(1/2))
+;; (defconstant +temps+ '(10000 20000 50000))
+;; (defconstant +ds     '(0.3 0.5 0.7))
 
 ;; (defun benchmark ()
 ;;   (let ((dir (sb-ext:posix-getenv "dir")))
 ;;     (println dir)
 ;;     (dolist (r +rs+)
 ;;       (dolist (th +ths+)
-;;         (dbg 'randomness r 'k-threshold-ratio th)
-;;         (dbg 'total-score (total-score dir r th))
-;;         (terpri)))))
+;;         (dolist (temp +temps+)
+;;           (dolist (d +ds)
+;;             (dbg 'randomness r 'k-threshold-ratio th
+;;                  'initial-temperature temp 'delete-point-prob d)
+;;             (dbg 'total-score (total-score dir r th temp d))
+;;             (terpri)))))))
 
 ;; (trace testcase-score)
 ;; (benchmark)
