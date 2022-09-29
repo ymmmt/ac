@@ -2410,14 +2410,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst decrease-temperature (temperature)
   (* *temperature-decrease-ratio* temperature))
 
-(defun generate-cand-anneal (xys best-score best-k)
+(defun generate-cand-anneal (xys best-score best-k time-up-p)
   (declare (ignore best-score best-k))
   (nlet rec ((state (init-state xys))
              (temp *initial-temperature*))
     ;; (let ((s (state-score state))
     ;;       (k (length (state-ops state))))
     ;;   (dbg s k temp))
-    (if (terminatep temp)
+    (if (or (terminatep temp)
+            (funcall time-up-p))
         (cand state)
         (with-accessors ((points state-points)
                          (ops state-ops)
@@ -2436,15 +2437,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun solve (xys cand-generator)
   (let ((count 0))
-    (mvbind (score k ops) (funcall cand-generator xys 0 +inf+)
-      (with-timelimit (*timelimit*)
+    (with-timelimit (*timelimit*)
+      (mvbind (score k ops) (funcall cand-generator xys 0 +inf+ #'time-up-p)
         (nlet rec ((score score) (k k) (ops ops))
           (incf count)
           (if (time-up-p)
               (progn
 ;;                (dbg count)
                 (values k ops))
-              (mvbind (score* k* ops*) (funcall cand-generator xys score k)
+              (mvbind (score* k* ops*) (funcall cand-generator xys score k #'time-up-p)
                 (if (> score* score)
                     (rec score* k* ops*)
                     (rec score k ops)))))))))
@@ -2460,7 +2461,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (setf *n* n
         *m* m
         *center* (ash n -1)
-        *timelimit* 3.7
+        *timelimit* 4
         *randomness* randomness
         *r-min* n
         *r-max* 0
