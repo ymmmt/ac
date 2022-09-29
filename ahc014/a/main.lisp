@@ -2027,7 +2027,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (format t "~D ~D ~D ~D ~D ~D ~D ~D"
                     r1 c1 r2 c2 r3 c3 r4 c4)))))))
 
-(defun make-op-if-valid (grid r1 c1 p2 p3 p4)
+(defsubst make-op-if-valid (grid r1 c1 p2 p3 p4)
+  (declare (optimize speed (safety 0)))
   (when (and (grid-in-bounds-p r1 c1)
              (blankp grid r1 c1)
              (not (connectedp p2 p3))
@@ -2036,7 +2037,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              (connectablep p4 r1 c1))
     (list (point r1 c1 :deletable t) p2 p3 p4)))
   
-(defun make-axis-aligned-op-if-valid (grid point row-point col-point)
+(defsubst make-axis-aligned-op-if-valid (grid point row-point col-point)
   #@(point point row-point col-point)
   (with-accessors ((c2 point-col)) row-point
     (with-accessors ((r4 point-row)) col-point
@@ -2044,7 +2045,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             (c1 c2))
         (make-op-if-valid grid r1 c1 row-point point col-point)))))
 
-(defun make-diagonal-op-if-valid (grid point ldiag-point rdiag-point)
+(defsubst make-diagonal-op-if-valid (grid point ldiag-point rdiag-point)
   #@(point point ldiag-point rdiag-point)
   (with-accessors ((r3 point-row) (c3 point-col)) point
     (with-accessors ((r2 point-row) (c2 point-col)) ldiag-point
@@ -2053,7 +2054,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (c1 (+ c4 (- c2 c3))))
           (make-op-if-valid grid r1 c1 ldiag-point point rdiag-point))))))
 
-(defun valid-axis-aligned-ops (grid point)
+(defsubst valid-axis-aligned-ops (grid point)
   #@(point point)
   (with-accessors ((n point-n-adj) (e point-e-adj)
                    (s point-s-adj) (w point-w-adj))
@@ -2063,7 +2064,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (make-axis-aligned-op-if-valid grid point rp cp)
       it)))
 
-(defun valid-diagonal-ops (grid point)
+(defsubst valid-diagonal-ops (grid point)
   #@(point point)
   (with-accessors ((ne point-ne-adj) (se point-se-adj)
                    (sw point-sw-adj) (nw point-nw-adj))
@@ -2073,7 +2074,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (make-diagonal-op-if-valid grid point ldp rdp)
       it)))
 
-(defun valid-ops (grid point)
+(defsubst valid-ops (grid point)
   (nconc (valid-axis-aligned-ops grid point)
          (valid-diagonal-ops grid point)))
 
