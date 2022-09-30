@@ -2447,6 +2447,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst decrease-temperature (temperature)
   (* *temperature-decrease-ratio* temperature))
 
+(defsubst decrease-temperature2 (iteration)
+  (/ *initial-temperature*
+     (log (+ iteration 2))))
+
 (defsubst terminatep (temperature)
   (<= temperature *epsilon*))
 
@@ -2462,7 +2466,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun generate-cand-anneal (xys best-score best-k time-up-p)
   (declare (ignore best-score best-k))
   (nlet rec ((state (init-state xys))
-             (temp *initial-temperature*))
+             (temp *initial-temperature*)
+             (i 0))
     ;; (let ((s (state-score state))
     ;;       (k (length (state-ops state))))
     ;;   (dbg s k temp))
@@ -2480,9 +2485,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                 (rec (if (judge (prob score-delta temp))
                          (delete-point! state point)
                          (maybe-random-operate! state))
-                     (decrease-temperature temp)))
+                     (decrease-temperature2 i)
+                     (1+ i)))
               (rec (maybe-random-operate! state)
-                   (decrease-temperature temp)))))))
+                   (decrease-temperature2 i)
+                   (1+ i)))))))
 
 (defun solve (xys cand-generator)
   (let ((count 0))
@@ -2537,7 +2544,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (set-vars! n m xys randomness k-threshold-ratio initial-temperature
                    delete-point-prob improve-count)
         (mvbind (k ops)
-            (solve xys #'generate-cand-heuristic2)
+            (solve xys #'generate-cand-anneal)
           (bulk-stdout
             (println k)
             (mapc (lambda (op)
@@ -2574,11 +2581,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;; (defconstant +rs+    '(1))
 ;; (defconstant +ths+   '(1/2))
-;; ;; (defconstant +temps+ '(1000 5000 10000 20000 50000))
-;; (defconstant +temps+ '(1000))
-;; ;; (defconstant +ds+     '(0.1 0.3 0.5 0.7 0.9))
-;; (defconstant +ds+    '(0.1))
-;; (defconstant +is+   '(1 3 5 10 20))
+;; (defconstant +temps+ '(1000 5000 10000 20000 50000))
+;; ;; (defconstant +temps+ '(1000))
+;; (defconstant +ds+     '(0.1 0.3 0.5 0.7 0.9))
+;; ;; (defconstant +ds+    '(0.1))
+;; ;; (defconstant +is+    '(1 3 5 10 20))
+;; (defconstant +is+    '(1))
 
 ;; (defun benchmark ()
 ;;   (let ((dir (sb-ext:posix-getenv "dir")))
