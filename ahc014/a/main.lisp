@@ -1423,16 +1423,27 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (values it (car list))
                (rec (cdr list)))))))
 
-(defun best (function list)
-  (assert (consp list))
-  (mvfoldl (lambda (item argmax max)
-             (let ((value (funcall function item)))
-               (if (> value max)
-                   (values item value)
-                   (values argmax max))))
-           (cdr list)
-           (car list)
-           (funcall function (car list))))
+(defun best (function sequence)
+  (etypecase sequence
+    (list (assert (consp sequence))
+     (mvfoldl (lambda (item argmax max)
+                (let ((value (funcall function item)))
+                  (if (> value max)
+                      (values item value)
+                      (values argmax max))))
+              (cdr sequence)
+              (car sequence)
+              (funcall function (car sequence))))
+    (vector (assert (>= (length sequence) 1))
+     (let* ((argmax (aref sequence 0))
+            (max (funcall function argmax)))
+       (map nil (lambda (item)
+                  (let ((value (funcall function item)))
+                    (when (> value max)
+                      (setf argmax item
+                            max value))))
+            sequence)
+       (values argmax max)))))
 
 (defun best-k (k list test &key key)
   (take k (sort (copy-list list) test :key key)))
@@ -1719,6 +1730,20 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun judge (probability)
   (< (random 1.0) probability))
 
+(defmacro on (function &rest keys)
+  (sb-ext::once-only ((function function))
+    (with-gensyms (x)
+      (let ((gkeys (loop repeat (length keys)
+                         collect (gensym "KEY"))))
+        `(let ,(mapcar (lambda (gk k)
+                         `(,gk ,k))
+                gkeys keys)
+           (lambda (,x)
+             (funcall ,function
+                      ,@(mapcar (lambda (k)
+                                  `(funcall ,k ,x))
+                                gkeys))))))))
+
 ;;; Core
 
 (defvar *point-id* -1)
@@ -1737,6 +1762,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *temperature-decrease-ratio*)
 (defvar *point-deletion-prob*)
 (defvar *epsilon*)
+(defvar *improve-count*)
 
 (eval-always
   (defconstant +dirs+          '(n ne e se s sw w nw))
@@ -2343,6 +2369,29 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (cand state)
           (rec (operate! state op))))))
 
+;;; Heuristic2
+
+(defun smallest-d-deletable-point (points)
+  (aand (filter #'deletablep points)
+        (best (compose #'- (on #'d-from-center #'point-row #'point-col))
+              it)))
+
+(defun generate-cand-heuristic2 (xys best-score best-k time-up-p)
+  (declare (ignore best-score best-k time-up-p))
+  (nlet rec ((state (init-state xys))
+             (improve-count *improve-count*))
+    (let ((op (random-valid-op state)))
+      (cond ((and (null op) (zerop improve-count))
+             (cand state))
+            ((and (null op))
+             (aif (smallest-d-deletable-point (state-points state))
+                  (rec (delete-point! state it)
+                       (1- improve-count))
+                  (cand state)))
+            (t
+             (rec (operate! state op)
+                  improve-count))))))
+
 ;;; Kernighan-lin
 
 (defun erapsed-seconds ()
@@ -2395,6 +2444,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (print-state (delete-point! state (caar ops)))
     (cand state)))
 
+(defsubst decrease-temperature (temperature)
+  (* *temperature-decrease-ratio* temperature))
+
 (defsubst terminatep (temperature)
   (<= temperature *epsilon*))
 
@@ -2406,9 +2458,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (if op
         (operate! state op)
         state)))
-
-(defsubst decrease-temperature (temperature)
-  (* *temperature-decrease-ratio* temperature))
 
 (defun generate-cand-anneal (xys best-score best-k time-up-p)
   (declare (ignore best-score best-k))
@@ -2457,7 +2506,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (maxf *c-max* c))
 
 (defun set-vars! (n m xys randomness k-threshold-ratio
-                  initial-temperature delete-point-prob)
+                  initial-temperature delete-point-prob improve-count)
   (setf *n* n
         *m* m
         *center* (ash n -1)
@@ -2472,21 +2521,23 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *initial-temperature* initial-temperature
         *temperature-decrease-ratio* 0.999
         *point-deletion-prob* delete-point-prob
-        *epsilon* 1)
+        *epsilon* 1
+        *improve-count* improve-count)
   (mapc (cons-applier #'update-bounds!) xys))
 
 (defun main (&optional (stream *standard-input*)
                (randomness 4)
                (k-threshold-ratio 1/2)
                (initial-temperature 20000)
-               (delete-point-prob 0.3))
+               (delete-point-prob 0.3)
+               (improve-count 3))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
         (set-vars! n m xys randomness k-threshold-ratio initial-temperature
-                   delete-point-prob)
+                   delete-point-prob improve-count)
         (mvbind (k ops)
-            (solve xys #'generate-cand-anneal)
+            (solve xys #'generate-cand-heuristic2)
           (bulk-stdout
             (println k)
             (mapc (lambda (op)
@@ -2502,8 +2553,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;; (defun testcase-filename (test-dir test-id)
 ;;   (format nil "~A/sample-~4,'0D.in" test-dir test-id))
 
-;; (defun testcase-score (filename randomness k-threshold-ratio
-;;                        initial-temperature delete-point-prob)
+;; (defun testcase-score (filename &rest vars)
 ;;   (with-open-stream (in (-> (uiop:launch-program
 ;;                              (list "cat" filename)
 ;;                              :output :stream)
@@ -2511,26 +2561,24 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (let ((*standard-input* in))
 ;;       (readlet (n m)
 ;;         (let ((xys (read-conses n)))
-;;           (set-vars! n m xys randomness k-threshold-ratio
-;;                      initial-temperature delete-point-prob)
+;;           (apply #'set-vars! n m xys vars)
 ;;           (mvbind (k ops)
-;;               (solve xys #'generate-cand-anneal)
+;;               (solve xys #'generate-cand-heuristic2)
 ;;             (reduce #'+ ops :key #'d)))))))
 
-;; (defun total-score (test-dir randomness k-threshold-ratio
-;;                     initial-temperature delete-point-prob)
+;; (defun total-score (test-dir &rest vars)
 ;;   (reduce #'+ (range 10)
 ;;           :key (lambda (id)
-;;                  (testcase-score (testcase-filename test-dir id)
-;;                                  randomness
-;;                                  k-threshold-ratio
-;;                                  initial-temperature
-;;                                  delete-point-prob))))
+;;                  (apply #'testcase-score (testcase-filename test-dir id)
+;;                         vars))))
 
 ;; (defconstant +rs+    '(1))
 ;; (defconstant +ths+   '(1/2))
-;; (defconstant +temps+ '(1000 5000 10000 20000 50000))
-;; (defconstant +ds     '(0.1 0.3 0.5 0.7 0.9))
+;; ;; (defconstant +temps+ '(1000 5000 10000 20000 50000))
+;; (defconstant +temps+ '(1000))
+;; ;; (defconstant +ds+     '(0.1 0.3 0.5 0.7 0.9))
+;; (defconstant +ds+    '(0.1))
+;; (defconstant +is+   '(1 3 5 10 20))
 
 ;; (defun benchmark ()
 ;;   (let ((dir (sb-ext:posix-getenv "dir")))
@@ -2538,11 +2586,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (dolist (r +rs+)
 ;;       (dolist (th +ths+)
 ;;         (dolist (temp +temps+)
-;;           (dolist (d +ds)
-;;             (dbg 'randomness r 'k-threshold-ratio th
-;;                  'initial-temperature temp 'delete-point-prob d)
-;;             (dbg 'total-score (total-score dir r th temp d))
-;;             (terpri)))))))
+;;           (dolist (d +ds+)
+;;             (dolist (i +is+)
+;;               (dbg 'randomness r 'k-threshold-ratio th
+;;                    'initial-temperature temp 'delete-point-prob d
+;;                    'improve-count i)
+;;               (dbg 'total-score (total-score dir r th temp d i))
+;;               (terpri))))))))
 
 ;; (trace testcase-score)
 ;; (benchmark)
