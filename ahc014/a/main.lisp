@@ -2444,6 +2444,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (print-state (delete-point! state (caar ops)))
     (cand state)))
 
+(defun initial-temperature (n initial-temperature-factor)
+  (* n n initial-temperature-factor))
+
 (defsubst decrease-temperature (temperature)
   (* *temperature-decrease-ratio* temperature))
 
@@ -2513,7 +2516,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (maxf *c-max* c))
 
 (defun set-vars! (n m xys randomness k-threshold-ratio
-                  initial-temperature delete-point-prob improve-count)
+                  initial-temperature-factor delete-point-prob improve-count)
   (setf *n* n
         *m* m
         *center* (ash n -1)
@@ -2525,7 +2528,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *c-max* 0
         *k-threshold-ratio* k-threshold-ratio
         *start-time* (get-internal-real-time)
-        *initial-temperature* initial-temperature
+        *initial-temperature* (initial-temperature n initial-temperature-factor)
         *temperature-decrease-ratio* 0.999
         *point-deletion-prob* delete-point-prob
         *epsilon* 1
@@ -2535,13 +2538,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun main (&optional (stream *standard-input*)
                (randomness 4)
                (k-threshold-ratio 1/2)
-               (initial-temperature 20000)
-               (delete-point-prob 0.3)
+               ;;               (initial-temperature 5000)
+               (initial-temperature-factor 1.2)
+               (delete-point-prob 0.5)
                (improve-count 3))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars! n m xys randomness k-threshold-ratio initial-temperature
+        (set-vars! n m xys randomness k-threshold-ratio initial-temperature-factor
                    delete-point-prob improve-count)
         (mvbind (k ops)
             (solve xys #'generate-cand-anneal)
@@ -2570,7 +2574,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;         (let ((xys (read-conses n)))
 ;;           (apply #'set-vars! n m xys vars)
 ;;           (mvbind (k ops)
-;;               (solve xys #'generate-cand-heuristic2)
+;;               (solve xys #'generate-cand-anneal)
 ;;             (reduce #'+ ops :key #'d)))))))
 
 ;; (defun total-score (test-dir &rest vars)
@@ -2581,9 +2585,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;; (defconstant +rs+    '(1))
 ;; (defconstant +ths+   '(1/2))
-;; (defconstant +temps+ '(1000 5000 10000 20000 50000))
+;; (defconstant +temps+ '(300 800 2000))
 ;; ;; (defconstant +temps+ '(1000))
-;; (defconstant +ds+     '(0.1 0.3 0.5 0.7 0.9))
+;; (defconstant +fs+    '(1.2))
+;; (defconstant +ds+    '(0.1 0.3 0.5 0.7 0.9))
 ;; ;; (defconstant +ds+    '(0.1))
 ;; ;; (defconstant +is+    '(1 3 5 10 20))
 ;; (defconstant +is+    '(1))
@@ -2593,13 +2598,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;     (println dir)
 ;;     (dolist (r +rs+)
 ;;       (dolist (th +ths+)
-;;         (dolist (temp +temps+)
+;;         ;;        (dolist (temp +temps+)
+;;         (dolist (f +fs+)
 ;;           (dolist (d +ds+)
 ;;             (dolist (i +is+)
 ;;               (dbg 'randomness r 'k-threshold-ratio th
-;;                    'initial-temperature temp 'delete-point-prob d
+;;                    'initial-temperature-factor f 'delete-point-prob d
 ;;                    'improve-count i)
-;;               (dbg 'total-score (total-score dir r th temp d i))
+;;               (dbg 'total-score (total-score dir r th f d i))
 ;;               (terpri))))))))
 
 ;; (trace testcase-score)
