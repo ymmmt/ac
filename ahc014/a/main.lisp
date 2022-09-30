@@ -1735,7 +1735,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *start-time*)
 (defvar *initial-temperature*)
 (defvar *temperature-decrease-ratio*)
-(defvar *delete-point-prob*)
+(defvar *point-deletion-prob*)
 (defvar *epsilon*)
 
 (eval-always
@@ -2124,17 +2124,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (aand (valid-ops grid point)
         (best #'d it)))
 
-;;; Point delete simulation
-
-(defsubst random-deletable-point (points)
-  (shuffle! points)
-  (find-if #'deletablep points))
-
-(defun point-deletion-score-delta (state point)
-  (- (reduce #'+ (ops-to-delete (state-ops state) point)
-             :key #'d
-             :initial-value 0)))
-
 ;;; State update
 
 (defsubst dir-from (p1 p2)
@@ -2240,19 +2229,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (dir-disconnect! p next dir)
           (rec next))))))
 
-(defun ops-to-delete (ops point)
-  #@(point point)
-  (assert (deletablep point))
-  (let ((ops-to-check (member point (reverse ops) :key #'car :test #'eq)))
-    (mvfoldl (lambda (op ops-to-delete points-to-delete)
-               (if (intersection op points-to-delete :test #'eq)
-                   (values (cons op ops-to-delete)
-                           (cons (first op) points-to-delete))
-                   (values ops-to-delete points-to-delete)))
-             (cdr ops-to-check)
-             (list (car ops-to-check))
-             (list point))))
-
 (defmacro %update-adjacent-points-slots!-delete-aux ()
   (labels ((aux (dir)
              `(awhen (,(adj-accessor dir) point)
@@ -2289,9 +2265,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         (setf ops (delete op ops :test #'equal))
         (setf points (delete p1 points :test #'eq))))))
 
+(defun ops-to-delete (ops point)
+  #@(point point)
+  (assert (deletablep point))
+  (let ((ops-to-check (member point (reverse ops) :key #'car :test #'eq)))
+    (mvfoldl (lambda (op ops-to-delete points-to-delete)
+               (if (intersection op points-to-delete :test #'eq)
+                   (values (cons op ops-to-delete)
+                           (cons (first op) points-to-delete))
+                   (values ops-to-delete points-to-delete)))
+             (cdr ops-to-check)
+             (list (car ops-to-check))
+             (list point))))
+
 (defun delete-point! (state point)
-  (let* ((ops-to-delete (ops-to-delete (state-ops state) point))
-         (points-to-delete (mapcar #'first ops-to-delete)))
+  (let ((ops-to-delete (ops-to-delete (state-ops state) point)))
     (mapc (curry #'undo-operate! state)
           ops-to-delete)
     state))
@@ -2345,6 +2333,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (k (length ops)))
     (values score k (reverse ops) state)))
 
+;;; Heuristic
+
 (defun generate-cand (xys best-score best-k)
   (declare (ignore best-score best-k))
   (nlet rec ((state (init-state xys)))
@@ -2390,6 +2380,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Anneal
 
+(defsubst random-deletable-point (points)
+  (shuffle! points)
+  (find-if #'deletablep points))
+
+(defun point-deletion-score-delta (state point)
+  (- (reduce #'+ (ops-to-delete (state-ops state) point)
+             :key #'d
+             :initial-value 0)))
+
 (defun generate-cand-test-undo-operate! (xys best-score best-k)
   (mvbind (score k ops state) (generate-cand xys best-score best-k)
     (print-state state)
@@ -2426,7 +2425,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                          (score state-score))
             state
           (if (and (plusp score)
-                   (judge *delete-point-prob*))
+                   (judge *point-deletion-prob*))
               (let* ((point (random-deletable-point points))
                      (score-delta (point-deletion-score-delta state point)))
                 (rec (if (judge (prob score-delta temp))
@@ -2472,7 +2471,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *start-time* (get-internal-real-time)
         *initial-temperature* initial-temperature
         *temperature-decrease-ratio* 0.999
-        *delete-point-prob* delete-point-prob
+        *point-deletion-prob* delete-point-prob
         *epsilon* 1)
   (mapc (cons-applier #'update-bounds!) xys))
 
