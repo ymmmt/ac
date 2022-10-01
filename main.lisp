@@ -293,29 +293,32 @@
    #\# #\<
    (lambda (stream char num)
      (declare (ignore char num))
-     (cond ((char= #\= (peek-char t stream))
-            (read-char stream)
-            `(lambda (x) (<= x ,(read stream t nil t))))
-           (t
-            `(lambda (x) (< x ,(read stream t nil t))))))))
+     (with-gensyms (x)
+       (cond ((char= #\= (peek-char t stream))
+              (read-char stream)
+              `(lambda (,x) (<= ,x ,(read stream t nil t))))
+             (t
+              `(lambda (,x) (< ,x ,(read stream t nil t)))))))))
 
 (eval-always
   (set-dispatch-macro-character
    #\# #\>
    (lambda (stream char num)
      (declare (ignore char num))
-     (cond ((char= #\= (peek-char t stream))
-            (read-char stream)
-            `(lambda (x) (>= x ,(read stream t nil t))))
-           (t
-            `(lambda (x) (> x ,(read stream t nil t))))))))
+     (with-gensyms (x)
+       (cond ((char= #\= (peek-char t stream))
+              (read-char stream)
+              `(lambda (,x) (>= ,x ,(read stream t nil t))))
+             (t
+              `(lambda (,x) (> ,x ,(read stream t nil t)))))))))
 
 (eval-always
   (set-dispatch-macro-character
    #\# #\%
    (lambda (stream char num)
      (declare (ignore char num))
-     `(lambda (x) (mod x ,(read stream t nil t))))))
+     (with-gensyms (x)
+       `(lambda (,x) (mod ,x ,(read stream t nil t)))))))
 
 ;;; IO
 
