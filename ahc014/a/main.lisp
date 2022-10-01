@@ -2430,9 +2430,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Anneal
 
-(defsubst random-deletable-point (points)
-  (shuffle! points)
-  (find-if #'deletablep points))
+(defun random-deletable-point (points)
+  #@((vector point) points)
+  (let ((deletables (filter #'deletablep points)))
+    (declare (dynamic-extent deletables))
+    (aref deletables (random (length deletables)))))
 
 (defun point-deletion-score-delta (state point)
   (- (reduce #'+ (ops-to-delete (state-ops state) point)
