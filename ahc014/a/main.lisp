@@ -2520,7 +2520,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun set-vars! (n m xys randomness k-threshold-ratio
                   initial-temperature-factor constant-temperature-phase-count
-                  delete-point-prob improve-count)
+                  point-deletion-prob improve-count)
   (setf *n* n
         *m* m
         *center* (ash n -1)
@@ -2535,7 +2535,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *initial-temperature* (initial-temperature n initial-temperature-factor)
         *constant-temperature-phase-count* constant-temperature-phase-count
         *temperature-decrease-ratio* 0.999
-        *point-deletion-prob* delete-point-prob
+        *point-deletion-prob* point-deletion-prob
         *epsilon* 1
         *improve-count* improve-count)
   (mapc (cons-applier #'update-bounds!) xys))
@@ -2546,14 +2546,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                ;;               (initial-temperature 5000)
                (initial-temperature-factor 1.2)
                (constant-temperature-phase-count 15)
-               (delete-point-prob 0.7)
+               (point-deletion-prob 0.7)
                (improve-count 3))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
         (set-vars! n m xys randomness k-threshold-ratio
                    initial-temperature-factor constant-temperature-phase-count
-                   delete-point-prob improve-count)
+                   point-deletion-prob improve-count)
         (mvbind (k ops)
             (solve xys #'generate-cand-anneal)
           (bulk-stdout
@@ -2613,7 +2613,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;               (dolist (i +is+)
 ;;                 (dbg 'randomness r 'k-threshold-ratio th
 ;;                      'initial-temperature-factor f 'constant-temperature-phase-count c
-;;                      'delete-point-prob d 'improve-count i)
+;;                      'point-deletion-prob d 'improve-count i)
 ;;                 (dbg 'total-score (total-score dir r th f c d i))
 ;;                 (terpri)))))))))
 
