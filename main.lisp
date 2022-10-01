@@ -564,6 +564,20 @@
   (lambda (x)
     (apply #'max x more-numbers)))
 
+(defmacro on (function &rest keys)
+  (sb-ext::once-only ((function function))
+    (with-gensyms (x)
+      (let ((gkeys (loop repeat (length keys)
+                         collect (gensym "KEY"))))
+        `(let ,(mapcar (lambda (gk k)
+                         `(,gk ,k))
+                gkeys keys)
+           (lambda (,x)
+             (funcall ,function
+                      ,@(mapcar (lambda (k)
+                                  `(funcall ,k ,x))
+                                gkeys))))))))
+
 (defun foldl (function initial-value sequence)
   (reduce function sequence :initial-value initial-value))
 
