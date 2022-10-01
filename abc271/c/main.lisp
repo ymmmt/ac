@@ -293,29 +293,32 @@
    #\# #\<
    (lambda (stream char num)
      (declare (ignore char num))
-     (cond ((char= #\= (peek-char t stream))
-            (read-char stream)
-            `(lambda (x) (<= x ,(read stream t nil t))))
-           (t
-            `(lambda (x) (< x ,(read stream t nil t))))))))
+     (with-gensyms (x)
+       (cond ((char= #\= (peek-char t stream))
+              (read-char stream)
+              `(lambda (,x) (<= ,x ,(read stream t nil t))))
+             (t
+              `(lambda (,x) (< ,x ,(read stream t nil t)))))))))
 
 (eval-always
   (set-dispatch-macro-character
    #\# #\>
    (lambda (stream char num)
      (declare (ignore char num))
-     (cond ((char= #\= (peek-char t stream))
-            (read-char stream)
-            `(lambda (x) (>= x ,(read stream t nil t))))
-           (t
-            `(lambda (x) (> x ,(read stream t nil t))))))))
+     (with-gensyms (x)
+       (cond ((char= #\= (peek-char t stream))
+              (read-char stream)
+              `(lambda (,x) (>= ,x ,(read stream t nil t))))
+             (t
+              `(lambda (,x) (> ,x ,(read stream t nil t)))))))))
 
 (eval-always
   (set-dispatch-macro-character
    #\# #\%
    (lambda (stream char num)
      (declare (ignore char num))
-     `(lambda (x) (mod x ,(read stream t nil t))))))
+     (with-gensyms (x)
+       `(lambda (,x) (mod ,x ,(read stream t nil t)))))))
 
 ;;; IO
 
@@ -1698,24 +1701,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Body
 
 (defun solve (n as)
-  (let* ((as-nodup (coerce-vector (sort (delete-dups (copy-list as)) #'<)))
-         (m (- n (length as-nodup))))
-    (nlet rec ((i 0) (i-max (1- (length as-nodup)))
-               (next 1) (sell m))
-      (cond ((> i i-max)
-             (+ (1- next) (floor sell 2)))
-            ((= next (aref as-nodup i))
-             (rec (1+ i) i-max (1+ next) sell))
-            ((< next (aref as-nodup i))
-             (cond ((>= sell 2)
-                    (rec i i-max (1+ next) (- sell 2)))
-                   ((and (= sell 1) (<= i i-max))
-                    (rec i (1- i-max) (1+ next) 0))
-                   ((and (= sell 0) (<= i (1- i-max)))
-                    (rec i (- i-max 2) (1+ next) 0))
-                   (t (+ (1- next) (floor sell 2)))))
-            (t                          ; (> next (aref as-nodup i))
-             (error "Invalid vars."))))))
+  (let ((as-nodup (delete-dups as)))
+    (labels ((check (x)
+               (let ((m (length (filter #<=x as-nodup))))
+                 (>= (+ m (floor (- n m) 2))
+                     x))))
+      (binary-search 0 (1+ n) #'check))))
 
 (defun main ()
   (readlet (n)
