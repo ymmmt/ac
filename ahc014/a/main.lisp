@@ -2309,7 +2309,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (shuffle! points)
   (find-if #'deletablep points))
 
-(defsubst point-deletion-score-delta (state point)
+(defun point-deletion-score-delta (state point)
   (- (reduce #'+ (ops-to-delete (state-ops state) point)
              :key #'d
              :initial-value 0)))
@@ -2326,10 +2326,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst terminatep (temperature)
   (<= temperature *epsilon*))
 
-(defsubst prob (score-delta temperature)
+(defun prob (score-delta temperature)
   (expt 2.7 (/ score-delta temperature)))
 
-(defsubst maybe-random-operate! (state)
+(defun maybe-random-operate! (state)
   (let ((op (random-valid-op state)))
     (if op
         (operate! state op)
@@ -2375,7 +2375,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     (rec score* k* ops*)
                     (rec score k ops)))))))))
 
-(defsubst update-bounds! (r c)
+(defun update-bounds! (r c)
   (minf *r-min* r)
   (maxf *r-max* r)
   (minf *c-min* c)
