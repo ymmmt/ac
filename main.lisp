@@ -993,6 +993,17 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           natural-numbers)
     a))
 
+;;; Sets
+
+(defun stable-set-difference (list1 list2 &key (test #'eql))
+  (nlet rec ((list1 list1) (acc nil))
+    (if (null list1)
+        (nreverse acc)
+        (rec (cdr list1)
+             (if (member (car list1) list2 :test test)
+                 acc
+                 (cons (car list1) acc))))))
+
 ;;; Lists/Sequences
 
 (defun coerce-list (object)
