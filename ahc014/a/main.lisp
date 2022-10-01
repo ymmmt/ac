@@ -1751,19 +1751,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *m*)
 (defvar *center*)
 (defvar *timelimit*)
-(defvar *randomness*)
 (defvar *r-min*)
 (defvar *r-max*)
 (defvar *c-min*)
 (defvar *c-max*)
-(defvar *k-threshold-ratio*)
 (defvar *start-time*)
 (defvar *initial-temperature*)
 (defvar *constant-temperature-phase-count*)
-(defvar *temperature-decrease-ratio*)
 (defvar *point-deletion-prob*)
 (defvar *epsilon*)
-(defvar *improve-count*)
 
 (eval-always
   (defconstant +dirs+          '(n ne e se s sw w nw))
@@ -2105,38 +2101,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (nconc (valid-axis-aligned-ops grid point)
          (valid-diagonal-ops grid point)))
 
-(defun random-valid-op (state &optional (finder #'valid-ops) (r *randomness*))
-  #@(state state)
-  (labels ((ret (acc)
-             (when acc
-               (best #'d acc))))
-    (with-accessors ((grid state-grid)
-                     (points state-points))
-        state
-      (shuffle! points)
-      (let ((len (length points)))
-        (nlet rec ((i 0) (count 0) (acc nil))
-          #@(fixnum len i count r)
-          (if (or (>= i len)
-                  (>= count r))
-              (ret acc)
-              (mvbind (ops j) (find-if*-range (lambda (pos)
-                                                (funcall finder grid (aref points pos)))
-                                              i len)
-                #@((or null fixnum) j)
-                (if (null j)
-                    (ret acc)
-                    (rec (1+ j)
-                         (+ count (length ops))
-                         (nconc ops acc))))))))))
-
-;; (defsubst random-valid-axis-aligned-op (state &optional (r *randomness*))
-;;   (random-valid-op state #'valid-axis-aligned-ops r))
-
-;; (defsubst random-valid-diagonal-op (state &optional (r *randomness*))
-;;   (random-valid-op state #'valid-diagonal-ops r))
-
-(defun random-valid-op2 (state)
+(defun random-valid-op (state)
   #@(state state)
   (with-accessors ((grid state-grid)
                    (points state-points))
@@ -2146,10 +2111,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                             (valid-ops grid (aref points i)))
                           0 (length points))
           (random-choice it))))
-
-(defun best-valid-op (grid point)
-  (aand (valid-ops grid point)
-        (best #'d it)))
 
 ;;; State update
 
@@ -2311,19 +2272,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           ops-to-delete)
     state))
 
-(defun all-points-greedy-operate! (state)
-  (let ((s (state-score state)))
-    (with-accessors ((grid state-grid)
-                     (points state-points))
-        state
-      (mapc-range (lambda (i)
-                    (let ((op (best-valid-op grid (aref points i))))
-                      (when op
-                        (operate! state op))))
-                  0 (length points)))
-    (let ((operatedp (> (state-score state) s)))
-      (values state operatedp))))
-
 ;;; Main
 
 (defun init-state (xys)
@@ -2350,85 +2298,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
          (c1 (point-col p1)))
     (d-from-center r1 c1)))
 
-(defun score (ops)
-  (reduce #'+ ops :initial-value 0 :key #'d))
-
 (defsubst cand (state)
   #@(state state)
   (let* ((score (state-score state))
          (ops (state-ops state))
          (k (length ops)))
     (values score k (reverse ops) state)))
-
-;;; Heuristic
-
-(defun generate-cand (xys best-score best-k)
-  (declare (ignore best-score best-k))
-  (nlet rec ((state (init-state xys)))
-    (let ((op (random-valid-op state)))
-      (if (null op)
-          (cand state)
-          (rec (operate! state op))))))
-
-;;; Heuristic2
-
-(defun smallest-d-deletable-point (points)
-  (aand (filter #'deletablep points)
-        (best (compose #'- (on #'d-from-center #'point-row #'point-col))
-              it)))
-
-(defun generate-cand-heuristic2 (xys best-score best-k time-up-p)
-  (declare (ignore best-score best-k time-up-p))
-  (nlet rec ((state (init-state xys))
-             (improve-count *improve-count*))
-    (let ((op (random-valid-op state)))
-      (cond ((and (null op) (zerop improve-count))
-             (cand state))
-            ((and (null op))
-             (aif (smallest-d-deletable-point (state-points state))
-                  (rec (delete-point! state it)
-                       (1- improve-count))
-                  (cand state)))
-            (t
-             (rec (operate! state op)
-                  improve-count))))))
-
-;;; Kernighan-lin
-
-(defun erapsed-seconds ()
-  (/ (- (get-internal-real-time)
-        *start-time*)
-     internal-time-units-per-second))
-
-(defun score-threshold-ratio ()
-  (* 1/2 (+ 1 (/ (erapsed-seconds) *timelimit*))))
-
-(defun abortp (score k best-score best-k k-threshold)
-  (and (>= k k-threshold)
-       (< (* score best-k)
-          (* best-score k (score-threshold-ratio)))))
-
-(let ((count 0)
-      (abort-count 0))
-  (defun generate-cand-kernighan-lin (xys best-score best-k)
-    (labels ((ret (state abortedp)
-               ;; (incf count)
-               ;; (when abortedp (incf abort-count))
-               ;; (when (zerop (mod count 100))
-               ;;   (dbg count abort-count))
-               (cand state)))
-      (let ((k-thrs (* *k-threshold-ratio* best-k)))
-        (nlet rec ((state (init-state xys)))
-          (shuffle! (state-points state))
-          (mvbind (s* operatedp) (all-points-greedy-operate! state)
-            (if (not operatedp)
-                (ret state nil)
-                (mvbind (score* k*) (cand s*)
-                  (if (abortp score* k* best-score best-k k-thrs)
-                      (ret s* t)
-                      (rec s*))))))))))
-
-;;; Anneal
 
 (defsubst random-deletable-point (points)
   (shuffle! points)
@@ -2439,19 +2314,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
              :key #'d
              :initial-value 0)))
 
-(defun generate-cand-test-undo-operate! (xys best-score best-k)
-  (mvbind (score k ops state) (generate-cand xys best-score best-k)
-    (print-state state)
-    (print-state (delete-point! state (caar ops)))
-    (cand state)))
-
 (defun initial-temperature (n initial-temperature-factor)
   (* n n initial-temperature-factor))
 
-(defsubst decrease-temperature (temperature)
-  (* *temperature-decrease-ratio* temperature))
-
-(defsubst decrease-temperature2 (iteration)
+(defsubst decrease-temperature (iteration)
   (if (<= iteration *constant-temperature-phase-count*)
       *initial-temperature*
       (/ *initial-temperature*
@@ -2464,7 +2330,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (expt 2.7 (/ score-delta temperature)))
 
 (defsubst maybe-random-operate! (state)
-  (let ((op (random-valid-op2 state)))
+  (let ((op (random-valid-op state)))
     (if op
         (operate! state op)
         state)))
@@ -2474,9 +2340,6 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (nlet rec ((state (init-state xys))
              (temp *initial-temperature*)
              (i 0))
-    ;; (let ((s (state-score state))
-    ;;       (k (length (state-ops state))))
-    ;;   (dbg s k temp))
     (if (or (terminatep temp)
             (funcall time-up-p))
         (cand state)
@@ -2491,10 +2354,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                 (rec (if (judge (prob score-delta temp))
                          (delete-point! state point)
                          (maybe-random-operate! state))
-                     (decrease-temperature2 i)
+                     (decrease-temperature i)
                      (1+ i)))
               (rec (maybe-random-operate! state)
-                   (decrease-temperature2 i)
+                   (decrease-temperature i)
                    (1+ i)))))))
 
 (defun solve (xys cand-generator)
@@ -2518,42 +2381,34 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (minf *c-min* c)
   (maxf *c-max* c))
 
-(defun set-vars! (n m xys randomness k-threshold-ratio
+(defun set-vars! (n m xys
                   initial-temperature-factor constant-temperature-phase-count
-                  point-deletion-prob improve-count)
+                  point-deletion-prob)
   (setf *n* n
         *m* m
         *center* (ash n -1)
-        *timelimit* 4
-        *randomness* randomness
+        *timelimit* 4.5
         *r-min* n
         *r-max* 0
         *c-min* n
         *c-max* 0
-        *k-threshold-ratio* k-threshold-ratio
         *start-time* (get-internal-real-time)
         *initial-temperature* (initial-temperature n initial-temperature-factor)
         *constant-temperature-phase-count* constant-temperature-phase-count
-        *temperature-decrease-ratio* 0.999
         *point-deletion-prob* point-deletion-prob
-        *epsilon* 1
-        *improve-count* improve-count)
+        *epsilon* 1)
   (mapc (cons-applier #'update-bounds!) xys))
 
 (defun main (&optional (stream *standard-input*)
-               (randomness 4)
-               (k-threshold-ratio 1/2)
-               ;;               (initial-temperature 5000)
                (initial-temperature-factor 1.2)
                (constant-temperature-phase-count 15)
-               (point-deletion-prob 0.7)
-               (improve-count 3))
+               (point-deletion-prob 0.7))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars! n m xys randomness k-threshold-ratio
+        (set-vars! n m xys
                    initial-temperature-factor constant-temperature-phase-count
-                   point-deletion-prob improve-count)
+                   point-deletion-prob)
         (mvbind (k ops)
             (solve xys #'generate-cand-anneal)
           (bulk-stdout
