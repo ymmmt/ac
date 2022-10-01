@@ -1759,6 +1759,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defvar *k-threshold-ratio*)
 (defvar *start-time*)
 (defvar *initial-temperature*)
+(defvar *constant-temperature-phase-count*)
 (defvar *temperature-decrease-ratio*)
 (defvar *point-deletion-prob*)
 (defvar *epsilon*)
@@ -2451,8 +2452,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (* *temperature-decrease-ratio* temperature))
 
 (defsubst decrease-temperature2 (iteration)
-  (/ *initial-temperature*
-     (log (+ iteration 2))))
+  (if (<= iteration *constant-temperature-phase-count*)
+      *initial-temperature*
+      (/ *initial-temperature*
+         (log (+ 2 (- iteration *constant-temperature-phase-count*))))))
 
 (defsubst terminatep (temperature)
   (<= temperature *epsilon*))
@@ -2516,7 +2519,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (maxf *c-max* c))
 
 (defun set-vars! (n m xys randomness k-threshold-ratio
-                  initial-temperature-factor delete-point-prob improve-count)
+                  initial-temperature-factor constant-temperature-phase-count
+                  delete-point-prob improve-count)
   (setf *n* n
         *m* m
         *center* (ash n -1)
@@ -2529,6 +2533,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         *k-threshold-ratio* k-threshold-ratio
         *start-time* (get-internal-real-time)
         *initial-temperature* (initial-temperature n initial-temperature-factor)
+        *constant-temperature-phase-count* constant-temperature-phase-count
         *temperature-decrease-ratio* 0.999
         *point-deletion-prob* delete-point-prob
         *epsilon* 1
@@ -2540,12 +2545,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (k-threshold-ratio 1/2)
                ;;               (initial-temperature 5000)
                (initial-temperature-factor 1.2)
-               (delete-point-prob 0.5)
+               (constant-temperature-phase-count 15)
+               (delete-point-prob 0.7)
                (improve-count 3))
   (let ((*standard-input* stream))
     (readlet (n m)
       (let ((xys (read-conses m)))
-        (set-vars! n m xys randomness k-threshold-ratio initial-temperature-factor
+        (set-vars! n m xys randomness k-threshold-ratio
+                   initial-temperature-factor constant-temperature-phase-count
                    delete-point-prob improve-count)
         (mvbind (k ops)
             (solve xys #'generate-cand-anneal)
@@ -2583,12 +2590,13 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;                  (apply #'testcase-score (testcase-filename test-dir id)
 ;;                         vars))))
 
-;; (defconstant +rs+    '(1 2 4 7 10))
+;; (defconstant +rs+    '(1))
 ;; (defconstant +ths+   '(1/2))
 ;; ;;(defconstant +temps+ '(300 800 2000))
 ;; ;; (defconstant +temps+ '(1000))
-;; (defconstant +fs+    '(1.0 1.2 1.4))
-;; (defconstant +ds+    '(0.1 0.3 0.5 0.7 0.9))
+;; (defconstant +fs+    '(1.0 1.2))
+;; (defconstant +cs+    '(15 30 50 80))
+;; (defconstant +ds+    '(0.5 0.7 0.9))
 ;; ;; (defconstant +ds+    '(0.5))
 ;; ;; (defconstant +is+    '(1 3 5 10 20))
 ;; (defconstant +is+    '(1))
@@ -2600,13 +2608,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;       (dolist (th +ths+)
 ;;         ;;        (dolist (temp +temps+)
 ;;         (dolist (f +fs+)
-;;           (dolist (d +ds+)
-;;             (dolist (i +is+)
-;;               (dbg 'randomness r 'k-threshold-ratio th
-;;                    'initial-temperature-factor f 'delete-point-prob d
-;;                    'improve-count i)
-;;               (dbg 'total-score (total-score dir r th f d i))
-;;               (terpri))))))))
+;;           (dolist (c +cs+)
+;;             (dolist (d +ds+)
+;;               (dolist (i +is+)
+;;                 (dbg 'randomness r 'k-threshold-ratio th
+;;                      'initial-temperature-factor f 'constant-temperature-phase-count c
+;;                      'delete-point-prob d 'improve-count i)
+;;                 (dbg 'total-score (total-score dir r th f c d i))
+;;                 (terpri)))))))))
 
 ;; (trace testcase-score)
 ;; (benchmark)
