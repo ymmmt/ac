@@ -38,6 +38,20 @@
       `(format t "~A => ~A~%" ',(car forms) ,(car forms))
       `(format t "~A => ~A~%" ',forms `(,,@forms))))
 
+(eval-always
+  (defun |#@-aux| (typespec)
+    (dbind (type-specifier . args) typespec
+      `(type ,type-specifier ,@args)))
+
+  (set-dispatch-macro-character
+   #\# #\@
+   (lambda (stream char num)
+     (declare (ignore char num))
+     (let ((typespecs (read stream t nil t)))
+       `(declare ,(|#@-aux| typespecs)
+                 (optimize speed (safety 1))))))
+  ) ;eval-always
+
 (defmacro eval-always (&body body)
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      ,@body))
@@ -208,8 +222,7 @@
                  (acond ,@(cdr clauses))))))))
 
 (defun until (predicate function value &rest more-values)
-  (declare (optimize speed (safety 1)))
-  (declare (function predicate function))
+  #@(function predicate function)
   (if (funcall predicate value)
       value
       (mvcall #'until
@@ -218,8 +231,7 @@
               (apply function value more-values))))
 
 (defun while (predicate function value &rest more-values)
-  (declare (optimize speed (safety 1)))
-  (declare (function predicate function))
+  #@(function predicate function)
   (if (funcall predicate value)
       (mvcall #'while
               predicate
@@ -337,7 +349,7 @@
                                   (error "Read EOF or #\Nul."))
                                  ((= byte #.(char-code #\-))
                                   (setq minus t)))))))
-      (declare ((integer 0 #.most-positive-fixnum) result))
+      #@((integer 0 #.most-positive-fixnum) result)
       (loop
         (let* ((byte (%read-byte)))
           (if (<= 48 byte 57)
@@ -602,8 +614,7 @@
 (FUNCTION item acc arg1 arg2 ... argN) => new-acc, new-arg1, new-arg2,..., new-argN
 LIST -- list of items
 INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
-  (declare (optimize (speed 3) (safety 1)))
-  (declare (function function))
+  #@(function function)
   (if (null list)
       (apply #'values initial-value initial-args)
       (mvcall #'mvfoldl
@@ -686,7 +697,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
     (lambda (&rest arguments)
       (or (apply predicate arguments)
           (some (lambda (p)
-                  (declare (type function p))
+                  #@(function p)
                   (apply p arguments))
                 more-predicates)))))
 
@@ -1084,16 +1095,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (+ start (* step (floor (- end start 1) step))))
 
 (defun map-range (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (loop for i fixnum from start below end by step
         collect (funcall function i)))
 
 (defun map-drange (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (when (< start end)
     (let ((last (range-last start end step)))
       (loop for i fixnum = last then (the fixnum (- i step))
@@ -1101,16 +1110,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             collect (funcall function i)))))
 
 (defun mapc-range (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (loop for i fixnum from start below end by step
         do (funcall function i)))
 
 (defun mapc-drange (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (when (< start end)
     (let ((last (range-last start end step)))
       (loop for i fixnum = last then (the fixnum (- i step))
@@ -1118,42 +1125,37 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             do (funcall function i)))))
 
 (defun filter-range (predicate start end &optional (step 1))
-  (declare (function predicate)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (loop for i fixnum from start below end by step
         when (funcall predicate i)
           collect i))
 
 (defun filter-map-range (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (loop for i fixnum from start below end by step
         for item = (funcall function i)
         when item
           collect item))
 
 (defun range-foldl (function initial-value start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (let ((acc initial-value))
     (loop for i fixnum from start below end by step
           do (setf acc (funcall function acc i)))
     acc))
 
 (defun range-foldl1 (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (assert (< start end))
   (range-foldl function start (1+ start) end step))
 
 (defun range-foldr (function initial-value start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (if (>= start end)
       (list initial-value)
       (let ((last (range-last start end step))
@@ -1164,17 +1166,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
         acc)))
 
 (defun range-foldr1 (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (assert (< start end))
   (let ((last (range-last start end step)))
     (range-foldr function last start last step)))
 
 (defun range-scanl (function initial-value start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (let ((acc initial-value))
     (cons initial-value
           (loop for i fixnum from start below end by step
@@ -1182,16 +1182,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                 collect acc))))  
 
 (defun range-scanl1 (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (assert (< start end))
   (range-scanl function start (1+ start) end step))
 
 (defun range-scanr (function initial-value start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (if (>= start end)
       (list initial-value)
       (let ((last (range-last start end step))
@@ -1204,26 +1202,23 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                      collect acc))))))
 
 (defun range-scanr1 (function start end &optional (step 1))
-  (declare (function function)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function function)
+  #@(fixnum start end step)
   (assert (< start end))
   (let ((last (range-last start end step)))
     (range-scanr function last start last step)))
 
 (defun find-if*-range (predicate start end &optional (step 1))
-  (declare (function predicate)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function predicate)
+  #@(fixnum start end step)
   (loop for i fixnum from start below end by step
         for value = (funcall predicate i)
         when value
           return (values value i)))
 
 (defun find-if*-drange (predicate start end &optional (step 1))
-  (declare (function predicate)
-           (fixnum start end step)
-           (optimize speed (safety 1)))
+  #@(function predicate)
+  #@(fixnum start end step)
   (when (< start end)
     (let ((last (range-last start end step)))
       (loop for i fixnum = last then (the fixnum (- i step))
