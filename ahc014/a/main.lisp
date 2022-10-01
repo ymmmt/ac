@@ -2257,7 +2257,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
           (rec next))))))
 
 (defmacro %update-adjacent-points-slots!-delete-aux ()
-  (labels ((aux (dir)
+  (labels ((update (dir)
              `(awhen (,(adj-accessor dir) point)
                 (funcall (fdefinition '(setf ,(adj-accessor (opposite dir))))
                          (,(adj-accessor (opposite dir)) point) it)
@@ -2265,7 +2265,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (funcall (fdefinition '(setf ,(connect-accessor (opposite dir))))
                            (,(connect-accessor (opposite dir)) point) it)))))
     `(progn
-       ,@(mapcar #'aux +dirs+))))
+       ,@(mapcar #'update +dirs+))))
 
 (defun update-adjacent-points-slots!-delete (point)
   #@(point point)
@@ -2434,7 +2434,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (shuffle! points)
   (find-if #'deletablep points))
 
-(defun point-deletion-score-delta (state point)
+(defsubst point-deletion-score-delta (state point)
   (- (reduce #'+ (ops-to-delete (state-ops state) point)
              :key #'d
              :initial-value 0)))
@@ -2460,10 +2460,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst terminatep (temperature)
   (<= temperature *epsilon*))
 
-(defun prob (score-delta temperature)
+(defsubst prob (score-delta temperature)
   (expt 2.7 (/ score-delta temperature)))
 
-(defun maybe-random-operate! (state)
+(defsubst maybe-random-operate! (state)
   (let ((op (random-valid-op2 state)))
     (if op
         (operate! state op)
@@ -2512,7 +2512,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                     (rec score* k* ops*)
                     (rec score k ops)))))))))
 
-(defun update-bounds! (r c)
+(defsubst update-bounds! (r c)
   (minf *r-min* r)
   (maxf *r-max* r)
   (minf *c-min* c)
