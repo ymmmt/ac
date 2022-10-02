@@ -38,6 +38,10 @@
       `(format t "~A => ~A~%" ',(car forms) ,(car forms))
       `(format t "~A => ~A~%" ',forms `(,,@forms))))
 
+(defmacro eval-always (&body body)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     ,@body))
+
 (eval-always
   (defun |#@-aux| (typespec)
     (dbind (type-specifier . args) typespec
@@ -51,10 +55,6 @@
        `(declare ,(|#@-aux| typespecs)
                  (optimize speed (safety 1))))))
   ) ;eval-always
-
-(defmacro eval-always (&body body)
-  `(eval-when (:compile-toplevel :load-toplevel :execute)
-     ,@body))
 
 (eval-always
   (defun mksym (control-string &rest format-arguments)
@@ -1024,13 +1024,8 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Sets
 
 (defun stable-set-difference (list1 list2 &key (test #'eql))
-  (nlet rec ((list1 list1) (acc nil))
-    (if (null list1)
-        (nreverse acc)
-        (rec (cdr list1)
-             (if (member (car list1) list2 :test test)
-                 acc
-                 (cons (car list1) acc))))))
+  (remove-if (curry* #'member % list2 :test test)
+             list1))
 
 ;;; Lists/Sequences
 
