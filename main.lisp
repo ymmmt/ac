@@ -1120,7 +1120,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             do (funcall function i)))))
 
 (defun filter-range (predicate start end &optional (step 1))
-  #@(function function)
+  #@(function predicate)
   #@(fixnum start end step)
   (loop for i fixnum from start below end by step
         when (funcall predicate i)
