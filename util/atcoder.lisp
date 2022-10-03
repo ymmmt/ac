@@ -126,8 +126,7 @@
 ;; https://atcoder.jp/contests/arc146/editorial/4634
 (defun minimum-superset (x min)
   "Returns Y >= X s.t. (logand X Y) == X."
-  (declare (optimize speed (safety 1))
-           (fixnum x min))
+  #@(fixnum x min)
   (assert (and (integerp x)
                (plusp x)))
   (if (>= x min)
