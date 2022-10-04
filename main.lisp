@@ -43,20 +43,6 @@
      ,@body))
 
 (eval-always
-  (defun |#@-aux| (typespec)
-    (dbind (type-specifier . args) typespec
-      `(type ,type-specifier ,@args)))
-
-  (set-dispatch-macro-character
-   #\# #\@
-   (lambda (stream char num)
-     (declare (ignore char num))
-     (let ((typespecs (read stream t nil t)))
-       `(declare ,(|#@-aux| typespecs)
-                 (optimize speed (safety 1))))))
-  ) ;eval-always
-
-(eval-always
   (defun mksym (control-string &rest format-arguments)
     (intern (apply #'format nil control-string format-arguments))))
 
@@ -71,6 +57,20 @@
 
 (defmacro dbind (lambda-list expression &body body)
   `(destructuring-bind ,lambda-list ,expression ,@body))
+
+(eval-always
+  (defun |#@-aux| (typespec)
+    (dbind (type-specifier . args) typespec
+      `(type ,type-specifier ,@args)))
+
+  (set-dispatch-macro-character
+   #\# #\@
+   (lambda (stream char num)
+     (declare (ignore char num))
+     (let ((typespecs (read stream t nil t)))
+       `(declare ,(|#@-aux| typespecs)
+                 (optimize speed (safety 1))))))
+  ) ;eval-always
 
 (defmacro readlet (vars &body body)
   `(let ,(mapcar (lambda (v)
