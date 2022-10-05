@@ -1,3 +1,8 @@
+;; depends on rank
+(defun coord-compress (list &key (test #'<) (rank-base 0))
+  (mapcar (mapper (rank list :test test :rank-base rank-base))
+          list))
+
 (defun vector-mapcan (function vector)
   (nconcing (i 0 (length vector))
     (funcall function (aref vector i))))
