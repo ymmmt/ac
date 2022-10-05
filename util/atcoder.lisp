@@ -1,3 +1,19 @@
+(defmacro portably-without-package-locks (&body body)
+  `(#+sbcl sb-ext:without-package-locks
+    #+allegro excl::without-package-locks
+    #+cmu ext:without-package-locks
+    #+lispworks let
+    #+lispworks
+    ((lw:*handle-warn-on-redefinition* :warn)
+                                        ; (dspec:*redefinition-action* :warn)
+     (hcl:*packages-for-warn-on-redefinition* nil))
+    #+clisp ext:without-package-lock #+clisp ()
+    #+ccl let
+    #+ccl ((ccl:*warn-if-redefine-kernel* nil))
+    #-(or allegro lispworks sbcl clisp cmu ccl)
+    progn
+    ,@body))
+
 ;; depends on rank
 (defun coord-compress (list &key (test #'<) (rank-base 0))
   (mapcar (mapper (rank list :test test :rank-base rank-base))
