@@ -1000,12 +1000,11 @@ cx + dy = q"
   (mapcar (mapper (rank list :test test :rank-base index-base))
           list))
 
-;; depends on range
-(defun rank (sequence &key (test '<) (rank-base 0))
+(defun rank (sequence &key (test #'<) (rank-base 0))
   (let ((map (make-hash-table)))
     (map nil (lambda (item rank)
-                 (unless (gethash item map)
-                   (setf (gethash item map) rank)))
+               (unless (gethash item map)
+                 (setf (gethash item map) rank)))
          (sort (copy-seq sequence) test)
          (range rank-base
                 (+ rank-base (length sequence))))
