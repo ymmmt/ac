@@ -1089,6 +1089,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (assert (< start end))
   (+ start (* step (floor (- end start 1) step))))
 
+(eval-always
+  (defun range-args->ses (args)
+    (ecase (length args)
+      (1 (let ((end (first args)))
+           `(0 ,end)))
+      (2 (dbind (start end) args
+           `(,start ,end)))
+      (3 (dbind (start end step) args
+           `(,start ,end ,step))))))
+
 (defun map-range (function start end &optional (step 1))
   #@(function function)
   #@(fixnum start end step)
@@ -1104,6 +1114,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
             while (>= i start)
             collect (funcall function i)))))
 
+(sb-ext:without-package-locks
+  (define-compiler-macro mapcar (&whole whole function list &rest more-lists)
+    (if (and (consp list) (null more-lists))
+        (case (first list)
+          (range `(map-range ,function ,@(range-args->ses (cdr list))))
+          (drange `(map-drange ,function ,@(range-args->ses (cdr list))))
+          (t whole))
+        whole)))
+
 (defun mapc-range (function start end &optional (step 1))
   #@(function function)
   #@(fixnum start end step)
@@ -1118,6 +1137,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (loop for i fixnum = last then (the fixnum (- i step))
             while (>= i start)
             do (funcall function i)))))
+
+(sb-ext:without-package-locks
+  (define-compiler-macro mapc (&whole whole function list &rest more-lists)
+    (if (and (consp list) (null more-lists))
+        (case (first list)
+          (range `(mapc-range ,function ,@(range-args->ses (cdr list))))
+          (drange `(mapc-drange ,function ,@(range-args->ses (cdr list))))
+          (t whole))
+        whole)))
 
 (defun filter-range (predicate start end &optional (step 1))
   #@(function predicate)
