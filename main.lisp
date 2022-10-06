@@ -584,14 +584,25 @@
     (with-gensyms (x)
       (let ((gkeys (loop repeat (length keys)
                          collect (gensym "KEY"))))
-        `(let ,(mapcar (lambda (gk k)
-                         `(,gk ,k))
-                gkeys keys)
+        `(let ,(mapcar #'list gkeys keys)
            (lambda (,x)
              (funcall ,function
                       ,@(mapcar (lambda (k)
                                   `(funcall ,k ,x))
                                 gkeys))))))))
+
+(defmacro on* (function &rest keys)
+  (sb-ext::once-only ((function function))
+    (let ((gkeys (loop repeat (length keys)
+                       collect (gensym "KEY")))
+          (gargs (loop repeat (length keys)
+                       collect (gensym "ARG"))))
+      `(let ,(mapcar #'list gkeys keys)
+         (lambda (,@gargs)
+           (funcall ,function
+                    ,@(mapcar (lambda (k a)
+                                `(funcall ,k ,a))
+                              gkeys gargs)))))))
 
 (defun foldl (function initial-value sequence)
   (reduce function sequence :initial-value initial-value))
@@ -1447,6 +1458,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun intercalate (sep list-of-lists)
   (flatten (intersperse sep list-of-lists)))
 
+(defun interleave (&rest list-of-lists)
+  (flatten (transpose list-of-lists)))
+
 (defun flatten (tree)
   (let (acc)
     (labels ((rec (tree)
@@ -1583,6 +1597,18 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
       (rec list
            (or count (length list))
            nil))))
+
+(defun transpose (list-of-lists)
+  (cond ((null list-of-lists) nil)
+        ((null (car list-of-lists))
+         (transpose (cdr list-of-lists)))
+        (t
+         (dbind (x . xs) (car list-of-lists)
+           (let* ((xss (remove nil (cdr list-of-lists)))
+                  (cars (mapcar #'car xss))
+                  (cdrs (mapcar #'cdr xss)))
+             (cons (cons x cars)
+                   (transpose (cons xs cdrs))))))))
 
 (defun non-empty-subsequences (list)
   (if (null list)
