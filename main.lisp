@@ -543,9 +543,9 @@
   (lambda (x)
     (equal object x)))
 
-(defsubst quantizer (predicate)
+(defsubst quantizer (predicate &optional (q 1))
   (lambda (x)
-    (if (funcall predicate x) 1 0)))
+    (if (funcall predicate x) q 0)))
 
 (defsubst applier (fn)
   (lambda (args)
