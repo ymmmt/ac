@@ -2606,6 +2606,7 @@ cx + dy = q"
               do (setf ans (md (* ans b))))
       ans)))
 
+;; depends on expt-mod
 (defun choose-mod (n r mod)
   (labels ((md (x)
              (mod x mod))
