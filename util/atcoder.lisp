@@ -1222,11 +1222,14 @@ cx + dy = q"
   list)
 
 @lazy
-(defstruct promise
-  thunk value forced-p)
+(defstruct (promise (:constructor promise
+                        (thunk)))
+  (thunk (lambda ()) :type function)
+  value
+  (forced-p nil :type boolean))
 
 (defmacro delay (exp)
-  `(make-promise :thunk (lambda () ,exp)))
+  `(promise (lambda () ,exp)))
 
 (defun force (object)
   (if (promise-p object)
@@ -1267,9 +1270,58 @@ cx + dy = q"
                  (rec (1- n) (lcdr infseq) (cons (lcar infseq) acc)))))
     (rec n infseq nil)))
 
-(defun iterate (x successor)
+(defun ltake-all (infseqs)
+  (nlet rec ((is infseqs) (acc nil))
+    (if (null is)
+        (nreverse acc)
+        (rec (lcdr is)
+             (cons (lcar is) acc)))))
+
+(defun l-iterate (x successor)
   (let (xs)
     (setf xs (lcons x (lmap successor xs)))))
+
+(defun ltranspose (list-of-infseqs)
+  (cond ((null list-of-infseqs) nil)
+        ((null (car list-of-infseqs))
+         (ltranspose (cdr list-of-infseqs)))
+        (t
+         (let* ((is (car list-of-infseqs))
+                (x (lcar is))
+                (xs (lcdr is))
+                (xss (remove nil (cdr list-of-infseqs)))
+                (cars (mapcar #'lcar xss))
+                (cdrs (mapcar #'lcdr xss)))
+           (lcons (cons x cars)
+                  (ltranspose (cons xs cdrs)))))))
+
+(defun lflatten (infseq-of-lists)
+  (cond ((null infseq-of-lists) nil)
+        ((null (lcar infseq-of-lists))
+         (lflatten (lcdr infseq-of-lists)))
+        (t
+         (let ((list (lcar infseq-of-lists)))
+           (lcons (car list)
+                  (lflatten (cons (cdr list)
+                                  (lcdr infseq-of-lists))))))))
+
+(defun l-interleave (&rest list-of-infseqs)
+  (lflatten (ltranspose list-of-infseqs)))
+
+(defun lscanl (function initial-value infseq)
+  (if (null infseq)
+      (list initial-value)
+      (lcons initial-value
+             (lscanl function
+                     (funcall function initial-value (lcar infseq))
+                     (lcdr infseq)))))
+
+(defun lfind-if (predicate infseq)
+  (cond ((null infseq) nil)
+        ((funcall predicate (lcar infseq))
+         (lcar infseq))
+        (t
+         (lfind-if predicate (lcdr infseq)))))
 
 (defun ints ()
   (iterate 1 #'1+))
