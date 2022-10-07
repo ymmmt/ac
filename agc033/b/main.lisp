@@ -1758,6 +1758,107 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Body
 
+(defstruct (promise (:constructor promise
+                        (thunk)))
+  (thunk (lambda ()) :type function)
+  value
+  (forced-p nil :type boolean))
+
+(defmacro delay (exp)
+  `(promise (lambda () ,exp)))
+
+(defun force (object)
+  (if (promise-p object)
+      (cond ((promise-forced-p object)
+             (promise-value object))
+            (t
+             (setf (promise-forced-p object) t)
+             (setf (promise-value object) 
+                   (funcall (promise-thunk object)))))
+      object))
+
+(defun lcar (infseq)
+  (car infseq))
+
+(defun lcdr (infseq)
+  (force (cdr infseq)))
+
+(defmacro lcons (x y)
+  `(cons ,x (delay ,y)))
+
+(defun lmap (function &rest infseqs)
+  (unless (some #'null infseqs)
+    (lcons (apply function (mapcar #'lcar infseqs))
+           (apply #'lmap function (mapcar #'lcdr infseqs)))))
+
+(defun lfilter (predicate infseq)
+  (if (null infseq)
+      nil
+      (let ((obj (lcar infseq)))
+        (if (funcall predicate obj)
+            (lcons obj (lfilter predicate (lcdr infseq)))
+            (lfilter predicate (lcdr infseq))))))
+
+(defun ltake (n infseq)
+  (labels ((rec (n infseq acc)
+             (if (zerop n)
+                 (nreverse acc)
+                 (rec (1- n) (lcdr infseq) (cons (lcar infseq) acc)))))
+    (rec n infseq nil)))
+
+(defun ltake-all (infseqs)
+  (nlet rec ((is infseqs) (acc nil))
+    (if (null is)
+        (nreverse acc)
+        (rec (lcdr is)
+             (cons (lcar is) acc)))))
+
+(defun l-iterate (x successor)
+  (let (xs)
+    (setf xs (lcons x (lmap successor xs)))))
+
+(defun ltranspose (list-of-infseqs)
+  (cond ((null list-of-infseqs) nil)
+        ((null (car list-of-infseqs))
+         (ltranspose (cdr list-of-infseqs)))
+        (t
+         (let* ((is (car list-of-infseqs))
+                (x (lcar is))
+                (xs (lcdr is))
+                (xss (remove nil (cdr list-of-infseqs)))
+                (cars (mapcar #'lcar xss))
+                (cdrs (mapcar #'lcdr xss)))
+           (lcons (cons x cars)
+                  (ltranspose (cons xs cdrs)))))))
+
+(defun lflatten (infseq-of-lists)
+  (cond ((null infseq-of-lists) nil)
+        ((null (lcar infseq-of-lists))
+         (lflatten (lcdr infseq-of-lists)))
+        (t
+         (let ((list (lcar infseq-of-lists)))
+           (lcons (car list)
+                  (lflatten (cons (cdr list)
+                                  (lcdr infseq-of-lists))))))))
+
+(defun l-interleave (&rest list-of-infseqs)
+  (lflatten (ltranspose list-of-infseqs)))
+
+(defun lscanl (function initial-value infseq)
+  (if (null infseq)
+      (list initial-value)
+      (lcons initial-value
+             (lscanl function
+                     (funcall function initial-value (lcar infseq))
+                     (lcdr infseq)))))
+
+(defun lfind-if (predicate infseq)
+  (cond ((null infseq) nil)
+        ((funcall predicate (lcar infseq))
+         (lcar infseq))
+        (t
+         (lfind-if predicate (lcdr infseq)))))
+
 (defmacro define (name closure)
   (assert (symbolp name))
   (sb-ext::once-only ((closure closure))
@@ -1776,26 +1877,26 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (declare (ignore n))
   (let ((s1 (coerce-list s1))
         (s2 (coerce-list s2)))
-    (or (->> (interleave (mapcar #'uq s1)
-                         (mapcar #'dq s2))
-             (scanl (compose (miner (1- h)) #'+)
-                    sr)
-             (find-if #<0))
-        (->> (interleave (mapcar #'dq s1)
-                         (mapcar #'uq s2))
-             (scanl (compose (maxer 0) #'+)
-                    sr)
-             (find-if #>=h))
-        (->> (interleave (mapcar #'lq s1)
-                         (mapcar #'rq s2))
-             (scanl (compose (miner (1- w)) #'+)
-                    sc)
-             (find-if #<0))
-        (->> (interleave (mapcar #'rq s1)
-                         (mapcar #'lq s2))
-             (scanl (compose (maxer 0) #'+)
-                    sc)
-             (find-if #>=w)))))
+    (or (->> (l-interleave (lmap #'uq s1)
+                           (lmap #'dq s2))
+             (lscanl (compose (miner (1- h)) #'+)
+                     sr)
+             (lfind-if #<0))
+        (->> (l-interleave (lmap #'dq s1)
+                           (lmap #'uq s2))
+             (lscanl (compose (maxer 0) #'+)
+                     sr)
+             (lfind-if #>=h))
+        (->> (l-interleave (lmap #'lq s1)
+                           (lmap #'rq s2))
+             (lscanl (compose (miner (1- w)) #'+)
+                     sc)
+             (lfind-if #<0))
+        (->> (l-interleave (lmap #'rq s1)
+                           (lmap #'lq s2))
+             (lscanl (compose (maxer 0) #'+)
+                     sc)
+             (lfind-if #>=w)))))
 
 (defun main ()
   (readlet (h w n sr sc)
