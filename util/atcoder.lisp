@@ -1,3 +1,13 @@
+(defun forks (list function)
+  (let (forks)
+    (labels ((dfs (list fork)
+               (if (null list)
+                   (push (reverse fork) forks)
+                   (dolist (x (funcall function (car list)))
+                     (dfs (cdr list) (cons x fork))))))
+      (dfs list nil)
+      (nreverse forks))))
+
 (defmacro define (name closure)
   (assert (symbolp name))
   (sb-ext::once-only ((closure closure))
