@@ -1,3 +1,11 @@
+(defun read-bit (&rest args)
+  (digit-char-p (apply #'read-char args)))
+
+(defun no-dups-p (list &key (test #'eql))
+  (let ((c (counter list :test test)))
+    (= (length list)
+       (hash-table-count c))))
+
 (defun forks (list function)
   (let (forks)
     (labels ((dfs (list fork)
