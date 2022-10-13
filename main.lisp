@@ -374,7 +374,7 @@
                         (apply #'read-line args)
                         ")"))))
 
-(defun read-matrix (height width &key (read #'read-fixnum) (element-type 'fixnum) padding)
+(defun read-matrix (height width &key (read #'read-fixnum) (element-type 'fixnum) padding read-newline)
   (let ((mat (make-array (if padding
                              `(,(1+ height) ,(1+ width))
                              `(,height ,width))
@@ -383,7 +383,9 @@
       (dotimes (j width)
         (if padding
             (setf (aref mat (1+ i) (1+ j)) (funcall read))
-            (setf (aref mat i j) (funcall read)))))
+            (setf (aref mat i j) (funcall read))))
+      (when read-newline
+        (read-char)))
     mat))
 
 (defun read-char-matrix (height width)
