@@ -818,6 +818,9 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defsubst dist (x y)
   (abs (- x y)))
 
+(defsubst relu (x)
+  (max 0 x))
+
 (defsubst df (x)
   (coerce x 'double-float))
 
