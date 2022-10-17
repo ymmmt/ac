@@ -1886,6 +1886,8 @@ cx + dy = q"
   `(setf ,place
          (sort ,place ,predicate :key ,key)))
 
+(define-modify-macro sortf (predicate) sort)
+
 (define-modify-macro nconcf (&rest lists) nconc)
 
 (define-modify-macro appendf (&rest lists) append)
