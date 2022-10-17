@@ -1752,7 +1752,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defmacro define-array-accumulations ()
   `(progn
-     ,@(loop for acc in '(sum collect count nconc append some every)
+     ,@(loop for acc in '(sum collect count-if nconc append some every)
              for wrd in '(sum collect count nconc append thereis always)
              collect
              `(defun ,(mksym "ARRAY-~A" acc) (array &optional (key 'identity))
