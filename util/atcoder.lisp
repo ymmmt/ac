@@ -1,3 +1,15 @@
+(defun pfoldl (function initial-value sequence &rest more-sequences)
+  "Parallel FOLDL."
+  (let ((acc initial-value))
+    (apply #'map nil
+           (lambda (&rest args)
+             (dbg acc args)
+             (setf acc
+                   (apply function acc args)))
+           sequence
+           more-sequences)
+    acc))
+
 (defun read-bit (&rest args)
   (digit-char-p (apply #'read-char args)))
 
