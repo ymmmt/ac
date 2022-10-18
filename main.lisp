@@ -332,6 +332,26 @@
      (with-gensyms (x)
        `(lambda (,x) (mod ,x ,(read stream t nil t)))))))
 
+(eval-always
+  (make-dispatch-macro-character #\$)
+
+  (set-dispatch-macro-character
+   #\$ #\(
+   (lambda (stream char num)
+     (declare (ignore char num))
+     (let ((list (read-delimited-list #\) stream t)))
+       `(curry #',(car list) ,@(cdr list))))))
+
+(eval-always
+  (make-dispatch-macro-character #\@)
+
+  (set-dispatch-macro-character
+   #\@ #\(
+   (lambda (stream char num)
+     (declare (ignore char num))
+     (let ((list (read-delimited-list #\) stream t)))
+       `(compose ,@list)))))
+
 ;;; IO
 
 (declaim (ftype (function * (values fixnum &optional)) read-fixnum))
