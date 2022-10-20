@@ -32,8 +32,7 @@
         (return-from form-name
           (let ((second (second (str:split #\Space line))))
             (if (str:starts-with? "(" second)
-                (->> (remove #\( second)
-                     (remove #\)))
+                (remove #\( (remove #\) second))
                 second)))))))
 
 (defun curr-dir-file (file)
