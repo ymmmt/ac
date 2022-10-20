@@ -655,23 +655,28 @@ different sign domains."
 (defsubst bs-empty-p (bitset)
   (zerop bitset))
 
+(defsubst bitset (&rest members)
+  (foldr #'bs-add 0 members))
+
 (defsubst bs-member-p (i bitset)
   (logbitp i bitset))
 
-(defun bitset-members (bitset)
+(defun bs-members (bitset)
   (loop for 2^k = 1 then (ash 2^k 1)
         for i from 0
         while (<= 2^k bitset)
         when (plusp (logand bitset 2^k))
           collect i))
 
+(defsubst bs-difference (bitset1 bitset2)
+  (logand bitset1
+          (lognand bitset1 bitset2)))
+
 (defsubst bs-add (i bitset)
-  (+ bitset
-     (logxor bitset (ash 1 i))))
+  (logior bitset (ash 1 i)))
 
 (defsubst bs-remove (i bitset)
-  (- bitset
-     (logand bitset (ash 1 i))))
+  (bs-difference bitset (ash 1 i)))
 @bitset end
 
 @mem-usage
