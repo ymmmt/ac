@@ -1434,14 +1434,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                  :count count
                  :key key))
 
-(defun filter-map (function list)
+(defun filter-map (function sequence)
   (nreverse
    (foldl (lambda (acc item)
             (aif (funcall function item)
                  (cons it acc)
                  acc))
           nil
-          list)))
+          sequence)))
 
 ;; ;; more general
 ;; (defun filter-map (f list &rest more-lists)
