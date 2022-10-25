@@ -1801,12 +1801,12 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun solve (n a wxvs)
   (labels ((opt (i)
              (dbind (wi xi vi) (aref wxvs i)
-               (let* ((w (->> (filter-map (dlambda ((wj xj vj))
-                                            (when (and (= vi vj)
-                                                       (<= 0 (- xj xi) a))
-                                              wj))
-                                          wxvs)
-                              (reduce #'+)))
+               (let* ((w (reduce #'+ wxvs
+                                 :key (dlambda ((wj xj vj))
+                                        (if (and (= vi vj)
+                                                 (<= 0 (- xj xi) a))
+                                            wj
+                                            0))))
                       (diffs (filter @(#'not (eqler vi) #'third) wxvs))
                       (time->w-delta (make-hash-table)))
                  (map nil (dlambda ((wj xj vj))
