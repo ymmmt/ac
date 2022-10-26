@@ -1819,12 +1819,10 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                   (decf (gethash r time->w-delta 0) wj))))
                       diffs)
                  (+ w
-                    (mvfoldl (lambda (time max acc)
-                               (let ((acc* (+ acc (gethash time time->w-delta))))
-                                 (values (max max acc*)
-                                         acc*)))
-                             (sort (ht-keys time->w-delta) #'<)
-                             0 0))))))
+                    (reduce #'max
+                            (scanl #'+ 0
+                                   (mapcar (mapper time->w-delta)
+                                           (sort (ht-keys time->w-delta) #'<)))))))))
     (maximize (i 0 n) (opt i))))
 
 (defun main ()
