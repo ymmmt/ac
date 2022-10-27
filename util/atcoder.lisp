@@ -1,3 +1,21 @@
+(defun powers (base max-power &optional (mul #'*))
+  (iterate (1+ max-power) 1 $(funcall mul base)))
+
+;; (defsubst mex% (integers)
+;;   (if (null integers)
+;;       0
+;;       (let ((max (reduce #'max integers))
+;;             (set (make-hashset integers)))
+;;         (nth-value 1 (find-if*-range @(#'not (mapper set))
+;;                                      0 (+ max 2))))))
+
+(defun mex (integers)
+  (if (null integers)
+      0
+      (let ((set (make-hashset integers)))
+        (nth-value 1 (find-if*-range @(#'not (mapper set))
+                                     0 (1+ (hash-table-count set)))))))
+
 (defun imos (intervals values)
   (let* ((max (reduce #'max intervals :key #'cdr))
          (a (make-fixnum-array (1+ max))))
