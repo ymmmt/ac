@@ -549,6 +549,10 @@
         `(->> ,threaded ,@(rest forms)))
       x))
 
+(defsubst flip (f)
+  (lambda (x y)
+    (funcall f y x)))
+
 (defsubst mapper (hash-table &optional default)
   (lambda (key)
     (gethash key hash-table default)))
@@ -699,6 +703,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   (if (null list)
       (error "Empty list.")
       (scanr function (car (last list)) (nbutlast list))))
+
+(defun mvscanl (function list initial-value &rest initial-args)
+  (-> (apply #'mvfoldl (lambda (item acc &rest args)
+                         (let ((vs (mvlist (apply function item args))))
+                           (apply #'values
+                                  (cons (car vs) acc)
+                                  vs)))
+             list nil initial-value initial-args)
+      nreverse))
 
 (defun unfoldl (function initial-value)
   (nlet rec ((value initial-value) (acc nil))
@@ -1026,13 +1039,21 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                                     ,(ensure-form body)))
      self))
 
-(defun accum-array (alist dimensions &rest initargs)
-  (let ((a (apply #'make-array dimensions initargs)))
+(defun accum-array (update-fn initial-element dimensions alist &rest initargs)
+  (let ((a (apply #'make-array dimensions :initial-element initial-element initargs)))
     (mapc (dlambda ((subscripts . value))
-            (setf (apply #'aref a subscripts)
-                  value))
+            (setf #1=(apply #'aref a (ensure-list subscripts))
+                  (funcall update-fn #1# value)))
           alist)
     a))
+
+;; (defun accum-array (alist dimensions &rest initargs)
+;;   (let ((a (apply #'make-array dimensions initargs)))
+;;     (mapc (dlambda ((subscripts . value))
+;;             (setf (apply #'aref a subscripts)
+;;                   value))
+;;           alist)
+;;     a))
 
 (defun arr (subscripts-list values dimensions &rest initargs)
   (let ((a (apply #'make-array dimensions initargs)))
@@ -1559,13 +1580,19 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 (defun nbest-k (k list test &key key)
   (take k (sort list test :key key)))
 
-(defun iterate (n x successor)
-  (nlet rec ((n n) (x x) (acc nil))
-    (if (zerop n)
-        (nreverse acc)
-        (rec (1- n)
-             (funcall successor x)
-             (cons x acc)))))
+(defun %iterate (n successor acc initial-value &rest initial-args)
+  #@(fixnum n)
+  #@(function successor)
+  #@(list acc)
+  (if (zerop n)
+      (nreverse acc)
+      (let ((vs (mvlist (apply successor initial-value initial-args))))
+        (apply #'%iterate (1- n) successor
+               (cons (car vs) acc)
+               vs))))
+
+(defun iterate (n successor initial-value &rest initial-args)
+  (apply #'%iterate n successor nil initial-value initial-args))
 
 (defun prefixes (list)
   (mapcar #'reverse (suffixes (reverse list))))
