@@ -1586,13 +1586,15 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
   #@(list acc)
   (if (zerop n)
       (nreverse acc)
-      (let ((vs (mvlist (apply successor initial-value initial-args))))
-        (apply #'%iterate (1- n) successor
-               (cons (car vs) acc)
-               vs))))
+      (mvcall #'%iterate (1- n) successor
+              (cons initial-value acc)
+              (apply successor initial-value initial-args))))
 
 (defun iterate (n successor initial-value &rest initial-args)
-  (apply #'%iterate n successor nil initial-value initial-args))
+  (if (zerop n)
+      nil
+      (mvcall #'%iterate (1- n) successor (list initial-value)
+              (apply successor initial-value initial-args))))
 
 (defun prefixes (list)
   (mapcar #'reverse (suffixes (reverse list))))
