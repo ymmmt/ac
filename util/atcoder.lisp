@@ -1,3 +1,7 @@
+(defun dupp (list &key (order #'<) (test #'=))
+  (/= (length list)
+      (length (delete-dups (copy-list list) :order order :test test))))
+
 (defun powers (base max-power &optional (mul #'*))
   (iterate (1+ max-power) 1 $(funcall mul base)))
 
