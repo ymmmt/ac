@@ -364,22 +364,10 @@ functions."
 (defun foldl (function initial-value sequence)
   (reduce function sequence :initial-value initial-value))
 
-;;(declaim (ftype (function (u64 ash-count) u64) lash))
-;; (defsubst lash (u64 count)
-;;   #@(u64 u64)
-;;   #@(ash-count count)
-;;   (ash u64 count))
-
 (defsubst lash (integer count)
   #@(u32 integer)
   #@(ash-count count)
   (ash integer count))
-
-;; (declaim (ftype (function (u64 ash-count)) rash))
-;; (defsubst rash (u64 count)
-;;   #@(u64 u64)
-;;   #@(ash-count count)
-;;   (ash u64 count))
 
 (defsubst rash (integer count)
   #@(u64 integer)
@@ -398,10 +386,10 @@ functions."
 
 ;; https://hitonanode.github.io/cplib-cpp/number/nimber.hpp
 (defun nim*2-rec (a b rec)
-;;  #@(u64 a b)
-;;  #@(function rec)
+  #@(u64 a b)
+  #@(function rec)
   (labels ((rec (bit)
-;;             #@(fixnum bit)
+             #@(fixnum bit)
              (cond ((plusp (rash a bit))
                     (mvbind (a0 a1) (floor-2p a bit)
                       (mvbind (b0 b1) (floor-2p b bit)
@@ -409,13 +397,13 @@ functions."
                               (p01 (funcall rec a0 b1))
                               (p10 (funcall rec a1 b0))
                               (p11 (funcall rec a1 b1)))
-;                          #@(fixnum p00 p01 p10 p11)
+                          #@(fixnum p00 p01 p10 p11)
                           (nim+ p11
                                 (lash (nim+ p00 p01 p10) bit)
                                 (funcall rec p00 (lash 1 (1- bit))))))))
                    ((plusp (rash b bit))
                     (mvbind (b0 b1) (floor-2p b bit)
-;;                      #@(fixnum b0)
+                      #@(fixnum b0)
                       (nim+ (lash (funcall rec a b0) bit)
                             (funcall rec a b1))))
                    (t
@@ -427,7 +415,7 @@ functions."
 
 (with-cache (:array (256 256) :initial-element -1 :element-type 'fixnum)
   (defun nim*2-small (a b)
-    ;;  #@(fixnum a b)
+    #@(fixnum a b)
     (when (> a b)
       (rotatef a b))
     ;; (<= a b)
@@ -436,7 +424,7 @@ functions."
           (t (nim*2-rec a b #'nim*2-small)))))
          
 (defun nim*2 (a b)
-;;  #@(u64 a b)
+  #@(u64 a b)
   (when (> a b)
     (rotatef a b))
   ;; (<= a b)
