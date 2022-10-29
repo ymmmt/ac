@@ -3,7 +3,7 @@
       (length (delete-dups (copy-list list) :order order :test test))))
 
 (defun powers (base max-power &optional (mul #'*))
-  (iterate (1+ max-power) 1 $(funcall mul base)))
+  (iterate (1+ max-power) $(funcall mul base) 1))
 
 ;; (defsubst mex% (integers)
 ;;   (if (null integers)
