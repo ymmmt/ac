@@ -1,3 +1,11 @@
+;; depends on cp/mod-inverse
+(defun rational->mod (x)
+  "cf. ABC275e"
+  (if (integerp x)
+      x
+      (mod* (numerator x)
+            (mod-inverse (denominator x) +mod+))))
+
 (defun dupp (list &key (order #'<) (test #'=))
   (/= (length list)
       (length (delete-dups (copy-list list) :order order :test test))))
