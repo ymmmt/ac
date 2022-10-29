@@ -2047,13 +2047,23 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;;; Body
 
-(deftype u64 () '(unsigned-byte 64))
+(deftype ash-count () '(integer 0 32))
 
-(defun floor-2p (number 2-power)
-  #@(u64 number)
-  (let ((mask (1- (the fixnum (2^ 2-power)))))
-    #@(fixnum 2-power mask)
-    (values (ash number (- 2-power))
+(defsubst lash (integer count)
+  #@(uint32 integer)
+  #@(ash-count count)
+  (ash integer count))
+
+(defsubst rash (integer count)
+  #@(uint64 integer)
+  #@(ash-count count)
+  (ash integer (- count)))
+
+(defsubst floor-2p (number 2-power)
+  #@(uint64 number)
+  #@(ash-count 2-power)
+  (let ((mask (1- (lash 1 2-power))))
+    (values (rash number 2-power)
             (logand number mask))))
 
 (defsubst nim+ (&rest integers)
@@ -2064,11 +2074,11 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 ;; https://hitonanode.github.io/cplib-cpp/number/nimber.hpp
 (defun nim*2-rec (a b rec)
-  #@(u64 a b)
+  #@(uint64 a b)
   #@(function rec)
   (labels ((rec (bit)
              #@(fixnum bit)
-             (cond ((plusp (ash a (- bit)))
+             (cond ((plusp (rash a bit))
                     (mvbind (a0 a1) (floor-2p a bit)
                       (mvbind (b0 b1) (floor-2p b bit)
                         (let ((p00 (funcall rec a0 b0))
@@ -2077,31 +2087,35 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                               (p11 (funcall rec a1 b1)))
                           #@(fixnum p00 p01 p10 p11)
                           (nim+ p11
-                                (ash (nim+ p00 p01 p10) bit)
-                                (funcall rec p00 (2^ (1- bit))))))))
-                   ((plusp (ash b (- bit)))
+                                (lash (nim+ p00 p01 p10) bit)
+                                (funcall rec p00 (lash 1 (1- bit))))))))
+                   ((plusp (rash b bit))
                     (mvbind (b0 b1) (floor-2p b bit)
                       #@(fixnum b0)
-                      (nim+ (ash (funcall rec a b0) bit)
+                      (nim+ (lash (funcall rec a b0) bit)
                             (funcall rec a b1))))
                    (t
-                    (rec (ash bit -1))))))
+                    (rec (rash bit 1))))))
     (rec 32)))
 
+(eval-always 
+  (defconstant +small-threshold+ 2000))
+
 (defsubst smallp (a)
-  (< a 256))
+  (< a +small-threshold+))
 
-(defmemo (nim*2-small :key #'identity :test #'equal) (a b)
-  #@(fixnum a b)
-  (when (> a b)
-    (rotatef a b))
-  ;; (<= a b)
-  (cond ((= a 0) 0)
-        ((= a 1) b)
-        (t (nim*2-rec a b #'nim*2-small))))
-
+(with-cache (:array (+small-threshold+ +small-threshold+) :initial-element -1 :element-type 'fixnum)
+  (defun nim*2-small (a b)
+    #@(fixnum a b)
+    (when (> a b)
+      (rotatef a b))
+    ;; (<= a b)
+    (cond ((= a 0) 0)
+          ((= a 1) b)
+          (t (nim*2-rec a b #'nim*2-small)))))
+         
 (defun nim*2 (a b)
-  #@(u64 a b)
+  #@(uint64 a b)
   (when (> a b)
     (rotatef a b))
   ;; (<= a b)
@@ -2120,27 +2134,32 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                   (funcall rolling-hash2 left2 (+ left2 length -1)))))
       (binary-search 0 (1+ n) #'common-p))))
 
+(defun powers (base max-power &optional (mul #'*))
+  (iterate (1+ max-power) $(funcall mul base) 1))
+
+(defun memo ()
+  (dotimes (a +small-threshold+)
+    (dotimes (b +small-threshold+)
+      (nim*2-small a b))))
+
 ;; https://atcoder.jp/contests/abc274/editorial/5026
 (defun solve (n as qs)
-  (let* ((x (random (2^ 62))))
-    (with-caches ((:array (n) :element-type 'integer :initial-element -1)
-                  (:array ((1+ n)) :element-type 'integer :initial-element -1))
+  (memo)
+  (let* ((x (random (2^ 32)))
+         (xpowers (coerce-vector (powers x n #'nim*2))))
+    (with-cache (:array (n) :element-type 'integer :initial-element -1)
       (labels ((rhash (i)
                  (if (zerop i)
                      (aref as i)
                      (nim+ (nim*2 x (rhash (1- i)))
-                           (aref as i))))
-               (x^ (i)
-                 (if (zerop i)
-                     1
-                     (nim*2 x (x^ (1- i))))))
+                           (aref as i)))))
         (labels ((rhash-sub (l r)
                    ;; Hash value of a[l, r] (right inclusive)
                    (if (zerop l)
                        (rhash r)
                        (nim- (rhash r)
                              (nim*2 (rhash (1- l))
-                                    (x^ (1+ (- r l))))))))
+                                    (aref xpowers (1+ (- r l))))))))
           (mapcar (dlambda ((a b c d e f))
                     (let* ((n1 (1+ (- b a)))
                            (n2 (1+ (- f e)))
@@ -2171,3 +2190,35 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
               (solve n as qs))))))
 
 #-swank (main)
+
+;; ;; profile
+;; ;; http://www.sbcl.org/manual/#Profiling
+
+;; (require :sb-sprof)
+;; (defmacro static-profile (&body body)
+;;   (with-gensyms (n)
+;;     `(progn
+;;        (let* ((,n 10000)
+;;               (sb-sprof:*sample-interval* (/ 1 ,n)))
+;;          (sb-sprof:with-profiling (:max-samples ,n
+;;                                    :report :flat
+;;                                    :loop nil)
+;;            ,@body)))))
+
+;; (defun random-a-b (a b)
+;;   "return random integer r that satisfies A <= r < B."
+;;   (+ (random (- b a)) a))
+
+;; (defvar n (* 5 (expt 10 5)))
+;; (defvar q (* 5 (expt 10 4)))
+;; (defvar as (coerce-vector (collect n (random (expt 10 18)))))
+;; (defvar qs (collect q (let* ((len (random-a-b 1 (1+ n)))
+;;                              (a (random-a-b 0 (- n len)))
+;;                              (b (+ a len -1))
+;;                              (c (random-a-b 0 (- n len)))
+;;                              (d (+ c len -1))
+;;                              (e (random n))
+;;                              (f (random-a-b e n)))
+;;                         (list a b c d e f))))
+
+;; (static-profile (solve n as qs))
