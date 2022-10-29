@@ -1,4 +1,1 @@
-#!/bin/bash
-
-sbcl --eval '(compile-file "main.lisp")' --eval '(exit)'  &> compiler-notes
-rm main.fasl
+/home/yy/commands/write-compiler-notes
