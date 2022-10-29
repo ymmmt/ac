@@ -1,4 +1,3 @@
-%library-checker-nim-product.lisp
 compiler-notes-main
 testcases-library-checker
 write-compiler-notes
