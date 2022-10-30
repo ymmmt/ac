@@ -1,3 +1,10 @@
+(defmacro gethash-union (key (&rest hts) &optional default)
+  (sb-ext::once-only ((key key))
+    `(or ,@(mapcar (lambda (ht)
+                     `(gethash ,key ,ht))
+                   hts)
+         ,default)))
+
 ;; depends on cp/mod-inverse
 (defun rational->mod (x)
   "cf. ABC275e"
