@@ -1236,8 +1236,7 @@ cx + dy = q"
   (let ((vs (make-disjoint-set n-vertices))
         (es (mapcar (lambda (edge)
                       (cons edge
-                            (destructuring-bind (u . v) edge
-                              (funcall weight u v))))
+                            (funcall weight edge)))
                     edges))
         (mst (make-hash-table :test 'equal))
         (cost-sum 0))
@@ -1247,7 +1246,7 @@ cx + dy = q"
           (ds-unite! vs u v)
           (setf (gethash edge mst) t)
           (incf cost-sum cost))))
-    (values mst cost-sum)))
+    (values mst cost-sum vs)))
 
 ;; depends on singletonp
 (defun set-product (&rest sets)
