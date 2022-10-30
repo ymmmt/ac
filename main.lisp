@@ -340,7 +340,9 @@
    (lambda (stream char num)
      (declare (ignore char num))
      (let ((list (read-delimited-list #\) stream t)))
-       `(curry #',(car list) ,@(cdr list))))))
+       (if (find '% list)
+           `(curry* #',(car list) ,@(cdr list))
+           `(curry #',(car list) ,@(cdr list)))))))
 
 (eval-always
   (make-dispatch-macro-character #\@)
