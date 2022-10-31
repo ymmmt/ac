@@ -1555,6 +1555,16 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
                (values it (car list))
                (rec (cdr list)))))))
 
+(defun position-if* (predicate list &key from-end (start 0) end)
+  (let ((list (subseq list start end)))
+    (nlet rec ((list (if from-end (reverse list) list))
+               (pos 0))
+      (if (null list)
+          (values nil nil)
+          (aif (funcall predicate (car list))
+               (values it pos)
+               (rec (cdr list) (1+ pos)))))))
+
 (defun nth-if (n predicate list)
   (nlet rec ((n n) (pos 0) (list list))
     (if (null list)
@@ -1594,8 +1604,14 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 
 (defun iterate (n successor initial-value &rest initial-args)
   (if (zerop n)
-      nil
-      (mvcall #'%iterate (1- n) successor (list initial-value)
+      (list initial-value)
+      (mvcall #'%iterate n successor (list initial-value)
+              (apply successor initial-value initial-args))))
+
+(defun transit (n successor initial-value &rest initial-args)
+  (if (zerop n)
+      (apply #'values initial-value initial-args)
+      (mvcall #'transit (1- n) successor
               (apply successor initial-value initial-args))))
 
 (defun prefixes (list)
