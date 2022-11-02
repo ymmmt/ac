@@ -774,6 +774,7 @@ INITIAL-ARGS == (initial-arg1 initial-arg2 ... initial-argN)"
 ;;; Numbers
 
 (defconstant +mod+ 1000000007)
+;; (defconstant +mod+ 998244353)
 (defconstant +inf+ most-positive-fixnum)
 (defconstant +ninf+ most-negative-fixnum)
 
