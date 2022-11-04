@@ -224,7 +224,7 @@
 (defun until (predicate function value &rest more-values)
   #@(function predicate function)
   (if (funcall predicate value)
-      value
+      (apply #'values value more-values)
       (mvcall #'until
               predicate
               function
@@ -237,7 +237,7 @@
               predicate
               function
               (apply function value more-values))
-      value))
+      (apply #'values value more-values)))
 
 (eval-always
   (defun extract-function-name (spec)
