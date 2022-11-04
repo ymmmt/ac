@@ -1873,7 +1873,14 @@ cx + dy = q"
   (ecase (length args)
     (1 `(map nil (lambda (,var) ,@body)
              ,(car args)))
-    (2 `(loop for ,var from ,(first args) below ,(second args)
+    (2 `(loop for ,var fixnum from ,(first args) below ,(second args)
+              do (progn ,@body)))))
+
+(defmacro dfor ((var &rest args) &body body)
+  (ecase (length args)
+    (1 `(map nil (lambda (,var) ,@body)
+             (reverse ,(car args))))
+    (2 `(loop for ,var fixnum from (1- ,(second args)) downto ,(first args)
               do (progn ,@body)))))
 
 ;; (defun skip (n list)
