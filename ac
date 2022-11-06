@@ -1,3 +1,4 @@
 #!/bin/bash
 
-oj t -c 'sbcl --script main.lisp' -d tests
+# oj t -c 'sbcl --script main.lisp' -d tests
+oj t -c 'ghcup run runghc Main.hs' -d tests
