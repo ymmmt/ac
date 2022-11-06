@@ -32,11 +32,11 @@ sortUniq :: Ord a => [a] -> [a]
 sortUniq = map head . group . sort
 
 solve :: Int -> [Int] -> [Int]
-solve n as = reverse $ take (n-n') (repeat 0) ++ cs
+solve n as = reverse $ replicate (n-n') 0 ++ cs
   where as' = sortUniq as
-        n' = length as'
-        c = counter as
-        cs = map (\a -> Map.findWithDefault 0 a c) as'
+        n'  = length as'
+        c   = counter as
+        cs  = map (\a -> Map.findWithDefault 0 a c) as'
 
 main :: IO ()
 main = do
