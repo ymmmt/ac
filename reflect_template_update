@@ -1,5 +1,7 @@
 #!/bin/bash
 
-dir="`acc config-dir`/lisp/"
+# dir="`acc config-dir`/lisp/"
+dir="`acc config-dir`/hs/"
 
-cp main.lisp $dir
+# cp main.lisp $dir
+cp Main.hs $dir
