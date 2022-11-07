@@ -25,3 +25,6 @@ cross (f, g) = pair (f . fst, g . snd)
 
 fork :: (a -> b) -> (a, a) -> (b, b)
 fork f (x, y) = (f x, f y)
+
+arithSeqSum :: Integral a => a -> a -> a -> a
+arithSeqSum n d a0 = n * a0 + d * n * (n-1) `div` 2
