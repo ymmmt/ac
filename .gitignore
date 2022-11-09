@@ -9,6 +9,8 @@ app
 dist-newstyle
 *.cabal
 CHANGELOG.md
+Util.hs
+
 util
 util/*
 module
