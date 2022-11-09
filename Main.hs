@@ -4,6 +4,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 
+import Control.Applicative
 import Control.Monad
 import Data.Bits
 import Data.Char
@@ -13,11 +14,13 @@ import Data.Ix
 import Data.List
 import Data.Maybe
 import Data.Tuple
+import Data.Word
 import Debug.Trace
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Map as Map
 import qualified Data.Vector.Unboxed as UV
 import qualified Data.Vector.Unboxed.Mutable as UMV
+import qualified Numeric as N
 
 readInt :: IO Int
 readInt = fst . fromJust . BS.readInt <$> BS.getLine
