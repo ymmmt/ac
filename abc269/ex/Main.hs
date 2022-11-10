@@ -93,41 +93,65 @@ heavyPath t@(Tree _ _ h _) = t:heavyPath h
 
 -- GenFunc: generating function
 
-type Degree = Int
-type Coeff = Int
-type GenFunc = [(Degree, Coeff)]
+type Degree  = Int
+type Coeff   = Int
+type GenFunc = Array Degree Coeff
 
 unit :: GenFunc
-unit = [(0, 1)]
+unit = array (0, 0) [(0, 1)]
 
-one :: GenFunc
-one = [(1, 1)]
+-- one :: GenFunc
+-- one = array (1, 1) [(1, 1)]
 
 unitOne :: GenFunc
-unitOne = [(0, 1), (1, 1)]
+unitOne = array (0, 1) [(0, 1), (1, 1)]
 
-shiftR :: Degree -> GenFunc -> GenFunc
-shiftR d = mul d one
---shiftR d = normal d . map (cross ((1+), id))
+deg :: GenFunc -> Degree
+deg = snd . bounds
 
-normal :: Degree -> GenFunc -> GenFunc
-normal d = filter ((>0) . snd) . assocs . accumArray addMod 0 (0, d)
+naiveConvolution :: Degree -> GenFunc -> GenFunc -> GenFunc
+naiveConvolution d f g =
+  accumArray addMod 0 (0, d')
+  [(i+j, ci*cj `mod` modulo) | (i, ci) <- assocs f, (j, cj) <- assocs g, i+j <= d']
+  where d' = min d (deg f + deg g)
 
-add :: Degree -> GenFunc -> GenFunc -> GenFunc
-add d f g = normal d (f ++ g)
+convolution :: Degree -> GenFunc -> GenFunc -> GenFunc
+convolution d f g = undefined
+
+-- shiftR :: Degree -> GenFunc -> GenFunc
+-- shiftR d f = array (0, d') $ filter ((<= d') . fst) $ map (cross ((+1), id)) $ assocs f
+--   where d' = min d (deg f + 1)
+
+-- normal :: Degree -> GenFunc -> GenFunc
+-- normal d = filter ((>0) . snd) . assocs . accumArray addMod 0 (0, d)
+
+add :: GenFunc -> GenFunc -> GenFunc
+add f g = accumArray addMod 0 (0, d') $ assocs f ++ assocs g
+  where d' = max (deg f) (deg g)
 
 mul :: Degree -> GenFunc -> GenFunc -> GenFunc
-mul d f g = normal d
-               $ [(i+j, (ci*cj) `mod` modulo) | (i, ci) <- f, (j, cj) <- g, (i+j) <= d]
+mul d f g
+  | max (deg g) (deg g) <= 60 = naiveConvolution d f g
+  | otherwise                 = convolution d f g
+-- mul d f g = normal d
+--                $ [(i+j, (ci*cj) `mod` modulo) | (i, ci) <- f, (j, cj) <- g, (i+j) <= d]
+
+-- f :: Degree -> Tree -> GenFunc
+-- f _ (Leaf _) = unitOne
+-- f d t        = add d (shiftR d $ foldl1' (add d) ms') m
+--   where gs  = map (g d) $ heavyPath t
+--         ms  = scanl' (mul d) unit gs
+--         ms' = init ms
+--         m   = last ms
 
 f :: Degree -> Tree -> GenFunc
 f _ (Leaf _) = unitOne
-f d t        = add d (shiftR d $ foldl1' (add d) ms') m
-  where gs  = map (g d) $ heavyPath t
-        ms  = scanl' (mul d) unit gs
-        ms' = init ms
-        m   = last ms
-        
+f d t        = mul d gn $ foldr op unitOne gs
+  where op g acc = addOne $ mul d g acc
+        addOne f = f // [(1, f!1 + 1)]
+        gn       = g d t
+        gs       = map (g d) . tail $ heavyPath t
+
 g :: Degree -> Tree -> GenFunc
 g _ (Leaf _) = unit
 g d t        = foldl' (mul d) unit $ map (f d) (light t)
@@ -137,7 +161,7 @@ solve n ps = map (a!) [1..n]
   where g  = makeGraph n $ zip ps [2..n]
         t  = makeTree g 1
         f1 = f n t
-        a  = accumArray addMod 0 (0, n) f1
+        a  = accumArray addMod 0 (0, n) $ assocs f1
 
 main :: IO ()
 main = do
