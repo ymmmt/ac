@@ -23,7 +23,7 @@ adjacents :: CMatrix -> Cell -> [Cell]
 adjacents c (i, j)
   | c!(i, j) == '#' = []
   | otherwise       = filter ((&&) <$> inRange (bounds c) <*> (=='.') . (c!))
-                    $ [(i-1, j), (i+1, j), (i, j-1), (i, j+1)]
+                      $ [(i-1, j), (i+1, j), (i, j-1), (i, j+1)]
 
 encode :: Int -> Cell -> G.Vertex
 encode w (i, j) = w * (i - 1) + j
