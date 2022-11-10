@@ -91,7 +91,7 @@ heavyPath :: Tree -> [Tree]
 heavyPath l@(Leaf _)         = [l]
 heavyPath t@(Tree _ _ h _) = t:heavyPath h
 
--- GenFunc
+-- GenFunc: generating function
 
 type Degree = Int
 type Coeff = Int
@@ -106,38 +106,38 @@ one = [(1, 1)]
 unitOne :: GenFunc
 unitOne = [(0, 1), (1, 1)]
 
-shiftR :: Int -> GenFunc -> GenFunc
-shiftR maxdeg = mul maxdeg one
---shiftR maxdeg = normal maxdeg . map (cross ((1+), id))
+shiftR :: Degree -> GenFunc -> GenFunc
+shiftR d = mul d one
+--shiftR d = normal d . map (cross ((1+), id))
 
-normal :: Int -> GenFunc -> GenFunc
-normal maxdeg = filter ((>0) . snd) . assocs . accumArray addMod 0 (0, maxdeg)
+normal :: Degree -> GenFunc -> GenFunc
+normal d = filter ((>0) . snd) . assocs . accumArray addMod 0 (0, d)
 
-add :: Int -> GenFunc -> GenFunc -> GenFunc
-add maxdeg f g = normal maxdeg (f ++ g)
+add :: Degree -> GenFunc -> GenFunc -> GenFunc
+add d f g = normal d (f ++ g)
 
-mul :: Int -> GenFunc -> GenFunc -> GenFunc
-mul maxdeg f g = normal maxdeg
-               $ [(i+j, (c*d) `mod` modulo) | (i, c) <- f, (j, d) <- g, (i+j) <= maxdeg]
+mul :: Degree -> GenFunc -> GenFunc -> GenFunc
+mul d f g = normal d
+               $ [(i+j, (ci*cj) `mod` modulo) | (i, ci) <- f, (j, cj) <- g, (i+j) <= d]
 
-genF :: Int -> Tree -> GenFunc
-genF _ (Leaf _) = unitOne
-genF maxdeg t = add maxdeg (shiftR maxdeg $ foldl1' (add maxdeg) ms') m
-  where gs  = map (genG maxdeg) $ heavyPath t
-        ms  = scanl' (mul maxdeg) unit gs
+f :: Degree -> Tree -> GenFunc
+f _ (Leaf _) = unitOne
+f d t        = add d (shiftR d $ foldl1' (add d) ms') m
+  where gs  = map (g d) $ heavyPath t
+        ms  = scanl' (mul d) unit gs
         ms' = init ms
         m   = last ms
         
-genG :: Int -> Tree -> GenFunc
-genG _ (Leaf _) = unit
-genG maxdeg t = foldl' (mul maxdeg) unit $ map (genF maxdeg) (light t)
+g :: Degree -> Tree -> GenFunc
+g _ (Leaf _) = unit
+g d t        = foldl' (mul d) unit $ map (f d) (light t)
 
 -- https://atcoder.jp/contests/abc269/editorial/4838
 solve n ps = map (a!) [1..n]
-  where g = makeGraph n $ zip ps [2..n]
-        t = makeTree g 1
-        f = genF n t
-        a = accumArray addMod 0 (0, n) f
+  where g  = makeGraph n $ zip ps [2..n]
+        t  = makeTree g 1
+        f1 = f n t
+        a  = accumArray addMod 0 (0, n) f1
 
 main :: IO ()
 main = do
