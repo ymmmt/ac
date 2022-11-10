@@ -6,6 +6,7 @@
 
 import Control.Applicative
 import Control.Monad
+import Data.Array
 import Data.Bits
 import Data.Char
 import Data.Function
@@ -17,6 +18,7 @@ import Data.Tuple
 import Data.Word
 import Debug.Trace
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Graph as G
 import qualified Data.Map as Map
 import qualified Data.Vector.Unboxed as UV
 import qualified Data.Vector.Unboxed.Mutable as UMV
