@@ -7,6 +7,33 @@ yn False = "No"
 joinStr :: Show a => String -> [a] -> String
 joinStr sep xs = intercalate sep $ map show xs
 
+-- Char Matrix
+
+type Cell    = (Int, Int)
+type CMatrix = Array Cell Char
+
+readCMatrix :: Int -> Int -> IO CMatrix
+readCMatrix h w = do
+  rs <- replicateM h getLine
+  let as               = concatMap colAssocs $ zip [1..h] rs
+      colAssocs (i, r) = map (cross ((i,), id)) $ zip [1..w] r
+  return $ array ((1, 1), (h, w)) as
+
+adjacents :: CMatrix -> Cell -> [Cell]
+adjacents c (i, j)
+  | c!(i, j) == '#' = []
+  | otherwise       = filter ((&&) <$> inRange (bounds c) <*> (=='.') . (c!))
+                    $ [(i-1, j), (i+1, j), (i, j-1), (i, j+1)]
+
+encode :: Int -> Cell -> G.Vertex
+encode w (i, j) = w * (i - 1) + j
+
+edges :: CMatrix -> [(Cell, Cell)]
+edges c = concatMap (\ij -> map (ij,) $ adjacents c ij) $ indices c
+
+encodeEdges :: Int -> [(Cell, Cell)] -> [G.Edge]
+encodeEdges w = map (cross (encode w, encode w))
+
 -- List
 
 sortUniq :: Ord a => [a] -> [a]
@@ -19,6 +46,13 @@ pairs1 (x:xs) = [(x, y) | y <- xs]
 
 pairs :: [a] -> [(a, a)]
 pairs = concatMap pairs1 . tails
+
+choices :: Int -> [a] -> [[a]]
+choices 0 _   = [[]]
+choices _ []  = []
+choices n (x:xs)
+  | n > 0     = (map (x:) $ choices (n-1) xs) ++ choices n xs
+  | otherwise = []
 
 -- Map
 
