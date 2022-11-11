@@ -75,3 +75,7 @@ fork f (x, y) = (f x, f y)
 
 arithSeqSum :: Integral a => a -> a -> a -> a
 arithSeqSum n d a0 = n * a0 + d * n * (n-1) `div` 2
+
+cut :: Ord a => a -> a -> a -> a
+cut l h | l > h     = undefined
+        | otherwise = max l . min h
