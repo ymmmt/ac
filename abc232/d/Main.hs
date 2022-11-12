@@ -242,7 +242,7 @@ readCMatrix h w = do
 solve h w c = count 1 1
   where count = memoFix2 (\cnt i j ->
                             if i > h || j > w || c!(i, j) == '#' then 0
-                            else 1 + max (count i (j+1)) (count (i+1) j))
+                            else 1 + max (cnt i (j+1)) (cnt (i+1) j))
   
 main :: IO ()
 main = do
