@@ -79,3 +79,25 @@ arithSeqSum n d a0 = n * a0 + d * n * (n-1) `div` 2
 cut :: Ord a => a -> a -> a -> a
 cut l h | l > h     = undefined
         | otherwise = max l . min h
+
+mod' :: Integral a => a -> a -> a
+mod' k n
+  | m < 0 = m + n
+  | otherwise = m
+  where m = mod k n
+
+class Group a where
+  gzero    :: a
+  gplus    :: a -> a -> a
+  ginverse :: a -> a
+
+instance Num a => Group (a, a) where
+  gzero                 = (0, 0)
+  (a, b) `gplus` (c, d) = (a+c, b+d)
+  ginverse (a, b)       = (-a, -b)
+
+-- upper exclusive
+-- each Tuple (l, r, d) represents a half open interval [l, r)
+imos :: Group a => Int -> Int -> [(Int, Int, a)] -> [a]
+imos lower upper = scanl1 gplus . Data.Foldable.toList . accumArray gplus gzero (lower, upper) . concatMap adds
+  where adds (l, r, d) = [(l, d), (r, ginverse d)]
