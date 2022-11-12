@@ -9,6 +9,7 @@ import Control.Monad
 -- import Data.Bits
 import Data.Array
 import Data.Char
+import Data.Complex
 import Data.Function
 import Data.Int
 import Data.Ix
@@ -43,6 +44,21 @@ modulo = 998244353
 
 addMod :: Int -> Int -> Int
 addMod x y = (x+y) `mod` modulo
+
+intLength :: Int -> Int
+intLength n
+  | n >= 0    = length $ N.showIntAtBase 2 intToDigit n ""
+  | otherwise = undefined
+
+interleave :: [a] -> ([a], [a])
+interleave []         = ([], [])
+interleave xs@[x]     = (xs, [])
+interleave (x:y:rest) = (x:xs, y:ys)
+  where (xs, ys) = interleave rest
+
+single :: [a] -> Bool
+single [x] = True
+single _   = False
 
 -- Graph
 
@@ -82,85 +98,133 @@ makeTree :: Graph -> Idx -> Tree
 makeTree g i
   | null (g!i) = Leaf i
   | otherwise  = Tree i s h ls
-    where s  = sum (map size cs) + 1
-          cs = map (makeTree g) (g!i)
-          h  = maximumBy (compare `on` size) cs
-          ls = delete h cs
+  where s  = sum (map size cs) + 1
+        cs = map (makeTree g) (g!i)
+        h  = maximumBy (compare `on` size) cs
+        ls = delete h cs
 
 heavyPath :: Tree -> [Tree]
 heavyPath l@(Leaf _)         = [l]
 heavyPath t@(Tree _ _ h _) = t:heavyPath h
 
--- GenFunc: generating function
+-- CoeffPoly: Coefficient Representation of Polynomials
 
 type Degree  = Int
 type Coeff   = Int
-type GenFunc = Array Degree Coeff
+type CoeffPoly = Array Degree Coeff
 
-unit :: GenFunc
+unit :: CoeffPoly
 unit = array (0, 0) [(0, 1)]
 
--- one :: GenFunc
--- one = array (1, 1) [(1, 1)]
+one :: CoeffPoly
+one = array (1, 1) [(1, 1)]
 
-unitOne :: GenFunc
+unitOne :: CoeffPoly
 unitOne = array (0, 1) [(0, 1), (1, 1)]
 
-deg :: GenFunc -> Degree
-deg = snd . bounds
+degC :: CoeffPoly -> Degree
+degC = snd . bounds
 
-naiveConvolution :: Degree -> GenFunc -> GenFunc -> GenFunc
-naiveConvolution d f g =
-  accumArray addMod 0 (0, d')
-  [(i+j, ci*cj `mod` modulo) | (i, ci) <- assocs f, (j, cj) <- assocs g, i+j <= d']
-  where d' = min d (deg f + deg g)
+addC :: CoeffPoly -> CoeffPoly -> CoeffPoly
+addC f g = accumArray addMod 0 (0, max (degC f) (degC g)) $ assocs f ++ assocs g
 
-convolution :: Degree -> GenFunc -> GenFunc -> GenFunc
-convolution d f g = undefined
+naiveConvolve :: CoeffPoly -> CoeffPoly -> CoeffPoly
+naiveConvolve f g =
+  accumArray addMod 0 (0, degC f + degC g)
+  [(i+j, ci*cj `mod` modulo) | (i, ci) <- assocs f, (j, cj) <- assocs g]
 
--- shiftR :: Degree -> GenFunc -> GenFunc
--- shiftR d f = array (0, d') $ filter ((<= d') . fst) $ map (cross ((+1), id)) $ assocs f
---   where d' = min d (deg f + 1)
+convolve :: CoeffPoly -> CoeffPoly -> CoeffPoly
+convolve f g = ifft $ mulP (fft' f) (fft' g)
+  where k = intLength $ max (degC f) (degC g)
+        n = 2^k
+        fft' f = fftRec n (zeroPad n f) False
 
--- normal :: Degree -> GenFunc -> GenFunc
--- normal d = filter ((>0) . snd) . assocs . accumArray addMod 0 (0, d)
+mulC :: CoeffPoly -> CoeffPoly -> CoeffPoly
+mulC f g
+  | max (degC g) (degC g) <= 60 = naiveConvolve f g
+  | otherwise                   = convolve f g
 
-add :: GenFunc -> GenFunc -> GenFunc
-add f g = accumArray addMod 0 (0, d') $ assocs f ++ assocs g
-  where d' = max (deg f) (deg g)
+shiftR :: Degree -> CoeffPoly -> CoeffPoly
+shiftR d = mulC (array (d, d) [(d, 1)])
 
-mul :: Degree -> GenFunc -> GenFunc -> GenFunc
-mul d f g
-  | max (deg g) (deg g) <= 60 = naiveConvolution d f g
-  | otherwise                 = convolution d f g
--- mul d f g = normal d
---                $ [(i+j, (ci*cj) `mod` modulo) | (i, ci) <- f, (j, cj) <- g, (i+j) <= d]
+zeroPad :: Int -> CoeffPoly -> [Value]
+zeroPad n f = map (coeffToValue . ref) [0..n-1]
+  where r     = bounds f
+        ref i = if inRange r i then f!i else 0
 
--- f :: Degree -> Tree -> GenFunc
--- f _ (Leaf _) = unitOne
--- f d t        = add d (shiftR d $ foldl1' (add d) ms') m
---   where gs  = map (g d) $ heavyPath t
---         ms  = scanl' (mul d) unit gs
---         ms' = init ms
---         m   = last ms
+-- https://medium.com/@aiswaryamathur/understanding-fast-fourier-transform-from-scratch-to-solve-polynomial-multiplication-8018d511162f
+-- https://faculty.sites.iastate.edu/jia/files/inline-files/polymultiply.pdf
+fft :: CoeffPoly -> PVPoly
+fft f = fftRec (2^k) vs False
+  where k = intLength $ degC f
+        vs = zeroPad (2^k) f
 
-f :: Degree -> Tree -> GenFunc
-f _ (Leaf _) = unitOne
-f d t        = mul d gn $ foldr op unitOne gs
-  where op g acc = addOne $ mul d g acc
-        addOne f = f // [(1, f!1 + 1)]
-        gn       = g d t
-        gs       = map (g d) . tail $ heavyPath t
+fftRec :: Int -> [Value] -> Bool -> PVPoly
+fftRec n vs ifftFlag
+  | n == 1    = vs
+  | n > 1     = zipWith3 f (cycle evRec) (cycle odRec) (take n $ iterate (*wn) 1)
+  | otherwise = undefined
+  where wn       = cis $ 2 * N.pi / (fromIntegral n) * (if ifftFlag then -1 else 1) :: Complex Float
+        (ev, od) = interleave vs
+        evRec    = fftRec (n `div` 2) ev ifftFlag
+        odRec    = fftRec (n `div` 2) od ifftFlag
+        f e o w  = e + w * o
 
-g :: Degree -> Tree -> GenFunc
-g _ (Leaf _) = unit
-g d t        = foldl' (mul d) unit $ map (f d) (light t)
+ifft :: PVPoly -> CoeffPoly
+ifft vs = listArray (0, n-1) $ map (valueToCoeff n) $ fftRec n vs True
+  where n = length vs
+
+-- PVPoly: Point-Value representaion of Polynomials
+
+type Value  = Complex Float
+type PVPoly = [Value]
+
+valueToCoeff :: Int -> Value -> Coeff
+valueToCoeff n = round . (/ fromIntegral n) . realPart
+
+coeffToValue :: Coeff -> Value
+coeffToValue = fromIntegral
+
+degP :: PVPoly -> Degree
+degP = length
+
+-- addP :: PVPoly -> PVPoly -> PVPoly
+-- addP f g
+--   | degP f == degP g = zipWith (+) f g
+--   | otherwise        = undefined
+
+mulP :: PVPoly -> PVPoly -> PVPoly
+mulP f g
+  | degP f == degP g = zipWith (*) f g
+  | otherwise        = undefined
+
+-- Body
+
+genF0 :: Tree -> CoeffPoly
+genF0 (Leaf _) = unitOne
+genF0 t        = addC m (shiftR 1 $ foldl1' addC ms')
+  where gs  = map genG $ heavyPath t
+        ms  = scanl' mulC unit gs
+        ms' = init ms
+        m   = last ms
+
+-- genF :: Tree -> CoeffPoly
+-- genF (Leaf _) = unitOne
+-- genF t        = mulC gn $ foldr op unitOne gs
+--   where op g acc = addOne $ mulC g acc
+--         addOne f = f // [(1, f!1 + 1)]
+--         gn       = genG t
+--         gs       = map genG . tail $ heavyPath t
+
+genG :: Tree -> CoeffPoly
+genG (Leaf _) = unit
+genG t        = foldl' mulC unit $ map genF0 (light t)
 
 -- https://atcoder.jp/contests/abc269/editorial/4838
 solve n ps = map (a!) [1..n]
   where g  = makeGraph n $ zip ps [2..n]
         t  = makeTree g 1
-        f1 = f n t
+        f1 = genF0 t
         a  = accumArray addMod 0 (0, n) $ assocs f1
 
 main :: IO ()
