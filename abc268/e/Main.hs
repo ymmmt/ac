@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -224,53 +225,52 @@ data FunctionCache b v
 
 --
 
-mod' :: Integral a => a -> a -> a
-mod' k n
-  | m < 0 = m + n
-  | otherwise = m
-  where m = mod k n
+class Group a where
+  gzero    :: a
+  gplus    :: a -> a -> a
+  ginverse :: a -> a
 
-type RangeAdd = (Int, Int, Int)
+instance Num a => Group (a, a) where
+  gzero                 = (0, 0)
+  (a, b) `gplus` (c, d) = (a+c, b+d)
+  ginverse (a, b)       = (-a, -b)
 
 -- upper exclusive
--- each RangeAdd represents a half open range [l, r)
-imos :: Int -> Int -> [RangeAdd] -> [Int]
-imos lower upper = scanl1 (+) . Data.Foldable.toList . accumArray (+) 0 (lower, upper) . concatMap adds
-  where adds (l, r, d) = [(l, d), (r, (-d))]
+-- each RangeAdd represents a half open interval [l, r)
+imos :: Group a => Int -> Int -> [(Int, Int, a)] -> [a]
+imos lower upper = scanl1 gplus . Data.Foldable.toList . accumArray gplus gzero (lower, upper) . concatMap adds
+  where adds (l, r, d) = [(l, d), (r, ginverse d)]
 
-ra0 :: Int -> Array Int Int -> Int -> [RangeAdd]
-ra0 n poss i
-  | i == pos = [(k, n, 2*k)]
-  | i < pos  = if abs (i - pos) <= k
-               then downUp else upDown
-  | i > pos  = if abs (i - pos) <= k
-               then upDown else downUp
-  where k      = n `div` 2
-        pos    = poss!i
-        d      = min ((i - pos) `mod'` n) ((pos - i) `mod'` n)
-        downUp = [(0, d, d), (d, k+d, (-d)), (k+d, n, 2*k+d)]
-        upDown = [(0, k-d, d), (k-d, 2*k-d, 2*k-d), (2*k-d, n, d-2*k)]
+type RangeLinearFunc = (Int, Int, (Int, Int))
+-- (l, r, (c1, c0)) represents y = c1 * x + c0 in [l, r)
 
-ra1 :: Int -> Array Int Int -> Int -> [RangeAdd]
-ra1 n poss i
-  | i == pos = [(0, k, 1), (k, n, (-1))]
-  | i < pos  = if abs (i - pos) <= k
-               then downUp else upDown
-  | i > pos  = if abs (i - pos) <= k
-               then upDown else downUp
-  where k      = n `div` 2
-        pos    = poss!i
-        d      = min ((i - pos) `mod'` n) ((pos - i) `mod'` n)
-        downUp = [(0, d, (-1)), (d, k+d, 1), (k+d, n, (-1))]
-        upDown = [(0, k-d, 1), (k-d, 2*k-d, (-1)), (2*k-d, n, 1)]
+slide :: Int -> RangeLinearFunc -> RangeLinearFunc
+slide offset (l, r, (c1, c0)) = (l + offset, r + offset, (c1, c0 - c1 * offset))
+
+-- [0,n]がちょうど一周期となる線形関数を周期内に折り返す
+foldIn :: Int -> RangeLinearFunc -> [RangeLinearFunc]
+foldIn n lf@(l, r, (c1, c0))
+  | l > r      = undefined
+  | l >= n     = [slide (-n) lf]
+  | r <= 0     = [slide n lf]
+  -- l < n && r > 0
+  | l < 0      = [(0, r, (c1, c0)), slide n (l, 0, (c1, c0))]
+  | r > n      = [(l, n, (c1, c0)), slide (-n) (n, r, (c1, c0))]
+  -- 0 <= l <= r <= n
+  | otherwise  = [lf]
+
+baseRLFs :: Int -> [RangeLinearFunc]
+baseRLFs n = [(0, k1, (1, 0)), (k1, k2, (0, k1)), (k2, n, (-1, n))]
+  where k1 = floor (fromIntegral n/2)
+        k2 = ceiling (fromIntegral n/2)
+
+rlfs :: Int -> Array Int Int -> Int -> [RangeLinearFunc]
+rlfs n poss i = concatMap (foldIn n . slide (i - poss!i)) $ baseRLFs n
 
 solve :: Int -> [Int] -> Int
-solve n ps = minimum cs
+solve n ps = minimum $ zipWith (\(c1, c0) x -> c1 * x + c0) linearF [0..n-1]
   where poss    = array (0, n-1) $ zip ps [0..n-1]
-        k       = n `div` 2
-        coeffs0 = imos 0 n $ concatMap (ra0 n poss) [0..n-1]
-        coeffs1 = imos 0 n $ concatMap (ra1 n poss) [0..n-1]
-        cs      = zipWith3 (\c0 c1 x -> c0 + c1 * x) coeffs0 coeffs1 [0..n-1]
+        linearF = imos 0 n $ concatMap (rlfs n poss) [0..n-1]
 
 main :: IO ()
 main = do
