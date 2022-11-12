@@ -135,7 +135,7 @@ naiveConvolve f g =
 
 convolve :: CoeffPoly -> CoeffPoly -> CoeffPoly
 convolve f g = ifft $ mulP (fft' f) (fft' g)
-  where k = intLength $ max (degC f) (degC g)
+  where k = intLength $ degC f + degC g
         n = 2^k
         fft' f = fftRec n (zeroPad n f) False
 
@@ -156,7 +156,7 @@ zeroPad n f = map (coeffToValue . ref) [0..n-1]
 -- https://faculty.sites.iastate.edu/jia/files/inline-files/polymultiply.pdf
 fft :: CoeffPoly -> PVPoly
 fft f = fftRec (2^k) vs False
-  where k = intLength $ degC f
+  where k  = intLength $ degC f
         vs = zeroPad (2^k) f
 
 fftRec :: Int -> [Value] -> Bool -> PVPoly
@@ -171,8 +171,10 @@ fftRec n vs ifftFlag
         f e o w  = e + w * o
 
 ifft :: PVPoly -> CoeffPoly
-ifft vs = listArray (0, n-1) $ map (valueToCoeff n) $ fftRec n vs True
-  where n = length vs
+ifft vs = listArray (0, n'-1) cs
+  where n  = length vs
+        cs = dropWhileEnd (== 0) . map (valueToCoeff n) $ fftRec n vs True
+        n' = length cs
 
 -- PVPoly: Point-Value representaion of Polynomials
 
@@ -226,6 +228,13 @@ solve n ps = map (a!) [1..n]
         t  = makeTree g 1
         f1 = genF0 t
         a  = accumArray addMod 0 (0, n) $ assocs f1
+
+-- printTree :: Tree -> IO ()
+-- printTree (Leaf i) = print i
+-- printTree (Tree i _ h ls) = do
+--   print i
+--   printTree h
+--   mapM_ printTree ls
 
 main :: IO ()
 main = do
