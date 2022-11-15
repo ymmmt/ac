@@ -70,7 +70,7 @@ type Edge  = (Index, Index)
 type Epsilon = Double
 
 edges :: Size -> [Edge]
-edges n = [(i, j) | i <- [0..n-1], j <- [i+1..n-1]]
+edges n = [(i, j) | i <- [0..n-2], j <- [i+1..n-1]]
 
 charB :: Bool -> Char
 charB True  = '1'
@@ -84,7 +84,7 @@ showG :: Size -> Graph -> String
 showG n g = map (charB . (g!)) $ edges n
 
 parseG :: Size -> String -> Graph
-parseG n s = accumArray new False ((0, 0), (n-1, n-1))
+parseG n s = accumArray (||) False ((0, 0), (n-1, n-1))
              $ zip (edges n) (map boolC s)
 
 feature :: Graph -> Double
@@ -95,15 +95,23 @@ diff n e g h = abs (fg - fh)
   where fg = feature g
         fh = feature h
 
-randomG :: Size -> State StdGen Graph
-randomG n = do
-  bs <- replicateM (n * n `div` 2) randomSt
-  return $ accumArray new False ((0, 0), (n-1, n-1)) $ zip (edges n) bs
+kEdgeG :: Size -> Int -> State StdGen Graph
+kEdgeG n k = do
+  let g = accumArray (||) False ((0, 0), (n-1, n-1))
+          $ zip (edges n) (replicate k True ++ repeat False)
+  return g
+
+-- randomG :: Size -> State StdGen Graph
+-- randomG n = do
+--   bs <- replicateM (n * (n-1) `div` 2) randomSt
+--   return $ accumArray (||) False ((0, 0), (n-1, n-1)) $ zip (edges n) bs
 
 solve :: Int -> Epsilon -> State StdGen (Size, [Graph])
 solve m e = do
-  let n = 4
-  gs <- replicateM m (randomG n)
+  let n = 100
+      d = n * (n-1) `div` 2 `div` m
+--  gs <- replicateM m (randomG n)
+  gs <- mapM (kEdgeG n) [0, d..d*(m-1)]
   return (n, gs)
 
 guess :: Epsilon -> Size -> Graph -> [Graph] -> Index
@@ -116,14 +124,12 @@ guess e n g gs = i
 
 answer :: Epsilon -> Size -> [Graph] -> IO ()
 answer e n gs = do
---  hSetBuffering stdout NoBuffering
   g <- (parseG n) <$> getLine
   print $ guess e n g gs
   flush
 
 main :: IO ()
 main = do
---  hSetBuffering stdout NoBuffering
   [sm, se] <- getWords
   let m = read sm :: Int
       e = read se :: Epsilon
@@ -131,5 +137,3 @@ main = do
   putStr . unlines $ [show n] ++ map (showG n) gs
   flush
   replicateM_ 100 (answer e n gs)
-    
-  
