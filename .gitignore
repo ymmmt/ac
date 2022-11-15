@@ -5,6 +5,8 @@ TAGS
 Main.hi
 Main.o
 Main
+*.dyn_hi
+*.dyn_o
 app
 dist-newstyle
 *.cabal
