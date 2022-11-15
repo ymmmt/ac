@@ -73,9 +73,10 @@ fork f (x, y) = (f x, f y)
 
 -- Math
 
-qt :: Bool -> Int
-qt True  = 1
-qt False = 0
+-- Use fromEnum instead.
+-- qt :: Bool -> Int
+-- qt True  = 1
+-- qt False = 0
 
 arithSeqSum :: Integral a => a -> a -> a -> a
 arithSeqSum n d a0 = n * a0 + d * n * (n-1) `div` 2
