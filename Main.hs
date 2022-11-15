@@ -2,6 +2,7 @@
 
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -23,6 +24,7 @@ import Data.Tuple
 import Data.Void
 import Data.Word
 import Debug.Trace
+import qualified Data.Array.Unboxed as UA
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Graph as G
 import qualified Data.Map as Map
