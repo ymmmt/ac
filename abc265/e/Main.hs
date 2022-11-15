@@ -229,9 +229,6 @@ data FunctionCache b v
 
 --
 
-dot :: [Int] -> [Int] -> Int
-dot xs ys = sum $ zipWith (*) xs ys
-
 modulo :: Int
 modulo = 998244353
 
@@ -256,7 +253,7 @@ modAdd x y = (x+y) `mod` modulo
 --         move i j k = (i*a + j*c + k*d, i*b + j*d + k*f)
 
 solve :: Int -> Int -> Int -> Int -> Int -> Int -> Int -> [[Int]] -> Int
-solve n a b c d e f xys = foldl' modAdd 0 [dp UA.! (p, q) | p <- [0..n], q <- [0..n-p], n - p - q >= 0]
+solve n a b c d e f xys = foldl' modAdd 0 [dp UA.! (p, q) | p <- [0..n], q <- [0..n-p]]
   where taboos           = Set.fromList $ map (\[x, y] -> (x, y)) xys
         dp0              = UA.accumArray new 0 ((-1, -1), (n, n)) [((0, 0), 1)] :: UA.UArray (Int, Int) Int
         dp               = foldl step dp0 [1..n]
