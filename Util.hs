@@ -93,6 +93,12 @@ mod' k n
 modulo :: Int
 modulo = 998244353
 
+md :: Int -> Int
+md x = x `mod` modulo
+
+modAdd :: Int -> Int -> Int
+modAdd x y = (x+y) `mod` modulo
+
 -- https://rosettacode.org/wiki/Modular_inverse
 modInv :: Int -> Int -> Maybe Int
 modInv a m
@@ -130,3 +136,6 @@ instance Num a => Group (a, a) where
 imos :: Group a => Int -> Int -> [(Int, Int, a)] -> [a]
 imos lower upper = scanl1 gplus . Data.Foldable.toList . accumArray gplus gzero (lower, upper) . concatMap adds
   where adds (l, r, d) = [(l, d), (r, ginverse d)]
+
+dot :: [Int] -> [Int] -> Int
+dot xs ys = sum $ zipWith (*) xs ys
