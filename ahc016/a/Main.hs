@@ -90,10 +90,16 @@ parseG n s = accumArray (||) False ((0, 0), (n-1, n-1))
 feature :: Graph -> Double
 feature = fromIntegral . length . filter id . elems
 
+-- サイズn、辺数kのグラフが確率eでランダム変異したときの辺数の期待値
+expectedEdges :: Epsilon -> Size -> Graph -> Double
+expectedEdges e n g = k * (1 - 2 * e) + n' * (n' - 1) * e / 2
+  where n' = fromIntegral n
+        k  = feature g
+
 diff :: Epsilon -> Size -> Graph -> Graph -> Double
-diff n e g h = abs (fg - fh)
+diff e n g h = abs (fg - fh)
   where fg = feature g
-        fh = feature h
+        fh = expectedEdges e n h
 
 kEdgeG :: Size -> Int -> State StdGen Graph
 kEdgeG n k = do

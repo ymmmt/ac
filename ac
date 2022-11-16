@@ -2,4 +2,6 @@
 
 # oj t -c 'sbcl --script main.lisp' -d tests
 ghcup run ghc -- Main.hs -package random -package mtl
-oj t -c './Main' -d tests
+if [ $? -eq 0 ]; then
+    oj t -c './Main' -d tests
+fi
