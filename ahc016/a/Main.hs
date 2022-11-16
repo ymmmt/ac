@@ -52,6 +52,9 @@ flush = hFlush stdout
 randomSt :: (RandomGen g, Random a) => State g a
 randomSt = state random
 
+randomUniformRSt :: (RandomGen g, UniformRange a) => (a, a) -> State g a
+randomUniformRSt xy = state (uniformR xy)
+
 new :: a -> a -> a
 new o n = n
 
@@ -124,13 +127,31 @@ guess :: Epsilon -> Size -> Graph -> [Graph] -> Index
 guess e n g gs = i
   where (_, _, i) = minimumOn (diff e n g) gs
 
--- simulate :: Size -> Graph -> Epsilon -> State StdGen Graph
--- simulate e n g = do
---   bs <- replicateM n randomSt
+simulate :: Epsilon -> Size -> Graph -> State StdGen Graph
+simulate e n g = do
+  ps <- replicateM (n * (n-1) `div` 2) $ randomUniformRSt (0, 1.0)
+  i  <- randomUniformRSt (0, n-1)
+  let bs  = map (< e) ps
+      es  = (edges n)
+      es' = (permutations es)!!i
+      g'  = accum xor g $ zip (edges n) bs
+      g'' = accumArray (||) False ((0, 0), (n-1, n-1))
+            $ zip es $ map (g'!) es'
+  return g''
 
 answer :: Epsilon -> Size -> [Graph] -> IO ()
 answer e n gs = do
   g <- (parseG n) <$> getLine
+  print $ guess e n g gs
+  flush
+
+debugAnswer :: Epsilon -> Size -> [Graph] -> IO ()
+debugAnswer e n gs = do
+  i      <- readInt
+  (g, _) <- runState (simulate e n (gs!!i)) <$> newStdGen
+  -- print $ "guessing: " ++ show i
+  -- putStrLn $ (showG n) g
+  -- putStrLn $ "num of edges: " ++ show (feature g)
   print $ guess e n g gs
   flush
 
@@ -142,4 +163,5 @@ main = do
   ((n, gs), _) <- runState (solve m e) <$> newStdGen
   putStr . unlines $ [show n] ++ map (showG n) gs
   flush
-  replicateM_ 100 (answer e n gs)
+--  replicateM_ 100 (answer e n gs)
+  replicateM_ 100 (debugAnswer e n gs)
