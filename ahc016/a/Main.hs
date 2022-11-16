@@ -52,11 +52,9 @@ flush = hFlush stdout
 randomSt :: (RandomGen g, Random a) => State g a
 randomSt = state random
 
-randomUniformRSt :: (RandomGen g, UniformRange a) => (a, a) -> State g a
-randomUniformRSt xy = state (uniformR xy)
-
-new :: a -> a -> a
-new o n = n
+-- based on random-1.0.1.1
+randomRSt :: (RandomGen g, Random a) => (a, a) -> State g a
+randomRSt xy = state (randomR xy)
 
 minimumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
 minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
@@ -65,6 +63,9 @@ minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
 
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
+
+average :: [Double] -> Double
+average xs = sum xs / fromIntegral (length xs)
 
 type Size  = Int
 type Index = Int
@@ -104,8 +105,18 @@ diff e n g h = abs (fg - fh)
   where fg = feature g
         fh = expectedEdges e n h
 
-kEdgeG :: Size -> Int -> State StdGen Graph
-kEdgeG n k = do
+simulateCount :: Int
+simulateCount = 10
+
+diffSt :: Epsilon -> Size -> Graph -> Graph -> State StdGen Double
+diffSt e n g h = do
+  hs <- replicateM simulateCount (simulateSt e n h)
+  let fg = feature g
+      fh = average $ map feature hs
+  return $ abs (fg - fh)
+
+kEdgeGSt :: Size -> Int -> State StdGen Graph
+kEdgeGSt n k = do
   let g = accumArray (||) False ((0, 0), (n-1, n-1))
           $ zip (edges n) (replicate k True ++ repeat False)
   return g
@@ -115,22 +126,28 @@ kEdgeG n k = do
 --   bs <- replicateM (n * (n-1) `div` 2) randomSt
 --   return $ accumArray (||) False ((0, 0), (n-1, n-1)) $ zip (edges n) bs
 
-solve :: Int -> Epsilon -> State StdGen (Size, [Graph])
-solve m e = do
+solveSt :: Int -> Epsilon -> State StdGen (Size, [Graph])
+solveSt m e = do
   let n = 100
       d = n * (n-1) `div` 2 `div` m
 --  gs <- replicateM m (randomG n)
-  gs <- mapM (kEdgeG n) [0, d..d*(m-1)]
+  gs <- mapM (kEdgeGSt n) [0, d..d*(m-1)]
   return (n, gs)
 
 guess :: Epsilon -> Size -> Graph -> [Graph] -> Index
 guess e n g gs = i
   where (_, _, i) = minimumOn (diff e n g) gs
 
-simulate :: Epsilon -> Size -> Graph -> State StdGen Graph
-simulate e n g = do
-  ps <- replicateM (n * (n-1) `div` 2) $ randomUniformRSt (0, 1.0)
-  i  <- randomUniformRSt (0, n-1)
+guessSt :: Epsilon -> Size -> Graph -> [Graph] -> State StdGen Index
+guessSt e n g gs = do
+  ds <- mapM (diffSt e n g) gs
+  let (_, _, i) = minimumOn id ds
+  return i
+
+simulateSt :: Epsilon -> Size -> Graph -> State StdGen Graph
+simulateSt e n g = do
+  ps <- replicateM (n * (n-1) `div` 2) $ randomRSt (0, 1.0)
+  i  <- randomRSt (0, n-1)
   let bs  = map (< e) ps
       es  = (edges n)
       es' = (permutations es)!!i
@@ -142,17 +159,18 @@ simulate e n g = do
 answer :: Epsilon -> Size -> [Graph] -> IO ()
 answer e n gs = do
   g <- (parseG n) <$> getLine
-  print $ guess e n g gs
+  print . fst . runState (guessSt e n g gs) <$> newStdGen
   flush
 
 debugAnswer :: Epsilon -> Size -> [Graph] -> IO ()
 debugAnswer e n gs = do
   i      <- readInt
-  (g, _) <- runState (simulate e n (gs!!i)) <$> newStdGen
+  (g, s) <- runState (simulateSt e n (gs!!i)) <$> newStdGen
   -- print $ "guessing: " ++ show i
   -- putStrLn $ (showG n) g
   -- putStrLn $ "num of edges: " ++ show (feature g)
-  print $ guess e n g gs
+  print . fst $ runState (guessSt e n g gs) s
+--  print $ guess e n g gs
   flush
 
 main :: IO ()
@@ -160,7 +178,7 @@ main = do
   [sm, se] <- getWords
   let m = read sm :: Int
       e = read se :: Epsilon
-  ((n, gs), _) <- runState (solve m e) <$> newStdGen
+  ((n, gs), _) <- runState (solveSt m e) <$> newStdGen
   putStr . unlines $ [show n] ++ map (showG n) gs
   flush
 --  replicateM_ 100 (answer e n gs)
