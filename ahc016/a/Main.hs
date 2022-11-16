@@ -25,7 +25,7 @@ import Data.Void
 import Data.Word
 import Debug.Trace
 import System.IO
-import System.Random
+import System.Random -- random-1.0.1.1
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Graph as G
 import qualified Data.Map as Map
@@ -52,7 +52,6 @@ flush = hFlush stdout
 randomSt :: (RandomGen g, Random a) => State g a
 randomSt = state random
 
--- based on random-1.0.1.1
 randomRSt :: (RandomGen g, Random a) => (a, a) -> State g a
 randomRSt xy = state (randomR xy)
 
@@ -61,11 +60,23 @@ minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx <= ky then u else v
 
+maximumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
+maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
+  where step u@(_, kx, _) v@(_, ky, _) =
+          if kx >= ky then u else v
+
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
 
 average :: [Double] -> Double
 average xs = sum xs / fromIntegral (length xs)
+
+chunks :: Int -> [a] -> [[a]]
+chunks _ []   = []
+chunks n xs
+  | n <= 0    = []
+  | otherwise = ys:chunks n zs
+  where (ys, zs) = splitAt n xs
 
 type Size  = Int
 type Index = Int
@@ -83,6 +94,7 @@ charB False = '0'
 boolC :: Char -> Bool
 boolC '1' = True
 boolC '0' = False
+boolC _   = undefined
 
 showG :: Size -> Graph -> String
 showG n g = map (charB . (g!)) $ edges n
@@ -121,15 +133,30 @@ kEdgeGSt n k = do
           $ zip (edges n) (replicate k True ++ repeat False)
   return g
 
+kEdgeG :: Size -> Int -> Int -> Graph
+kEdgeG n offset k =
+  accumArray (||) False ((0, 0), (n-1, n-1))
+  . zip (edges n)
+  $ (replicate offset False) ++ (replicate k True) ++ (repeat False)
+
 -- randomG :: Size -> State StdGen Graph
 -- randomG n = do
 --   bs <- replicateM (n * (n-1) `div` 2) randomSt
 --   return $ accumArray (||) False ((0, 0), (n-1, n-1)) $ zip (edges n) bs
 
+chunkSize :: Size -> Int -> Int
+chunkSize n m = n * (n-1) `div` 2 `div` m
+
+solve :: Int -> Epsilon -> (Size, [Graph])
+solve m e = (n, gs)
+  where gs = map (\i -> kEdgeG n (d*i) d) [0..m-1]
+        n  = 100
+        d  = chunkSize n m
+
 solveSt :: Int -> Epsilon -> State StdGen (Size, [Graph])
 solveSt m e = do
   let n = 100
-      d = n * (n-1) `div` 2 `div` m
+      d = chunkSize n m
 --  gs <- replicateM m (randomG n)
   gs <- mapM (kEdgeGSt n) [0, d..d*(m-1)]
   return (n, gs)
@@ -137,6 +164,11 @@ solveSt m e = do
 guess :: Epsilon -> Size -> Graph -> [Graph] -> Index
 guess e n g gs = i
   where (_, _, i) = minimumOn (diff e n g) gs
+
+guess2 :: Epsilon -> Size -> Int -> Graph -> Index
+guess2 e n m g = i
+  where (_, _, i) = maximumOn (count id) . take m . chunks d $ map (g!) (edges n)
+        d         = chunkSize n m
 
 guessSt :: Epsilon -> Size -> Graph -> [Graph] -> State StdGen Index
 guessSt e n g gs = do
@@ -153,24 +185,25 @@ simulateSt e n g = do
       es' = (permutations es)!!i
       g'  = accum xor g $ zip (edges n) bs
       g'' = accumArray (||) False ((0, 0), (n-1, n-1))
-            $ zip es $ map (g'!) es'
+            . zip es $ map (g'!) es'
   return g''
 
-answer :: Epsilon -> Size -> [Graph] -> IO ()
-answer e n gs = do
+answer :: Epsilon -> Size -> Int -> [Graph] -> IO ()
+answer e n m gs = do
   g <- (parseG n) <$> getLine
-  print . fst . runState (guessSt e n g gs) <$> newStdGen
+  print $ guess2 e n m g
+--  print . fst . runState (guessSt e n g gs) <$> newStdGen
   flush
 
-debugAnswer :: Epsilon -> Size -> [Graph] -> IO ()
-debugAnswer e n gs = do
+debugAnswer :: Epsilon -> Size -> Int -> [Graph] -> IO ()
+debugAnswer e n m gs = do
   i      <- readInt
   (g, s) <- runState (simulateSt e n (gs!!i)) <$> newStdGen
-  -- print $ "guessing: " ++ show i
-  -- putStrLn $ (showG n) g
-  -- putStrLn $ "num of edges: " ++ show (feature g)
-  print . fst $ runState (guessSt e n g gs) s
---  print $ guess e n g gs
+  print $ "guessing: " ++ show i
+  putStrLn $ (showG n) g
+  putStrLn $ "num of edges: " ++ show (feature g)
+  print $ guess2 e n m g
+--  print . fst $ runState (guessSt e n g gs) s
   flush
 
 main :: IO ()
@@ -178,8 +211,9 @@ main = do
   [sm, se] <- getWords
   let m = read sm :: Int
       e = read se :: Epsilon
-  ((n, gs), _) <- runState (solveSt m e) <$> newStdGen
+      (n, gs) = solve m e
+--  ((n, gs), _) <- runState (solveSt m e) <$> newStdGen
   putStr . unlines $ [show n] ++ map (showG n) gs
   flush
---  replicateM_ 100 (answer e n gs)
-  replicateM_ 100 (debugAnswer e n gs)
+--  replicateM_ 100 (answer e n m gs)
+  replicateM_ 100 (debugAnswer e n m gs)
