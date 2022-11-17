@@ -60,6 +60,17 @@ type Probability = Double
 judgeSt :: Probability -> State StdGen Bool
 judgeSt p = (< p) <$> randomRSt (0.0, 1.0)
 
+shuffleStepSt :: Map.Map Int a -> (Int, a) -> State StdGen (Map.Map Int a)
+shuffleStepSt mp (i, x) = do
+  j <- randomRSt (0, i)
+  return . Map.insert j x $ Map.insert i (mp Map.! j) mp
+
+shuffleSt :: [a] -> State StdGen [a]
+shuffleSt [] = return []
+shuffleSt xs = do
+  mp <- foldM shuffleStepSt (Map.singleton 0 (head xs)) $ zip [1..] (tail xs)
+  return $ Map.elems mp
+
 minimumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
 minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
@@ -138,11 +149,10 @@ guess e n m g gs = i
 
 simulateSt :: Epsilon -> Size -> Graph -> State StdGen Graph
 simulateSt e n g = do
-  bs <- replicateM (n * (n-1) `div` 2) $ judgeSt e
-  i  <- randomRSt (0, n-1)
-  let es  = (edges n)
-      es' = (permutations es)!!i
-      g'  = accum xor g $ zip (edges n) bs
+  let es = edges n
+  bs  <- replicateM (n * (n-1) `div` 2) $ judgeSt e
+  es' <- shuffleSt es
+  let g'  = accum xor g $ zip es bs
       g'' = accumArray (||) False ((0, 0), (n-1, n-1))
             . zip es $ map (g'!) es'
   return g''
@@ -170,5 +180,5 @@ main = do
   ((n, gs), _) <- runState (solveSt m e) <$> newStdGen
   putStr . unlines $ [show n] ++ map (showG n) gs
   flush
-  replicateM_ 100 (answer e n m gs)
---  replicateM_ 100 (debugAnswer e n m gs)
+--  replicateM_ 100 (answer e n m gs)
+  replicateM_ 100 (debugAnswer e n m gs)
