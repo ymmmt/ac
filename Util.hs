@@ -7,6 +7,19 @@ yn False = "No"
 joinStr :: Show a => String -> [a] -> String
 joinStr sep xs = intercalate sep $ map show xs
 
+-- Random
+
+randomSt :: (RandomGen g, Random a) => State g a
+randomSt = state random
+
+randomRSt :: (RandomGen g, Random a) => (a, a) -> State g a
+randomRSt xy = state (randomR xy)
+
+type Probability = Double
+
+judgeSt :: Probability -> State StdGen Bool
+judgeSt p = (< p) <$> randomRSt (0.0, 1.0)
+
 -- Char Matrix
 
 type Cell    = (Int, Int)
@@ -54,6 +67,19 @@ choices n (x:xs)
   | n > 0     = (map (x:) $ choices (n-1) xs) ++ choices n xs
   | otherwise = []
 
+minimumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
+minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
+  where step u@(_, kx, _) v@(_, ky, _) =
+          if kx <= ky then u else v
+
+maximumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
+maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
+  where step u@(_, kx, _) v@(_, ky, _) =
+          if kx >= ky then u else v
+
+count :: (a -> Bool) -> [a] -> Int
+count p = length . filter p
+
 -- Map
 
 counter :: Ord a => [a] -> Map.Map a Int
@@ -77,6 +103,13 @@ fork f (x, y) = (f x, f y)
 -- qt :: Bool -> Int
 -- qt True  = 1
 -- qt False = 0
+
+d2 :: [Double] -> [Double] -> Double
+d2 xs ys = sum $ zipWith d2' xs ys
+  where d2' x y = (x - y) ** 2
+
+dot :: [Int] -> [Int] -> Int
+dot xs ys = sum $ zipWith (*) xs ys
 
 arithSeqSum :: Integral a => a -> a -> a -> a
 arithSeqSum n d a0 = n * a0 + d * n * (n-1) `div` 2
@@ -140,6 +173,3 @@ instance Num a => Group (a, a) where
 imos :: Group a => Int -> Int -> [(Int, Int, a)] -> [a]
 imos lower upper = scanl1 gplus . Data.Foldable.toList . accumArray gplus gzero (lower, upper) . concatMap adds
   where adds (l, r, d) = [(l, d), (r, ginverse d)]
-
-dot :: [Int] -> [Int] -> Int
-dot xs ys = sum $ zipWith (*) xs ys
