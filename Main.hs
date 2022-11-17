@@ -42,6 +42,10 @@ readIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
 readIntLists :: Int -> IO [[Int]]
 readIntLists n = replicateM n readIntList
 
+readTuples :: Int -> IO [(Int, Int)]
+readTuples n = replicateM n (t <$> readIntList)
+  where t [x, y] = (x, y)
+
 -- Data.Function.Memoize
 
 class Memoizable a where
