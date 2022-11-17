@@ -138,10 +138,9 @@ guess e n m g gs = i
 
 simulateSt :: Epsilon -> Size -> Graph -> State StdGen Graph
 simulateSt e n g = do
-  ps <- replicateM (n * (n-1) `div` 2) $ randomRSt (0, 1.0)
+  bs <- replicateM (n * (n-1) `div` 2) $ judgeSt e
   i  <- randomRSt (0, n-1)
-  let bs  = map (< e) ps
-      es  = (edges n)
+  let es  = (edges n)
       es' = (permutations es)!!i
       g'  = accum xor g $ zip (edges n) bs
       g'' = accumArray (||) False ((0, 0), (n-1, n-1))
