@@ -83,6 +83,7 @@ type Edge    = (Index, Index)
 type Index   = Int
 
 type Epsilon = Double
+type Feature = Double
 
 charB :: Bool -> Char
 charB True  = '1'
@@ -116,23 +117,23 @@ solve m e = (n, gs)
         d  = lindiv n m
         gs = map (kEdgeG n) [0, d..d*(m-1)]
 
-feature :: Graph -> Double
+feature :: Graph -> Feature
 feature = fromIntegral . length . filter id . elems
 
 -- サイズn、辺数kのグラフが確率eでランダム変異したときの辺数の期待値
-expectedEdges :: Epsilon -> Size -> Graph -> Double
+expectedEdges :: Epsilon -> Size -> Graph -> Feature
 expectedEdges e n g = k * (1 - 2 * e) + n' * (n' - 1) * e / 2
   where n' = fromIntegral n
         k  = feature g
 
-dist :: Epsilon -> Size -> Graph -> Graph -> Double
-dist e n g h = abs (fg - fh)
-  where fg = feature g
-        fh = expectedEdges e n h
+dist :: Double -> Double -> Double
+dist x y = abs (x - y)
 
-guess :: Epsilon -> Size -> Int -> Graph -> [Graph] -> Index
-guess e n m g gs = i
-  where (_, _, i) = minimumOn (dist e n g) gs
+guess :: Epsilon -> Size -> Int -> Graph -> [[Feature]] -> Index
+guess e n m g fss = i
+  where (_, _, i)  = minimumOn minDist fss
+        fg         = feature g
+        minDist fs = minimum $ map (dist fg) fs
 
 simulateSt :: Epsilon -> Size -> Graph -> State StdGen Graph
 simulateSt e n g = do
@@ -144,17 +145,31 @@ simulateSt e n g = do
             . zip es $ map (g'!) es'
   return g''
 
-answer :: Epsilon -> Size -> Int -> [Graph] -> IO ()
-answer e n m gs = do
+-- simulate only edge fliping
+simulateSt' :: Epsilon -> Size -> Graph -> State StdGen Graph
+simulateSt' e n g = do
+  let es = edges n
+  bs  <- replicateM (n * (n-1) `div` 2) $ judgeSt e
+  let g'  = accum xor g $ zip es bs
+  return g'
+
+simulateCount :: Int
+simulateCount = 10
+
+randomGsSt :: Epsilon -> Size -> Graph -> State StdGen [Graph]
+randomGsSt e n g = replicateM simulateCount $ simulateSt' e n g
+
+answer :: Epsilon -> Size -> Int -> [[Feature]] -> IO ()
+answer e n m fss = do
   g <- (parseG n) <$> getLine
-  print $ guess e n m g gs
+  print $ guess e n m g fss
   flush
 
-debugAnswer :: Epsilon -> Size -> Int -> [Graph] -> IO ()
-debugAnswer e n m gs = do
+debugAnswer :: Epsilon -> Size -> Int -> [Graph] -> [[Feature]] -> IO ()
+debugAnswer e n m gs fss = do
   i      <- readInt
-  (g, s) <- runState (simulateSt e n (gs!!i)) <$> newStdGen
-  print $ guess e n m g gs
+  (g, _) <- runState (simulateSt e n (gs!!i)) <$> newStdGen
+  print $ guess e n m g fss
   flush
 
 main :: IO ()
@@ -165,5 +180,9 @@ main = do
       (n, gs) = solve m e
   putStr . unlines $ [show n] ++ map (showG n) gs
   flush
-  replicateM_ 100 (answer e n m gs)
---  replicateM_ 100 (debugAnswer e n m gs)
+
+  s <- newStdGen
+  let (gss, _) = runState (mapM (randomGsSt e n) gs) s
+      fss      = map (map feature) gss
+  replicateM_ 100 (answer e n m fss)
+--  replicateM_ 100 (debugAnswer e n m gs fss)
