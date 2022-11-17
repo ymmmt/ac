@@ -52,6 +52,9 @@ encodeEdges w = map (cross (encode w, encode w))
 sortUniq :: Ord a => [a] -> [a]
 sortUniq = map head . group . sort
 
+coordComp :: Ord a => Int -> [a] -> Map.Map Int a
+coordComp i0 = Map.fromAscList . zip [i0..] . sortUniq
+
 pairs1 :: [a] -> [(a, a)]
 pairs1 []     = []
 pairs1 [x]    = []
