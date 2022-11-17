@@ -100,7 +100,7 @@ edges :: Size -> [Edge]
 edges n = [(i, j) | i <- [0..n-2], j <- [i+1..n-1]]
 
 degrees :: Size -> Graph -> [Degree]
-degrees n g = map deg [0..n-1]
+degrees n g = sort $ map deg [0..n-1]
   where deg i = count (g!) [(min i j, max i j) | j <- [0..n-1], j /= i]
 
 approximateRegularG :: Size -> Degree -> State StdGen Graph
