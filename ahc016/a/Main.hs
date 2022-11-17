@@ -65,11 +65,6 @@ minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx <= ky then u else v
 
-maximumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
-maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
-  where step u@(_, kx, _) v@(_, ky, _) =
-          if kx >= ky then u else v
-
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
 
@@ -132,15 +127,14 @@ expectedDegree e n d = (1 - 2 * e) * d' + (n' - 1) * e
   where n' = fromIntegral n
         d' = fromIntegral d
 
-dist :: Epsilon -> Size -> Graph -> Degree -> Double
-dist e n g d = d2 ds es
+dist :: Epsilon -> Size -> Graph -> Graph -> Double
+dist e n g h = d2 ds es
   where ds = map fromIntegral $ degrees n g
-        es = repeat $ expectedDegree e n d
+        es = map (expectedDegree e n) $ degrees n h
 
-guess :: Epsilon -> Size -> Int -> Graph -> Index
-guess e n m g = i
-  where d         = n `div` m
-        (_, _, i) = minimumOn (dist e n g) [0, d..d*(m-1)]
+guess :: Epsilon -> Size -> Int -> Graph -> [Graph] -> Index
+guess e n m g gs = i
+  where (_, _, i) = minimumOn (dist e n g) gs
 
 simulateSt :: Epsilon -> Size -> Graph -> State StdGen Graph
 simulateSt e n g = do
@@ -157,7 +151,7 @@ simulateSt e n g = do
 answer :: Epsilon -> Size -> Int -> [Graph] -> IO ()
 answer e n m gs = do
   g <- (parseG n) <$> getLine
-  print $ guess e n m g
+  print $ guess e n m g gs
   flush
 
 debugAnswer :: Epsilon -> Size -> Int -> [Graph] -> IO ()
@@ -166,7 +160,7 @@ debugAnswer e n m gs = do
   (g, s) <- runState (simulateSt e n (gs!!i)) <$> newStdGen
   -- print $ "guessing: " ++ show i
   -- putStrLn $ (showG n) g
-  print $ guess e n m g
+  print $ guess e n m g gs
   flush
 
 main :: IO ()
