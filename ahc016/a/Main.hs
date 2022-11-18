@@ -339,7 +339,7 @@ edgeNums n m = [0, u..u*(m-1)]
 
 solve :: Int -> Epsilon -> (Size, [Graph])
 solve m e = (n, gs)
-  where n  = 100
+  where n  = 50
         gs = map (kEdgeG n) $ edgeNums n m
 
 numEdges :: Graph -> NumEdges
@@ -363,7 +363,7 @@ prob e n d d' = sum $ map prob' [max 0 (d - d')..min d (s - d')]
     prob' c = term d c e * term (s - d') (d' - d + c) e
 
 guess :: Epsilon -> Size -> Int -> Graph -> Index
-guess e n m g = i'
+guess e n m g = i
   where
     ds           = edgeNums n m
     u            = lindiv n m
@@ -372,7 +372,7 @@ guess e n m g = i'
     (d''', _, _) = maximumOn (\d -> prob e n d d')
                    . filter (inRange (0, u*(m-1)))
                    $ [d''-u, d'', d''+u]
-    i'           = d''' `div` u
+    i            = d''' `div` u
 
 simulateSt :: Epsilon -> Size -> Graph -> State StdGen Graph
 simulateSt e n g = do
@@ -414,5 +414,5 @@ main = do
   putStr . unlines $ [show n] ++ map (showG n) gs
   flush
 
---  replicateM_ 100 (answer e n m)
-  replicateM_ 100 (debugAnswer e n m gs)
+  replicateM_ 100 (answer e n m)
+--  replicateM_ 100 (debugAnswer e n m gs)

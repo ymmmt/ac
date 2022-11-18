@@ -120,6 +120,16 @@ arithSeqSum n d a0 = n * a0 + d * n * (n-1) `div` 2
 average :: [Double] -> Double
 average xs = sum xs / fromIntegral (length xs)
 
+fact :: Int -> Integer
+fact n
+  | n <= 1    = 1
+  | otherwise = toInteger n * fact (n - 1)
+
+choose :: Int -> Int -> Integer
+choose n k
+  | n < k || n < 0 || k < 0 = 0
+  | otherwise               = fact n `div` fact k `div` fact (n - k)
+
 cut :: Ord a => a -> a -> a -> a
 cut l h | l > h     = undefined
         | otherwise = max l . min h
