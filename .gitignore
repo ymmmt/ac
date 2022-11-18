@@ -12,6 +12,7 @@ dist-newstyle
 *.cabal
 CHANGELOG.md
 Util.hs
+Memoize.hs
 
 util
 util/*
