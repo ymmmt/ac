@@ -83,6 +83,20 @@ maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
 
+type MultiSet a = [(a, Int)]
+
+multiSet :: Ord a => [a] -> MultiSet a
+multiSet = map (pair (head, length)) . group . sort
+
+toList :: MultiSet a -> [a]
+toList = concatMap (\(x, n) -> replicate n x)
+
+groupSeq :: (a -> a -> Bool) -> [a] -> [[a]]
+groupSeq _ []     = []
+groupSeq _ [x]    = [[x]]
+groupSeq f (x:xs) = if f x y then (x:y:ys):yss else [x]:gs
+  where gs@((y:ys):yss) = groupSeq f xs
+
 -- Map
 
 counter :: Ord a => [a] -> Map.Map a Int
