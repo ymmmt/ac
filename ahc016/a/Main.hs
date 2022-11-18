@@ -25,7 +25,7 @@ import Data.Void
 import Data.Word
 import Debug.Trace
 import System.IO
-import System.Random -- random-1.0.1.1
+import System.Random hiding (Finite) -- random-1.0.1.1
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Graph as G
 import qualified Data.Map as Map
@@ -33,6 +33,192 @@ import qualified Data.Ratio as R
 import qualified Data.Vector.Unboxed as UV
 import qualified Data.Vector.Unboxed.Mutable as UMV
 import qualified Numeric as N
+
+-- Data.Function.Memoize
+
+class Memoizable a where
+  memoize :: (a -> v) -> a -> v
+
+memoize2 :: (Memoizable a, Memoizable b) =>
+            (a -> b -> v) -> a -> b -> v
+memoize2 v = memoize (memoize . v)
+
+memoize3 :: (Memoizable a, Memoizable b, Memoizable c) =>
+            (a -> b -> c -> v) -> a -> b -> c -> v
+memoize3 v = memoize (memoize2 . v)
+
+memoize4 :: (Memoizable a, Memoizable b, Memoizable c, Memoizable d) =>
+            (a -> b -> c -> d -> v) -> a -> b -> c -> d -> v
+memoize4 v = memoize (memoize3 . v)
+
+memoize5 :: (Memoizable a, Memoizable b, Memoizable c, Memoizable d,
+             Memoizable e) =>
+            (a -> b -> c -> d -> e -> v) -> a -> b -> c -> d -> e -> v
+memoize5 v = memoize (memoize4 . v)
+
+memoize6 :: (Memoizable a, Memoizable b, Memoizable c, Memoizable d,
+             Memoizable e, Memoizable f) =>
+            (a -> b -> c -> d -> e -> f -> v) ->
+            a -> b -> c -> d -> e -> f -> v
+memoize6 v = memoize (memoize5 . v)
+
+memoize7 :: (Memoizable a, Memoizable b, Memoizable c, Memoizable d,
+             Memoizable e, Memoizable f, Memoizable g) =>
+            (a -> b -> c -> d -> e -> f -> g -> v) ->
+            a -> b -> c -> d -> e -> f -> g -> v
+memoize7 v = memoize (memoize6 . v)
+
+memoFix :: Memoizable a => ((a -> v) -> a -> v) -> a -> v
+memoFix ff = f where f = memoize (ff f)
+
+memoFix2 :: (Memoizable a, Memoizable b) =>
+            ((a -> b -> v) -> a -> b -> v) -> a -> b -> v
+memoFix2 ff = f where f = memoize2 (ff f)
+
+memoFix3 :: (Memoizable a, Memoizable b, Memoizable c) =>
+            ((a -> b -> c -> v) -> a -> b -> c -> v) -> a -> b -> c -> v
+memoFix3 ff = f where f = memoize3 (ff f)
+
+memoFix4 :: (Memoizable a, Memoizable b, Memoizable c, Memoizable d) =>
+            ((a -> b -> c -> d -> v) -> (a -> b -> c -> d -> v)) ->
+            a -> b -> c -> d -> v
+memoFix4 ff = f where f = memoize4 (ff f)
+
+memoFix5 :: (Memoizable a, Memoizable b, Memoizable c, Memoizable d,
+             Memoizable e) =>
+            ((a -> b -> c -> d -> e -> v) -> (a -> b -> c -> d -> e -> v)) ->
+            a -> b -> c -> d -> e -> v
+memoFix5 ff = f where f = memoize5 (ff f)
+
+memoFix6 :: (Memoizable a, Memoizable b, Memoizable c, Memoizable d,
+             Memoizable e, Memoizable f) =>
+            ((a -> b -> c -> d -> e -> f -> v) -> (a -> b -> c -> d -> e -> f -> v)) ->
+            a -> b -> c -> d -> e -> f -> v
+memoFix6 ff = f where f = memoize6 (ff f)
+
+memoFix7 :: (Memoizable a, Memoizable b, Memoizable c, Memoizable d,
+             Memoizable e, Memoizable f, Memoizable g) =>
+            ((a -> b -> c -> d -> e -> f -> g -> v) -> (a -> b -> c -> d -> e -> f -> g -> v)) ->
+            a -> b -> c -> d -> e -> f -> g -> v
+memoFix7 ff = f where f = memoize7 (ff f)
+
+traceMemoize :: (Memoizable a, Show a) => (a -> b) -> a -> b
+traceMemoize f = memoize (\a -> traceShow a (f a))
+
+data BinaryTreeCache v = BinaryTreeCache {
+  btValue         :: v,
+  btLeft, btRight :: BinaryTreeCache v
+  }
+  deriving Functor
+
+newtype Finite a = ToFinite { fromFinite :: a }
+  deriving (Eq, Bounded, Enum)
+
+instance (Bounded a, Enum a) => Memoizable (Finite a) where
+  memoize f = finiteLookup (f <$> theFinites)
+
+theFinites :: (Bounded a, Enum a) => BinaryTreeCache a
+theFinites = loop minBound maxBound
+  where loop start stop = BinaryTreeCache {
+          btValue = mean,
+          btLeft  = loop start (pred mean),
+          btRight = loop (succ mean) stop
+          }
+          where mean = meanFinite start stop
+
+finiteLookup :: (Bounded a, Enum a) => BinaryTreeCache v -> a -> v
+finiteLookup cache0 a0 = loop start0 stop0 cache0
+  where start0 = fromEnum (minBound `asTypeOf` a0)
+        stop0  = fromEnum (maxBound `asTypeOf` a0)
+        a      = fromEnum a0
+        loop start stop cache =
+          let mean = meanFinite start stop in
+            case a `compare` mean of
+              EQ -> btValue cache
+              LT -> loop start (pred mean) (btLeft cache)
+              GT -> loop (succ mean) stop (btRight cache)
+
+meanFinite :: (Bounded a, Enum a) => a -> a -> a
+meanFinite a b = toEnum (ia `div` 2 + ib `div` 2 +
+                          if odd ia && odd ib then 1 else 0)
+  where ia = fromEnum a
+        ib = fromEnum b
+
+memoizeFinite :: (Enum a, Bounded a) => (a -> v) -> a -> v
+memoizeFinite f = memoize (f . fromFinite) . ToFinite
+
+instance Memoizable Int    where memoize = memoizeFinite
+instance Memoizable Char   where memoize = memoizeFinite
+instance Memoizable Word   where memoize = memoizeFinite
+instance Memoizable Word8  where memoize = memoizeFinite
+instance Memoizable Word16 where memoize = memoizeFinite
+instance Memoizable Word32 where memoize = memoizeFinite
+instance Memoizable Word64 where memoize = memoizeFinite
+
+-- deriveMemoizable ''()
+-- deriveMemoizable ''Bool
+-- deriveMemoizable ''Ordering
+-- deriveMemoizable ''Maybe
+-- deriveMemoizable ''Either
+-- deriveMemoizable ''[]
+-- deriveMemoizable ''Complex.Complex
+-- deriveMemoizable ''Version.Version
+
+-- deriveMemoizable ''Tuple.Solo
+
+-- deriveMemoizable ''(,)
+-- deriveMemoizable ''(,,)
+-- deriveMemoizable ''(,,,)
+-- deriveMemoizable ''(,,,,)
+-- deriveMemoizable ''(,,,,,)
+-- deriveMemoizable ''(,,,,,,)
+-- deriveMemoizable ''(,,,,,,,)
+-- deriveMemoizable ''(,,,,,,,,)
+-- deriveMemoizable ''(,,,,,,,,,)
+-- deriveMemoizable ''(,,,,,,,,,,)
+-- deriveMemoizable ''(,,,,,,,,,,,)
+
+encodeInteger :: Integer -> [Int]
+encodeInteger 0 = []
+encodeInteger i | minInt <= i && i <= maxInt
+                = [fromInteger i]
+encodeInteger i = fromInteger (i .&. maxInt) : encodeInteger (i `shiftR` intBits)
+
+decodeInteger :: [Int] -> Integer
+decodeInteger = foldr op 0
+  where op i i' = fromIntegral i .|. i' `shiftL` intBits
+
+intBits :: Int
+intBits = finiteBitSize (0 :: Int) - 1
+
+minInt, maxInt :: Integer
+minInt = fromIntegral (minBound :: Int)
+maxInt = fromIntegral (maxBound :: Int)
+
+instance (Eq a, Bounded a, Enum a, Memoizable b) => Memoizable (a -> b) where
+  memoize = functionLookup . theFunctions
+
+functionLookup :: (Eq a, Bounded a, Enum a, Memoizable b) =>
+                  FunctionCache b v -> (a -> b) -> v
+functionLookup cache f =
+  fcNil (foldl fcCons cache (f <$> [minBound .. maxBound]))
+
+theFunctions :: (Eq a, Bounded a, Enum a, Memoizable b) =>
+                ((a -> b) -> v) -> FunctionCache b v
+theFunctions f = FunctionCache {
+  fcNil  = f undefined,
+  fcCons = memoize (\b -> theFunctions (f . extend b))
+  }
+  where extend b g a | a == minBound = b
+                     | otherwise     = g (pred a)
+
+data FunctionCache b v
+  = FunctionCache {
+      fcNil  :: v,
+      fcCons :: b -> FunctionCache b v
+    }
+
+--
 
 getWords :: IO [String]
 getWords = words <$> getLine
@@ -76,17 +262,50 @@ minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx <= ky then u else v
 
+maximumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
+maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
+  where step u@(_, kx, _) v@(_, ky, _) =
+          if kx >= ky then u else v
+
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
 
-type Graph   = Array (Index, Index) Bool
-type Size    = Int
-type Degree  = Int
-type Edge    = (Index, Index)
-type Index   = Int
+type IFactors = [Int]
+type DFactors = [Double]
 
-type Epsilon = Double
-type Feature = Double
+fact :: Int -> IFactors
+fact n = [1..n]
+
+fact' = memoize fact
+
+choose :: Int -> Int -> (IFactors, IFactors)
+choose n k = (fact n, fact k ++ fact (n - k))
+
+choose' = memoize2 choose
+
+power :: Double -> Int -> DFactors
+power x d = replicate d x
+
+-- compute (choose n k * x^k * fac(1-x)^(n-k))
+term :: Int -> Int -> Double -> Double
+term n k x
+  | n < k || n < 0 || k < 0 || x == 0 = 0
+  | otherwise = product $ zipWith3 f ps qs xs
+  where
+    (ps, qs) = choose n k
+    xs       = power x k ++ power (1-x) (n-k)
+    f p q x  = p' * x / q'
+      where p' = fromIntegral p
+            q' = fromIntegral q
+
+type Graph    = Array (Index, Index) Bool
+type Size     = Int
+type Degree   = Int
+type Edge     = (Index, Index)
+type Index    = Int
+
+type Epsilon  = Double
+type NumEdges = Int
 
 charB :: Bool -> Char
 charB True  = '1'
@@ -107,41 +326,53 @@ parseG n s = accumArray (||) False ((0, 0), (n-1, n-1))
 edges :: Size -> [Edge]
 edges n = [(i, j) | i <- [0..n-2], j <- [i+1..n-1]]
 
-kEdgeG :: Size -> Int -> Graph
+kEdgeG :: Size -> NumEdges -> Graph
 kEdgeG n k = accumArray (||) False ((0, 0), (n-1, n-1))
              $ zip (edges n) (replicate k True ++ repeat False)
 
-cliqueEdges :: Size -> Degree -> [Edge]
-cliqueEdges _ 0 = []
-cliqueEdges n d = [(i, j) | i <- [0..d-2], j <- [i+1..d-1]]
+lindiv :: Size -> Int -> Int
+lindiv n m = n * (n-1) `div` 2 `div` m
 
-cliqueG :: Size -> Degree -> Graph
-cliqueG n d = accumArray (||) False ((0, 0), (n-1, n-1))
-              $ zip (cliqueEdges n d) (repeat True)
+edgeNums :: Size -> Int -> [NumEdges]
+edgeNums n m = [0, u..u*(m-1)]
+  where u = lindiv n m
 
 solve :: Int -> Epsilon -> (Size, [Graph])
 solve m e = (n, gs)
   where n  = 100
-        d  = n `div` m
-        gs = map (cliqueG n) [0, d..d*(m-1)]
+        gs = map (kEdgeG n) $ edgeNums n m
 
-feature :: Graph -> Feature
-feature = fromIntegral . length . filter id . elems
+numEdges :: Graph -> NumEdges
+numEdges = fromIntegral . length . filter id . elems
 
 -- サイズn、辺数kのグラフが確率eでランダム変異したときの辺数の期待値
-expectedEdges :: Epsilon -> Size -> Graph -> Feature
-expectedEdges e n g = k * (1 - 2 * e) + n' * (n' - 1) * e / 2
+eNumEdges :: Epsilon -> Size -> NumEdges -> Double
+eNumEdges e n k = k' * (1 - 2 * e) + n' * (n' - 1) * e / 2
   where n' = fromIntegral n
-        k  = feature g
+        k' = fromIntegral k
 
 dist :: Double -> Double -> Double
 dist x y = abs (x - y)
 
-guess :: Epsilon -> Size -> Int -> Graph -> [[Feature]] -> Index
-guess e n m g fss = i
-  where (_, _, i)  = minimumOn minDist fss
-        fg         = feature g
-        minDist fs = minimum $ map (dist fg) fs
+-- 辺数dのグラフが辺数d'のグラフにランダム変異する確率
+prob :: Epsilon -> Size -> NumEdges -> NumEdges -> Probability
+prob e n d d' = sum $ map prob' [max 0 (d - d')..min d (s - d')]
+  where
+    -- 元のグラフのd本の辺のうちc本が無くなる確率
+    s       = n * (n - 1) `div` 2
+    prob' c = term d c e * term (s - d') (d' - d + c) e
+
+guess :: Epsilon -> Size -> Int -> Graph -> Index
+guess e n m g = i'
+  where
+    ds           = edgeNums n m
+    u            = lindiv n m
+    d'           = numEdges g
+    (d'', _, _)  = minimumOn (\d -> dist (fromIntegral d') (eNumEdges e n d)) ds
+    (d''', _, _) = maximumOn (\d -> prob e n d d')
+                   . filter (inRange (0, u*(m-1)))
+                   $ [d''-u, d'', d''+u]
+    i'           = d''' `div` u
 
 simulateSt :: Epsilon -> Size -> Graph -> State StdGen Graph
 simulateSt e n g = do
@@ -161,23 +392,17 @@ simulateSt' e n g = do
   let g' = accum xor g $ zip es bs
   return g'
 
-simulateCount :: Int
-simulateCount = 10
-
-randomGsSt :: Epsilon -> Size -> Graph -> State StdGen [Graph]
-randomGsSt e n g = replicateM simulateCount $ simulateSt' e n g
-
-answer :: Epsilon -> Size -> Int -> [[Feature]] -> IO ()
-answer e n m fss = do
+answer :: Epsilon -> Size -> Int -> IO ()
+answer e n m = do
   g <- (parseG n) <$> getLine
-  print $ guess e n m g fss
+  print $ guess e n m g
   flush
 
-debugAnswer :: Epsilon -> Size -> Int -> [Graph] -> [[Feature]] -> IO ()
-debugAnswer e n m gs fss = do
+debugAnswer :: Epsilon -> Size -> Int -> [Graph] -> IO ()
+debugAnswer e n m gs = do
   i      <- readInt
   (g, _) <- runState (simulateSt e n (gs!!i)) <$> newStdGen
-  print $ guess e n m g fss
+  print $ guess e n m g
   flush
 
 main :: IO ()
@@ -189,8 +414,5 @@ main = do
   putStr . unlines $ [show n] ++ map (showG n) gs
   flush
 
-  s <- newStdGen
-  let (gss, _) = runState (mapM (randomGsSt e n) gs) s
-      fss      = map (map feature) gss
-  replicateM_ 100 (answer e n m fss)
---  replicateM_ 100 (debugAnswer e n m gs fss)
+--  replicateM_ 100 (answer e n m)
+  replicateM_ 100 (debugAnswer e n m gs)
