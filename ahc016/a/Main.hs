@@ -76,6 +76,9 @@ minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx <= ky then u else v
 
+count :: (a -> Bool) -> [a] -> Int
+count p = length . filter p
+
 type Graph   = Array (Index, Index) Bool
 type Size    = Int
 type Degree  = Int
@@ -108,14 +111,19 @@ kEdgeG :: Size -> Int -> Graph
 kEdgeG n k = accumArray (||) False ((0, 0), (n-1, n-1))
              $ zip (edges n) (replicate k True ++ repeat False)
 
-lindiv :: Size -> Int -> Int
-lindiv n m = n * (n-1) `div` 2 `div` m
+cliqueEdges :: Size -> Degree -> [Edge]
+cliqueEdges _ 0 = []
+cliqueEdges n d = [(i, j) | i <- [0..d-2], j <- [i+1..d-1]]
+
+cliqueG :: Size -> Degree -> Graph
+cliqueG n d = accumArray (||) False ((0, 0), (n-1, n-1))
+              $ zip (cliqueEdges n d) (repeat True)
 
 solve :: Int -> Epsilon -> (Size, [Graph])
 solve m e = (n, gs)
   where n  = 100
-        d  = lindiv n m
-        gs = map (kEdgeG n) [0, d..d*(m-1)]
+        d  = n `div` m
+        gs = map (cliqueG n) [0, d..d*(m-1)]
 
 feature :: Graph -> Feature
 feature = fromIntegral . length . filter id . elems
@@ -150,7 +158,7 @@ simulateSt' :: Epsilon -> Size -> Graph -> State StdGen Graph
 simulateSt' e n g = do
   let es = edges n
   bs  <- replicateM (n * (n-1) `div` 2) $ judgeSt e
-  let g'  = accum xor g $ zip es bs
+  let g' = accum xor g $ zip es bs
   return g'
 
 simulateCount :: Int
