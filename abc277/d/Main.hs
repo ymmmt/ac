@@ -62,11 +62,12 @@ groupSeq f (x:xs) = if f x y then (x:y:ys):yss else [x]:gs
   where gs@((y:ys):yss) = groupSeq f xs
 
 maxDiscard :: Int -> Int -> MultiSet Int -> Int
-maxDiscard n m xs = if length ss == 1
+maxDiscard n m xs = if null $ tail ss
                     then head ss `div` 2
                     else maximum ss
-  where isSeq (x, _) (y, _) = (x + 1) `mod` m == y
-        ss                  = map (sum . toList) $ groupSeq isSeq xs
+  where
+    isSeq (x, _) (y, _) = (x + 1) `mod` m == y
+    ss                  = map (sum . toList) $ groupSeq isSeq xs
 
 solve :: Int -> Int -> [Int] -> Int
 solve n m as = sum as - (maxDiscard n m $ xs ++ xs)
