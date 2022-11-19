@@ -49,8 +49,14 @@ encodeEdges w = map (cross (encode w, encode w))
 
 -- List
 
+sg :: Ord a => [a] -> [[a]]
+sg = group . sort
+
+allUnique :: Ord a => [a] -> Bool
+allUnique = all (null . tail) . sg
+
 sortUniq :: Ord a => [a] -> [a]
-sortUniq = map head . group . sort
+sortUniq = map head . sg
 
 coordComp :: Ord a => Int -> [a] -> Map.Map Int a
 coordComp i0 = Map.fromAscList . zip [i0..] . sortUniq
