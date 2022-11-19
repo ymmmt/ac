@@ -114,6 +114,18 @@ cross (f, g) = pair (f . fst, g . snd)
 fork :: (a -> b) -> (a, a) -> (b, b)
 fork f (x, y) = (f x, f y)
 
+-- Graph
+
+buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
+buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
+
+bothEnds :: G.Graph -> G.Vertex -> (G.Vertex, G.Vertex)
+bothEnds g s = (l, r)
+  where t  = head $ G.dfs g [s]
+        l  = head . last $ T.levels t
+        t' = head $ G.dfs g [l]
+        r  = head . last $ T.levels t'
+
 -- Math
 
 -- Use fromEnum instead.
