@@ -166,6 +166,12 @@ cut :: Ord a => a -> a -> a -> a
 cut l h | l > h     = undefined
         | otherwise = max l . min h
 
+hyperFloor :: Int -> Int
+hyperFloor x = 2 ^ (floor . logBase 2 $ fromIntegral x)
+
+hyperCeiling :: Int -> Int
+hyperCeiling x = 2 ^ (ceiling . logBase 2 $ fromIntegral x)
+
 mod' :: Integral a => a -> a -> a
 mod' k n
   | m < 0 = m + n
