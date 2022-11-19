@@ -270,6 +270,10 @@ maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
 
+d2 :: [Double] -> [Double] -> Double
+d2 xs ys = sum $ zipWith d2' xs ys
+  where d2' x y = (x - y) ** 2
+
 type IFactors = [Int]
 type DFactors = [Double]
 
@@ -326,6 +330,10 @@ parseG n s = accumArray (||) False ((0, 0), (n-1, n-1))
 edges :: Size -> [Edge]
 edges n = [(i, j) | i <- [0..n-2], j <- [i+1..n-1]]
 
+degrees :: Size -> Graph -> [Degree]
+degrees n g = sort $ map deg [0..n-1]
+  where deg i = count (g!) [(min i j, max i j) | j <- [0..n-1], j /= i]
+
 kEdgeG :: Size -> NumEdges -> Graph
 kEdgeG n k = accumArray (||) False ((0, 0), (n-1, n-1))
              $ zip (edges n) (replicate k True ++ repeat False)
@@ -339,7 +347,7 @@ edgeNums n m = [0, u..u*(m-1)]
 
 solve :: Int -> Epsilon -> (Size, [Graph])
 solve m e = (n, gs)
-  where n  = 50
+  where n  = 100
         gs = map (kEdgeG n) $ edgeNums n m
 
 numEdges :: Graph -> NumEdges
@@ -368,11 +376,11 @@ guess e n m g = i
     ds           = edgeNums n m
     u            = lindiv n m
     d'           = numEdges g
-    (d'', _, _)  = minimumOn (\d -> dist (fromIntegral d') (eNumEdges e n d)) ds
+    (d'', _, i)  = minimumOn (\d -> dist (fromIntegral d') (eNumEdges e n d)) ds
     (d''', _, _) = maximumOn (\d -> prob e n d d')
                    . filter (inRange (0, u*(m-1)))
                    $ [d''-u, d'', d''+u]
-    i            = d''' `div` u
+    i'           = d''' `div` u
 
 simulateSt :: Epsilon -> Size -> Graph -> State StdGen Graph
 simulateSt e n g = do
