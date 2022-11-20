@@ -171,7 +171,7 @@ redCount = 75
 randomExpectedDegreesSt :: Epsilon -> Size -> [Graph] -> State StdGen [[[Double]]]
 randomExpectedDegreesSt e n gs = mapM degs $ map exps gs
   where exps = map (expectedDegree e n) . (degrees n)
-        degs = replicateM redCount . shuffleSt
+        degs es = replicateM redCount (shuffleSt es) >>= return . (es:)
 
 answer :: Size -> [[[Double]]] -> IO ()
 answer n esss = do
