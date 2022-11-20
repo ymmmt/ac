@@ -4,7 +4,8 @@
 TAGS
 *.hi
 *.o
-Main
+Main*
+!Main.hs
 *.dyn_hi
 *.dyn_o
 app
