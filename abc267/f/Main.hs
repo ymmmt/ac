@@ -233,7 +233,13 @@ readTuples :: Int -> IO [(Int, Int)]
 readTuples n = replicateM n (t <$> readIntList)
   where t [x, y] = (x, y)
 
+maximumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
+maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
+  where step u@(_, kx, _) v@(_, ky, _) =
+          if kx >= ky then u else v
+
 type Depth    = Int
+type Height   = Int
 type Distance = Int
 
 buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
@@ -246,6 +252,96 @@ treeEdges (T.Node v ts) = map ((,v) . T.rootLabel) ts ++ concatMap treeEdges ts
 parent :: G.Graph -> G.Vertex -> Array G.Vertex G.Vertex
 parent g r = array (bounds g) $ treeEdges t
   where t = head $ G.dfs g [r]
+
+-- Micro nodes
+
+type TreeShape = [Bool]
+
+valid :: TreeShape -> Bool
+valid [] = True
+valid bs = all (>= 0) cs && last cs == 0
+  where cs          = scanl1 count bs
+        count acc b = acc + (if b then 1 else (-1))
+
+treeShapes :: Int -> [TreeShape]
+treeShapes n
+  | n <= 1    = [[]]
+  | otherwise = concatMap f [1..n-1]
+  where f k = do
+          s  <- treeShapes k
+          s' <- treeShapes (n-k)
+          return $ (True:s) ++ (False:s')
+
+-- treeShapes :: Int -> [TreeShape]
+-- treeShapes = memoFix $ \shapes n ->
+--   let f k = do
+--         s <- shapes k
+--         t <- shapes (n-k)
+--         return $ (True:s) ++ (False:t)
+--   in if n <= 1 then [[]]
+--      else concatMap f [1..n-1]
+
+treeShape :: T.Tree a -> TreeShape
+treeShape (T.Node _ ts) = foldr step [] ts
+  where step t bs = True:(treeShape t) ++ (False:bs)
+
+encode :: TreeShape -> Int
+encode = foldl' step 0
+  where step acc b = acc * 10 + fromEnum b
+
+decode :: Int -> Maybe TreeShape
+decode x = mapM bool $ showIntAtBase 2 intToDigit x ""
+  where bool '1' = Just True
+        bool '0' = Just False
+        bool _   = Nothing
+
+-- Macro nodes
+
+data Tree a = Node { rootLabel :: a
+                   , subForest :: [Tree a]
+                   , depth     :: Depth
+                   , height    :: Height }
+
+type LongPath a = [Tree a]
+data Ladder     = Ladder { depth    :: Depth
+                         , vertices :: Array Int G.Vertex }
+
+instance Eq a => Eq (Tree a) where
+  (==) = (==) `on` rootLabel
+
+tree :: T.Tree a -> Tree a
+tree = go 0
+  where
+    go d (T.Node v ts) = Node v ts' d h
+      where h   = 1 + (maximum $ map height ts')
+            ts' = map (go (d+1)) ts
+
+-- Long-path decomposition
+lpd :: Eq a => Tree a -> [LongPath a]
+lpd t@(Node _ [] _ _) = [t]
+lpd t@(Node v ts d h) = ((t:l):ls) ++ concatMap lpd ts'
+  where (t', _, _) = maximumOn height ts
+        ts'        = delete t' ts
+        (l:ls)     = lpd t'
+
+lpdG :: G.Graph -> G.Vertex -> [LongPath G.Vertex]
+lpdG g r = lpd . tree . head $ G.dfs g [r]
+
+-- Ladder decomposition
+ld :: G.Graph -> G.Vertex -> Array G.Vertex Ladder
+ld g r = array (bounds g) $ concatMap (\(vs, l) -> map (,l) vs) vsls
+  where
+    p        = parent g r
+    extend   :: LongPath G.Vertex -> ([G.Vertex], Ladder)
+    extend l = (vs, Ladder d . listArray (0, len-1) $ us ++ vs)
+      where
+        top   = head l
+        par v = if v == r then Nothing else Just (p!v, p!v)
+        us    = take (height top) . unfoldr par $ rootLabel top
+        vs    = map rootLabel l
+        d     = depth top - length us
+        len   = depth top - d + height top
+    vsls     = map extend $ lpdG g r
 
 -- levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
 -- levelAncestor g r = la
@@ -270,17 +366,17 @@ parent g r = array (bounds g) $ treeEdges t
 levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Distance -> Maybe G.Vertex)
 levelAncestor g r = ans
   where
-    t    :: T.Tree G.Vertex
-    t    = head $ G.dfs g [r]
-    parent    :: Array G.Vertex G.Vertex
-    parent    = array (bounds g) $ treeEdges t
-    ls   :: [[G.Vertex]]
-    ls   = T.levels t
-    depth   :: Array G.Vertex Depth
-    depth   = array (bounds g) . concatMap (\(d, vs) -> map (,d) vs) $ zip [0..] ls
-    jump :: G.Vertex -> Int -> G.Vertex
-    jump = memoFix2 (\f v i -> if i == 0 then parent!v
-                               else f (f v (i-1)) (i-1))
+    t      :: T.Tree G.Vertex
+    t      = head $ G.dfs g [r]
+    parent :: Array G.Vertex G.Vertex
+    parent = array (bounds g) $ treeEdges t
+    ls     :: [[G.Vertex]]
+    ls     = T.levels t
+    depth  :: Array G.Vertex Depth
+    depth  = array (bounds g) . concatMap (\(d, vs) -> map (,d) vs) $ zip [0..] ls
+    jump   :: G.Vertex -> Int -> G.Vertex
+    jump   = memoFix2 (\f v i -> if i == 0 then parent!v
+                                 else f (f v (i-1)) (i-1))
     la v d
       | dv < d  = Nothing
       | dv == d = Just v
