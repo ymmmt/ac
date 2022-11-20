@@ -184,5 +184,5 @@ main = do
   s <- newStdGen
   let (gss, _) = runState (mapM (randomGsSt e n) gs) s
       fss      = map (map feature) gss
-  replicateM_ 100 (answer e n m fss)
---  replicateM_ 100 (debugAnswer e n m gs fss)
+--  replicateM_ 100 (answer e n m fss)
+  replicateM_ 100 (debugAnswer e n m gs fss)

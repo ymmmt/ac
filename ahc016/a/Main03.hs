@@ -290,7 +290,7 @@ choose' = memoize2 choose
 power :: Double -> Int -> DFactors
 power x d = replicate d x
 
--- compute (choose n k * x^k * fac(1-x)^(n-k))
+-- compute (choose n k * x^k * (1-x)^(n-k))
 term :: Int -> Int -> Double -> Double
 term n k x
   | n < k || n < 0 || k < 0 || x == 0 = 0
