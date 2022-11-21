@@ -238,12 +238,16 @@ maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx >= ky then u else v
 
+type Size     = Int
 type Depth    = Int
 type Height   = Int
 type Distance = Int
 
 buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
 buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
+
+graphSize :: G.Graph -> Size
+graphSize = rangeSize (bounds g)
 
 -- treeEdges :: T.Tree G.Vertex -> [G.Edge]
 -- treeEdges (T.Node _ []) = []
@@ -263,7 +267,7 @@ buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
 --   where cs          = scanl1 count bs
 --         count acc b = acc + (if b then 1 else (-1))
 
--- treeShapes :: Int -> [TreeShape]
+-- treeShapes :: Size -> [TreeShape]
 -- treeShapes n
 --   | n <= 1    = [[]]
 --   | otherwise = concatMap f [1..n-1]
@@ -272,7 +276,7 @@ buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
 --           s' <- treeShapes (n-k)
 --           return $ (True:s) ++ (False:s')
 
--- -- treeShapes :: Int -> [TreeShape]
+-- -- treeShapes :: Size -> [TreeShape]
 -- -- treeShapes = memoFix $ \shapes n ->
 -- --   let f k = do
 -- --         s <- shapes k
@@ -300,6 +304,7 @@ buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
 data Tree a = Node { rootLabel :: a
                    , subForest :: [Tree a]
                    , parent    :: Maybe (Tree a)
+                   , size      :: Size
                    , depth     :: Depth
                    , height    :: Height }
 
@@ -307,16 +312,25 @@ instance Eq a => Eq (Tree a) where
   (==) = (==) `on` rootLabel
 
 type LongPath a = [Tree a]
-data Ladder     = Ladder { depth    :: Depth
-                         , vertices :: Array Int G.Vertex }
+type Ladder     = Array Depth G.Vertex
 
 rebuild :: T.Tree a -> Tree a
 rebuild = go 0 Nothing
   where
     go d p (T.Node v ts) = n
-      where h   = 1 + (maximum $ map height ts')
-            ts' = map (go (d+1) n) ts
-            n   = Node v ts' (Just p) d h
+      where ts' = map (go (d+1) (Just n)) ts
+            s   = 1 + (sum $ map size ts')
+            h   = 1 + (maximum $ map height ts')
+            n   = Node v ts' p s d h
+
+-- -- Data.Tree.flatten
+-- nodes :: Tree a -> [Tree a]
+-- nodes t = squish t []
+--   where squish t ns = t:foldr squish ns (subForest t)
+
+foldTree :: (a -> [b] -> b) -> Tree a -> b
+foldTree f = go
+  where go (Node v ts _ _ _ _) = f v (map go ts)
 
 dfs :: G.Graph -> G.Vertex -> Tree G.Vertex
 dfs g r = rebuild . head $ G.dfs g [r]
@@ -324,15 +338,13 @@ dfs g r = rebuild . head $ G.dfs g [r]
 -- Long-path decomposition
 lpd :: Eq a => Tree a -> [LongPath a]
 lpd t | null $ subForest t = [t]
-lpd t@(Node v ts _ d h) = ((t:l):ls) ++ concatMap lpd ts'
+lpd t@(Node v ts _ _ d h) = ((t:l):ls) ++ concatMap lpd ts'
   where (t', _, _) = maximumOn height ts
         ts'        = delete t' ts
         (l:ls)     = lpd t'
 
--- lpdG :: G.Graph -> G.Vertex -> [LongPath G.Vertex]
--- lpdG g r = lpd . rebuild . head $ G.dfs g [r]
 extend   :: LongPath G.Vertex -> ([G.Vertex], Ladder)
-extend l = (vs, Ladder d . listArray (0, len-1) . map rootLabel $ ps ++ l)
+extend l = (vs, listArray (d, d+len-1) . map rootLabel $ ps ++ l)
   where
     top   = head l
     par t = (\p -> (p, p)) <$> parent t
@@ -341,24 +353,72 @@ extend l = (vs, Ladder d . listArray (0, len-1) . map rootLabel $ ps ++ l)
     len   = depth top - d + height top
 
 -- Ladder decomposition
-ld :: Tree G.Vertex -> (G.Vertex, G.Vertex) -> Array G.Vertex Ladder
-ld t b = array b . concatMap (\(vs, l) -> map (,l) vs)
-         . map extend $ lpd t
+ld :: Tree G.Vertex -> G.Bounds -> Array G.Vertex Ladder
+ld t b = array b . concatMap (\(vs, l) -> map (,l) vs) . map extend $ lpd t
 
 -- data structure for Level Ancestor Problem
-data LANode = MacroNode Depth JumpNode
-            | MicroNode Depth JumpNode
-type JumpNode = Array Int G.Vertex
+data LANode = MacroNode { depth    :: Depth
+                        , jumpNode :: LANode }
+            | JumpNode  { depth    :: Depth
+                        , jumps    :: Array Int G.Vertex }
+            | MicroNode { depth    :: Depth
+                        , jumpNode :: LANode }
 
-jumpNodes :: Tree G.Vertex -> (G.Vertex, G.Vertex) -> Array G.Vertex LANode
-jumpNodes g b = array b $ map f xs
-  where n = rangeSize b
+-- laNode :: Size -> Tree G.Vertex -> LANode
+-- laNode n (Node v ts p d h)
+--   | h > thr = MacroNode d
+--   | h == thr = JumpNode d
+--   | h < thr = MicroNode d
+--   where thr = microNodeHeightThreshold n
+
+jumps :: Tree G.Vertex -> Array G.Vertex Ladder -> Array Int G.Vertex
+jumps t l = undefined
+
+-- macros :: Tree G.Vertex -> Array G.Vertex Ladder -> [(G.Vertex, LANode)]
+-- macros t l = foldTree (Node v ts p d h) xs
+--           | h == thr = go 
+
+laNodes :: Tree G.Vertex -> G.Bounds -> Array G.Vertex Ladder
+laNodes t b l =
+  where thr = microTreeSizeMax n
+        n = rangeSize b
+        macros :: Tree G.Vertex -> [(G.Vertex, LANodes)]
+        macros (Nodes v ts p s d h)
+          | h > thr = 
+          
+          
+-- laNodes :: Tree G.Vertex -> (G.Vertex, G.Vertex) -> Array G.Vertex Ladder -> Array G.Vertex LANode
+-- laNodes t b l = array b as
+--   where n = rangeSize b
+--         macroNodes :: Tree G.Vertex -> ([(G.Vertex, LANode)], LANode)
+--         macroNodes (Node v ts p d h)
+--           | h > thr = ((v, MacroNode d jn):xs, jn)
+--             where (xs, jn) = 
+          
+findDepth :: Ladder -> Depth -> G.Vertex
+findDepth l d
+  | inRange (bounds l) d = l!d
+
+microTreeSizeMax :: Size -> Size
+microTreeSizeMax n = max 1 . floor $ (logBase 2 n) / 4
 
 levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
 levelAncestor g r = ans
   where
     t = dfs g r
     l = ld t $ bounds g
+    n = laNodes t (bounds g)
+    thr = microNodeHeightThreshold $ graphSize g
+    ans u k = case n!u of
+      MacroNode d (JumpNode d' js)
+        | d < k -> Nothing
+        | otherwise -> let i = floor . logBase 2 $ d' - d + k
+                               v = (js!i)
+                       in Just $ findDepth (l!v) (d - k)
+      MicroNode d (JumpNode d' js)
+        | d < k -> Nothing
+        | d <= thr
+    
 
 -- levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
 -- levelAncestor g r = la
@@ -380,34 +440,34 @@ levelAncestor g r = ans
 --       | otherwise = la (jump v i) d
 --       where i = floor . logBase 2 $ fromIntegral (ds!v - d)
 
-levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Distance -> Maybe G.Vertex)
-levelAncestor g r = ans
-  where
-    t      :: T.Tree G.Vertex
-    t      = head $ G.dfs g [r]
-    parent :: Array G.Vertex G.Vertex
-    parent = array (bounds g) $ treeEdges t
-    ls     :: [[G.Vertex]]
-    ls     = T.levels t
-    depth  :: Array G.Vertex Depth
-    depth  = array (bounds g) . concatMap (\(d, vs) -> map (,d) vs) $ zip [0..] ls
-    jump   :: G.Vertex -> Int -> G.Vertex
-    jump   = memoFix2 (\f v i -> if i == 0 then parent!v
-                                 else f (f v (i-1)) (i-1))
-    la v d
-      | dv < d  = Nothing
-      | dv == d = Just v
-      | otherwise = la (jump v i) d
-      where dv = depth!v
-            i  = floor . logBase 2 $ fromIntegral (dv - d)
-    ans u k
-      | du < k = Nothing
-      | du == k = Just r
-      | otherwise = la u (du - k)
-      where du = depth!u
+-- levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Distance -> Maybe G.Vertex)
+-- levelAncestor g r = ans
+--   where
+--     t      :: T.Tree G.Vertex
+--     t      = head $ G.dfs g [r]
+--     parent :: Array G.Vertex G.Vertex
+--     parent = array (bounds g) $ treeEdges t
+--     ls     :: [[G.Vertex]]
+--     ls     = T.levels t
+--     depth  :: Array G.Vertex Depth
+--     depth  = array (bounds g) . concatMap (\(d, vs) -> map (,d) vs) $ zip [0..] ls
+--     jump   :: G.Vertex -> Int -> G.Vertex
+--     jump   = memoFix2 (\f v i -> if i == 0 then parent!v
+--                                  else f (f v (i-1)) (i-1))
+--     la v d
+--       | dv < d  = Nothing
+--       | dv == d = Just v
+--       | otherwise = la (jump v i) d
+--       where dv = depth!v
+--             i  = floor . logBase 2 $ fromIntegral (dv - d)
+--     ans u k
+--       | du < k = Nothing
+--       | du == k = Just r
+--       | otherwise = la u (du - k)
+--       where du = depth!u
 
 -- https://atcoder.jp/contests/abc267/editorial/4714
-solve :: Int -> [G.Edge] -> [(G.Vertex, Depth)] -> [G.Vertex]
+solve :: Size -> [G.Edge] -> [(G.Vertex, Depth)] -> [G.Vertex]
 solve n abs uks = map ans uks
   where 
     g                = buildUndirectedG (1, n) abs
