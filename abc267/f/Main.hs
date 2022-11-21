@@ -356,6 +356,13 @@ extend l = (vs, listArray (d, d+len-1) . map rootLabel $ ps ++ l)
 ld :: Tree G.Vertex -> G.Bounds -> Array G.Vertex Ladder
 ld t b = array b . concatMap (\(vs, l) -> map (,l) vs) . map extend $ lpd t
 
+findDepth :: Ladder -> Depth -> G.Vertex
+findDepth l d
+  | inRange (bounds l) d = l!d
+
+microTreeSizeMax :: Size -> Size
+microTreeSizeMax n = max 1 . floor $ (logBase 2 n) / 4
+
 -- data structure for Level Ancestor Problem
 data LANode = MacroNode { depth    :: Depth
                         , jumpNode :: LANode }
@@ -378,13 +385,23 @@ jumps t l = undefined
 -- macros t l = foldTree (Node v ts p d h) xs
 --           | h == thr = go 
 
-laNodes :: Tree G.Vertex -> G.Bounds -> Array G.Vertex Ladder
-laNodes t b l =
+laNodes :: Tree G.Vertex -> G.Bounds -> Array G.Vertex LANode
+laNodes t b l = array b $ macros t
   where thr = microTreeSizeMax n
         n = rangeSize b
         macros :: Tree G.Vertex -> [(G.Vertex, LANodes)]
-        macros (Nodes v ts p s d h)
-          | h > thr = 
+        macros t@(Node v [] _ _ d _) = [(v, JumpNode d $ jumps t l)]
+        macros t@(Node v ts _ _ d _)
+          | h > thr   = let j    = case snd x of
+                                     (MacroNode _ j')  -> j'
+                                     j'@(JumpNode _ _) -> j'
+                                     (MicroNode _ _)   -> error "unexpected micro node"
+                            x:xs = concatMap macros ts
+                        in (v, MacroNode d j):x:xs
+          | otherwise = let j = JumpNode d (jumps t l)
+                        in (v, j):concatMap (micros j) ts
+        micros :: LANode -> Tree G.Vertex -> [(G.Vertex, LANodes)]
+        micros j (Node v ts _ _ d _) = (v, MicroNode d j):concatMap (micros j) ts
           
           
 -- laNodes :: Tree G.Vertex -> (G.Vertex, G.Vertex) -> Array G.Vertex Ladder -> Array G.Vertex LANode
@@ -395,12 +412,6 @@ laNodes t b l =
 --           | h > thr = ((v, MacroNode d jn):xs, jn)
 --             where (xs, jn) = 
           
-findDepth :: Ladder -> Depth -> G.Vertex
-findDepth l d
-  | inRange (bounds l) d = l!d
-
-microTreeSizeMax :: Size -> Size
-microTreeSizeMax n = max 1 . floor $ (logBase 2 n) / 4
 
 levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
 levelAncestor g r = ans
