@@ -238,6 +238,9 @@ maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx >= ky then u else v
 
+log2Floor :: Int -> Int
+log2Floor x = floor $ logBase 2 x
+
 type Size     = Int
 type Depth    = Int
 type Height   = Int
@@ -356,34 +359,36 @@ extend l = (vs, listArray (d, d+len-1) . map rootLabel $ ps ++ l)
 ld :: Tree G.Vertex -> G.Bounds -> Array G.Vertex Ladder
 ld t b = array b . concatMap (\(vs, l) -> map (,l) vs) . map extend $ lpd t
 
-findDepth :: Ladder -> Depth -> G.Vertex
+findDepth :: Ladder -> Depth -> Maybe G.Vertex
 findDepth l d
-  | inRange (bounds l) d = l!d
+  | inRange (bounds l) d = Just (l!d)
+  | otherwise            = Nothing
 
 microTreeSizeMax :: Size -> Size
 microTreeSizeMax n = max 1 . floor $ (logBase 2 n) / 4
 
--- data structure for Level Ancestor Problem
 data LANode = MacroNode { depth    :: Depth
                         , jumpNode :: LANode }
             | JumpNode  { depth    :: Depth
                         , jumps    :: Array Int G.Vertex }
-            | MicroNode { depth    :: Depth
+            | MicroNode { parent   :: G.Vertex
+                        , depth    :: Depth
                         , jumpNode :: LANode }
 
--- laNode :: Size -> Tree G.Vertex -> LANode
--- laNode n (Node v ts p d h)
---   | h > thr = MacroNode d
---   | h == thr = JumpNode d
---   | h < thr = MicroNode d
---   where thr = microNodeHeightThreshold n
-
 jumps :: Tree G.Vertex -> Array G.Vertex Ladder -> Array Int G.Vertex
-jumps t l = undefined
-
--- macros :: Tree G.Vertex -> Array G.Vertex Ladder -> [(G.Vertex, LANode)]
--- macros t l = foldTree (Node v ts p d h) xs
---           | h == thr = go 
+jumps t lad
+  | depth t == 0 = error "root node is jump node"
+  | otherwise = listArray (0, n-1) vs
+  where n = length vs
+        d = depth t - 1
+        v = fromJust $ parent t
+        vs = v:jumps' 1 (lad!v)
+        jumps' :: Distance -> Ladder -> [G.Vertex]
+        jumps' k l
+          | d - k < 0 = []
+          | inRange (bounds l) (d - k) = (l!(d - k)):jumps' (2*k) l
+          | otherwise = jumps' k $ lad!(l!d0)
+          where d0 = fst $ bounds l
 
 laNodes :: Tree G.Vertex -> G.Bounds -> Array G.Vertex LANode
 laNodes t b l = array b $ macros t
@@ -401,17 +406,11 @@ laNodes t b l = array b $ macros t
           | otherwise = let j = JumpNode d (jumps t l)
                         in (v, j):concatMap (micros j) ts
         micros :: LANode -> Tree G.Vertex -> [(G.Vertex, LANodes)]
-        micros j (Node v ts _ _ d _) = (v, MicroNode d j):concatMap (micros j) ts
-          
-          
--- laNodes :: Tree G.Vertex -> (G.Vertex, G.Vertex) -> Array G.Vertex Ladder -> Array G.Vertex LANode
--- laNodes t b l = array b as
---   where n = rangeSize b
---         macroNodes :: Tree G.Vertex -> ([(G.Vertex, LANode)], LANode)
---         macroNodes (Node v ts p d h)
---           | h > thr = ((v, MacroNode d jn):xs, jn)
---             where (xs, jn) = 
-          
+        micros j (Node v ts (Just p) _ d _) = (v, MicroNode (rootLabel p) d j):concatMap (micros j) ts
+
+nthParent :: LANode -> Array G.Vertex LANode -> Distance -> G.Vertex
+nthParent m@(MicroNode p _ _) _ 1 = p
+nthParent m@(MicroNode p _ _) n k = nthParent (n!p) n (k - 1)
 
 levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
 levelAncestor g r = ans
@@ -422,13 +421,19 @@ levelAncestor g r = ans
     thr = microNodeHeightThreshold $ graphSize g
     ans u k = case n!u of
       MacroNode d (JumpNode d' js)
-        | d < k -> Nothing
-        | otherwise -> let i = floor . logBase 2 $ d' - d + k
-                               v = (js!i)
-                       in Just $ findDepth (l!v) (d - k)
-      MicroNode d (JumpNode d' js)
-        | d < k -> Nothing
-        | d <= thr
+        | d - k < 0 -> Nothing
+        | otherwise -> let i = log2Floor $ d' - (d - k)
+                           v = js!i
+                       in findDepth (l!v) (d - k)
+      JumpNode d js -> let i = log2Floor k
+                           v = js!i
+                       in findDepth (l!v) (d - k)
+      MicroNode p d (JumpNode d' js)
+        | d - k < 0 -> Nothing
+        | d - k >= d' -> Just $ nthParent m k
+        | otherwise -> let i = log2Floor $ d' - (d - k)
+                           v = js!i
+                       in findDepth (l!v) (d - k)
     
 
 -- levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
@@ -449,7 +454,7 @@ levelAncestor g r = ans
 --       | ds!v < d  = Nothing
 --       | ds!v == d = Just v
 --       | otherwise = la (jump v i) d
---       where i = floor . logBase 2 $ fromIntegral (ds!v - d)
+--       where i = log2Floor $ fromIntegral (ds!v - d)
 
 -- levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Distance -> Maybe G.Vertex)
 -- levelAncestor g r = ans
@@ -470,7 +475,7 @@ levelAncestor g r = ans
 --       | dv == d = Just v
 --       | otherwise = la (jump v i) d
 --       where dv = depth!v
---             i  = floor . logBase 2 $ fromIntegral (dv - d)
+--             i  = log2Floor $ fromIntegral (dv - d)
 --     ans u k
 --       | du < k = Nothing
 --       | du == k = Just r
