@@ -32,6 +32,12 @@ readCMatrix h w = do
       colAssocs (i, r) = map (cross ((i,), id)) $ zip [1..w] r
   return $ array ((1, 1), (h, w)) as
 
+printCMatrix :: CMatrix -> IO ()
+printCMatrix m = mapM_ printRow rs
+  where rs         = range . pair (fst . fst, fst . snd) $ bounds m
+        cs         = range . pair (snd . fst, snd . snd) $ bounds m
+        printRow r = mapM_ (putChar . (m!)) [(r, j) | j <- cs] >> putStrLn ""
+
 adjacents :: CMatrix -> Cell -> [Cell]
 adjacents c (i, j)
   | c!(i, j) == '#' = []
