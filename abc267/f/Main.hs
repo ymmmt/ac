@@ -245,103 +245,120 @@ type Distance = Int
 buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
 buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
 
-treeEdges :: T.Tree G.Vertex -> [G.Edge]
-treeEdges (T.Node _ []) = []
-treeEdges (T.Node v ts) = map ((,v) . T.rootLabel) ts ++ concatMap treeEdges ts
+-- treeEdges :: T.Tree G.Vertex -> [G.Edge]
+-- treeEdges (T.Node _ []) = []
+-- treeEdges (T.Node v ts) = map ((,v) . T.rootLabel) ts ++ concatMap treeEdges ts
 
-parent :: G.Graph -> G.Vertex -> Array G.Vertex G.Vertex
-parent g r = array (bounds g) $ treeEdges t
-  where t = head $ G.dfs g [r]
+-- parent :: G.Graph -> G.Vertex -> Array G.Vertex G.Vertex
+-- parent g r = array (bounds g) $ treeEdges t
+--   where t = head $ G.dfs g [r]
 
 -- Micro nodes
 
-type TreeShape = [Bool]
+-- type TreeShape = [Bool]
 
-valid :: TreeShape -> Bool
-valid [] = True
-valid bs = all (>= 0) cs && last cs == 0
-  where cs          = scanl1 count bs
-        count acc b = acc + (if b then 1 else (-1))
-
-treeShapes :: Int -> [TreeShape]
-treeShapes n
-  | n <= 1    = [[]]
-  | otherwise = concatMap f [1..n-1]
-  where f k = do
-          s  <- treeShapes k
-          s' <- treeShapes (n-k)
-          return $ (True:s) ++ (False:s')
+-- valid :: TreeShape -> Bool
+-- valid [] = True
+-- valid bs = all (>= 0) cs && last cs == 0
+--   where cs          = scanl1 count bs
+--         count acc b = acc + (if b then 1 else (-1))
 
 -- treeShapes :: Int -> [TreeShape]
--- treeShapes = memoFix $ \shapes n ->
---   let f k = do
---         s <- shapes k
---         t <- shapes (n-k)
---         return $ (True:s) ++ (False:t)
---   in if n <= 1 then [[]]
---      else concatMap f [1..n-1]
+-- treeShapes n
+--   | n <= 1    = [[]]
+--   | otherwise = concatMap f [1..n-1]
+--   where f k = do
+--           s  <- treeShapes k
+--           s' <- treeShapes (n-k)
+--           return $ (True:s) ++ (False:s')
 
-treeShape :: T.Tree a -> TreeShape
-treeShape (T.Node _ ts) = foldr step [] ts
-  where step t bs = True:(treeShape t) ++ (False:bs)
+-- -- treeShapes :: Int -> [TreeShape]
+-- -- treeShapes = memoFix $ \shapes n ->
+-- --   let f k = do
+-- --         s <- shapes k
+-- --         t <- shapes (n-k)
+-- --         return $ (True:s) ++ (False:t)
+-- --   in if n <= 1 then [[]]
+-- --      else concatMap f [1..n-1]
 
-encode :: TreeShape -> Int
-encode = foldl' step 0
-  where step acc b = acc * 10 + fromEnum b
+-- treeShape :: T.Tree a -> TreeShape
+-- treeShape (T.Node _ ts) = foldr step [] ts
+--   where step t bs = True:(treeShape t) ++ (False:bs)
 
-decode :: Int -> Maybe TreeShape
-decode x = mapM bool $ showIntAtBase 2 intToDigit x ""
-  where bool '1' = Just True
-        bool '0' = Just False
-        bool _   = Nothing
+-- encode :: TreeShape -> Int
+-- encode = foldl' step 0
+--   where step acc b = acc * 10 + fromEnum b
+
+-- decode :: Int -> Maybe TreeShape
+-- decode x = mapM bool $ showIntAtBase 2 intToDigit x ""
+--   where bool '1' = Just True
+--         bool '0' = Just False
+--         bool _   = Nothing
 
 -- Macro nodes
 
 data Tree a = Node { rootLabel :: a
                    , subForest :: [Tree a]
+                   , parent    :: Maybe (Tree a)
                    , depth     :: Depth
                    , height    :: Height }
+
+instance Eq a => Eq (Tree a) where
+  (==) = (==) `on` rootLabel
 
 type LongPath a = [Tree a]
 data Ladder     = Ladder { depth    :: Depth
                          , vertices :: Array Int G.Vertex }
 
-instance Eq a => Eq (Tree a) where
-  (==) = (==) `on` rootLabel
-
-tree :: T.Tree a -> Tree a
-tree = go 0
+rebuild :: T.Tree a -> Tree a
+rebuild = go 0 Nothing
   where
-    go d (T.Node v ts) = Node v ts' d h
+    go d p (T.Node v ts) = n
       where h   = 1 + (maximum $ map height ts')
-            ts' = map (go (d+1)) ts
+            ts' = map (go (d+1) n) ts
+            n   = Node v ts' (Just p) d h
+
+dfs :: G.Graph -> G.Vertex -> Tree G.Vertex
+dfs g r = rebuild . head $ G.dfs g [r]
 
 -- Long-path decomposition
 lpd :: Eq a => Tree a -> [LongPath a]
-lpd t@(Node _ [] _ _) = [t]
-lpd t@(Node v ts d h) = ((t:l):ls) ++ concatMap lpd ts'
+lpd t | null $ subForest t = [t]
+lpd t@(Node v ts _ d h) = ((t:l):ls) ++ concatMap lpd ts'
   where (t', _, _) = maximumOn height ts
         ts'        = delete t' ts
         (l:ls)     = lpd t'
 
-lpdG :: G.Graph -> G.Vertex -> [LongPath G.Vertex]
-lpdG g r = lpd . tree . head $ G.dfs g [r]
+-- lpdG :: G.Graph -> G.Vertex -> [LongPath G.Vertex]
+-- lpdG g r = lpd . rebuild . head $ G.dfs g [r]
+extend   :: LongPath G.Vertex -> ([G.Vertex], Ladder)
+extend l = (vs, Ladder d . listArray (0, len-1) . map rootLabel $ ps ++ l)
+  where
+    top   = head l
+    par t = (\p -> (p, p)) <$> parent t
+    ps    = take (height top) $ unfoldr par top
+    d     = depth top - length ps
+    len   = depth top - d + height top
 
 -- Ladder decomposition
-ld :: G.Graph -> G.Vertex -> Array G.Vertex Ladder
-ld g r = array (bounds g) $ concatMap (\(vs, l) -> map (,l) vs) vsls
+ld :: Tree G.Vertex -> (G.Vertex, G.Vertex) -> Array G.Vertex Ladder
+ld t b = array b . concatMap (\(vs, l) -> map (,l) vs)
+         . map extend $ lpd t
+
+-- data structure for Level Ancestor Problem
+data LANode = MacroNode Depth JumpNode
+            | MicroNode Depth JumpNode
+type JumpNode = Array Int G.Vertex
+
+jumpNodes :: Tree G.Vertex -> (G.Vertex, G.Vertex) -> Array G.Vertex LANode
+jumpNodes g b = array b $ map f xs
+  where n = rangeSize b
+
+levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
+levelAncestor g r = ans
   where
-    p        = parent g r
-    extend   :: LongPath G.Vertex -> ([G.Vertex], Ladder)
-    extend l = (vs, Ladder d . listArray (0, len-1) $ us ++ vs)
-      where
-        top   = head l
-        par v = if v == r then Nothing else Just (p!v, p!v)
-        us    = take (height top) . unfoldr par $ rootLabel top
-        vs    = map rootLabel l
-        d     = depth top - length us
-        len   = depth top - d + height top
-    vsls     = map extend $ lpdG g r
+    t = dfs g r
+    l = ld t $ bounds g
 
 -- levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
 -- levelAncestor g r = la
