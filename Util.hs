@@ -92,6 +92,10 @@ maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx >= ky then u else v
 
+sumOn :: Num a => (b -> a) -> [b] -> a
+sumOn f xs = foldl' step 0 xs
+  where step acc x = acc + f x
+
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
 
