@@ -1,4 +1,4 @@
---{-# OPTIONS_GHC -O2 #-}
+{-# OPTIONS_GHC -O2 #-}
 
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -69,6 +69,8 @@ graphSize :: G.Graph -> Size
 graphSize g = rangeSize (bounds g)
 
 -- Level Ancestor Problem
+-- https://37zigen.com/level-ancestor-problem/
+-- https://www.sciencedirect.com/science/article/pii/S0304397504001173
 
 data Tree a = Node { rootLabel :: a
                    , subForest :: [Tree a]
@@ -85,12 +87,12 @@ type LongPath a = [Tree a]
 type Ladder     = Array Depth G.Vertex
 
 data LANode = MacroNode { _depth    :: Depth
-                        , jumpNode :: LANode }
+                        , jumpNode  :: LANode }
             | JumpNode  { _depth    :: Depth
                         , _jumps    :: Array Int G.Vertex }
             | MicroNode { _parent   :: G.Vertex
                         , _depth    :: Depth
-                        , jumpNode :: LANode }
+                        , jumpNode  :: LANode }
             deriving (Show)
 
 rebuild :: T.Tree a -> Tree a
@@ -158,8 +160,8 @@ jumps t lad
 
 macros :: Tree G.Vertex -> Size -> Array G.Vertex Ladder -> [(G.Vertex, LANode)]
 macros t@(Node v [] _ _ d _) _ l = [(v, JumpNode d $ jumps t l)]
-macros t@(Node v ts _ _ d h) n l
-  | h > thr   = let j    = case snd x of
+macros t@(Node v ts _ s d _) n l
+  | s > thr   = let j    = case snd x of
                              (MacroNode _ j')  -> j'
                              j'@(JumpNode _ _) -> j'
                              (MicroNode _ _ _) -> error "unexpected micro node"
@@ -180,13 +182,12 @@ nthParent :: LANode -> Array G.Vertex LANode -> Distance -> G.Vertex
 nthParent m@(MicroNode p _ _) _ 1 = p
 nthParent m@(MicroNode p _ _) n k = nthParent (n!p) n (k - 1)
 
-levelAncestor :: G.Graph -> G.Vertex -> (G.Vertex -> Depth -> Maybe G.Vertex)
-levelAncestor g r = ans
+levelAncestor :: Tree G.Vertex -> Size -> G.Bounds -> (G.Vertex -> Depth -> Maybe G.Vertex)
+levelAncestor t s b = ans
   where
-    t = dfs g r
-    l = ld t $ bounds g
-    n = laNodes t (bounds g) l
-    thr = microTreeSizeMax $ graphSize g
+    l = ld t b
+    n = laNodes t b l
+    thr = microTreeSizeMax s
     ans u k = case n!u of
       MacroNode d (JumpNode d' js)
         | d - k < 0 -> Nothing
@@ -216,8 +217,8 @@ solve n abs uks = map ans uks
     l          = head . last $ T.levels t
     t'         = head $ G.dfs g [l]
     r          = head . last $ T.levels t'
-    ansL       = levelAncestor g l
-    ansR       = levelAncestor g r
+    ansL       = levelAncestor (rebuild t) n (1, n)
+    ansR       = levelAncestor (rebuild t') n (1, n)
     ans (u, k) = fromMaybe (-1) $ ansL u k <|> ansR u k
 
 main :: IO ()
