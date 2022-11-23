@@ -78,7 +78,11 @@ data Tree a = Node { rootLabel :: a
                    , size      :: Size
                    , depth     :: Depth
                    , height    :: Height }
-              deriving (Show)
+
+instance Show a => Show (Tree a) where
+  show t = "Node {rootLabel = " ++ (show $ rootLabel t) ++ ", subForest = " ++ show (map rootLabel $ subForest t) ++
+           ", parent = " ++ (show $ rootLabel <$> parent t) ++ ", size = " ++ (show $ size t) ++ ", depth = " ++
+           (show $ depth t) ++ ", height = " ++ (show $ height t) ++ "}"
 
 instance Eq a => Eq (Tree a) where
   (==) = (==) `on` rootLabel
