@@ -36,20 +36,6 @@ import qualified Numeric as N
 readInt :: IO Int
 readInt = fst . fromJust . BS.readInt <$> BS.getLine
 
-readIntList :: IO [Int]
-readIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
-
-readIntLists :: Int -> IO [[Int]]
-readIntLists n = replicateM n readIntList
-
-readTuples :: Int -> IO [(Int, Int)]
-readTuples n = replicateM n (t <$> readIntList)
-  where t [x, y] = (x, y)
-
-power :: Int -> Double -> Int
-power x n = floor $ (fromIntegral x) ** n
-
-
 solve :: Int -> Int
 solve n = sum [ n `div` (a * b) - b + 1
               | a <- takeWhile ((<= n) . (^3)) [1..]
