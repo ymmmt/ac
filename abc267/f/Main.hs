@@ -115,19 +115,19 @@ dfs g r = rebuild . head $ G.dfs g [r]
 -- Long-path decomposition
 lpd :: Eq a => Tree a -> [LongPath a]
 lpd t | null $ subForest t = [[t]]
-lpd t@(Node v ts _ _ d h) = ((t:l):ls) ++ concatMap lpd ts'
+lpd t@(Node v ts _ _ d h) = ((t:p):ps) ++ concatMap lpd ts'
   where (t', _, _) = maximumOn height ts
         ts'        = delete t' ts
-        (l:ls)     = lpd t'
+        (p:ps)     = lpd t'
 
 extend   :: LongPath G.Vertex -> ([G.Vertex], Ladder)
-extend l = (vs, listArray (d, d+len-1) . map rootLabel $ ps ++ l)
+extend p = (vs, listArray (d, d+len-1) . map rootLabel $ ts ++ p)
   where
-    vs    = map rootLabel l
-    top   = head l
-    par t = (\p -> (p, p)) <$> parent t
-    ps    = take (height top) $ unfoldr par top
-    d     = depth top - length ps
+    vs    = map rootLabel p
+    top   = head p
+    par t = (\x -> (x, x)) <$> parent t
+    ts    = take (height top) $ unfoldr par top
+    d     = depth top - length ts
     len   = depth top - d + height top
 
 -- Ladder decomposition
@@ -201,9 +201,8 @@ nthParent m@(MicroNode p _ _) n k = nthParent (n!p) n (k - 1)
 levelAncestor :: Tree G.Vertex -> Size -> G.Bounds -> (G.Vertex -> Depth -> Maybe G.Vertex)
 levelAncestor t s b = ans
   where
-    l = ld t b
-    n = laNodes t b l
-    thr = microTreeSizeMax s
+    l       = ld t b
+    n       = laNodes t b l
     ans u k = case n!u of
       MacroNode d (JumpNode d' js)
         | d - k < 0 -> Nothing
