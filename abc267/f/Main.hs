@@ -149,9 +149,9 @@ jumps t lad
   | depth t == 0 = error "root node is jump node"
   | otherwise    = listArray (0, n-1) vs
   where n  = length vs
-        d  = depth t - 1
+        d  = depth t
         v  = rootLabel . fromJust $ parent t
-        vs = v:jumps' 1 (lad!v)
+        vs = jumps' 1 (lad!v)
         jumps' :: Distance -> Ladder -> [G.Vertex]
         jumps' k l
           | d - k < 0                  = []
@@ -198,7 +198,7 @@ laNodes t b l = array b $ macros t (rangeSize b) l
 findDepth :: Ladder -> Depth -> Maybe G.Vertex
 findDepth l d
   | inRange (bounds l) d = Just (l!d)
-  | otherwise            = error "inconsisten ladder"
+  | otherwise            = error "inconsistent ladder"
 
 nthParent :: LANode -> Array G.Vertex LANode -> Distance -> G.Vertex
 nthParent m@(MicroNode p _ _) _ 1 = p
