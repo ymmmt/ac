@@ -100,9 +100,9 @@ rebuild = go 0 Nothing
   where
     go d p (T.Node v []) = Node v [] p 1 d 1
     go d p (T.Node v ts) = n
-      where ts' = map (go (d+1) (Just n)) ts
+      where ts' = sortOn (negate . height) $ map (go (d+1) (Just n)) ts
             s   = 1 + (sum $ map size ts')
-            h   = 1 + (maximum $ map height ts')
+            h   = 1 + (height $ head ts')
             n   = Node v ts' p s d h
 
 foldTree :: (a -> [b] -> b) -> Tree a -> b
@@ -114,11 +114,13 @@ dfs g r = rebuild . head $ G.dfs g [r]
 
 -- Long-path decomposition
 lpd :: Eq a => Tree a -> [LongPath a]
-lpd t | null $ subForest t = [[t]]
-lpd t@(Node v ts _ _ d h) = ((t:p):ps) ++ concatMap lpd ts'
-  where (t', _, _) = maximumOn height ts
-        ts'        = delete t' ts
-        (p:ps)     = lpd t'
+lpd t = lpd' [t] [] []
+  where
+    lpd' [] [] xs = xs
+    lpd' (t@(Node _ ts' _ _ _ _):ts) ps xs =
+      if null ts'
+      then (lpd' ts [] $ (reverse (t:ps):xs))
+      else lpd' (ts' ++ ts) (t:ps) xs
 
 extend   :: LongPath G.Vertex -> ([G.Vertex], Ladder)
 extend p = (vs, listArray (d, d+len-1) . map rootLabel $ ts ++ p)
