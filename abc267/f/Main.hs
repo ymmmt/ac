@@ -132,18 +132,13 @@ extend p = (vs, listArray (d, d+len-1) $ map rootLabel ts ++ vs)
     vs    = map rootLabel p
     top   = head p
     par t = (\x -> (x, x)) <$> parent t
-    ts    = take (height top) $ unfoldr par top
+    ts    = reverse . take (height top) $ unfoldr par top
     d     = depth top - length ts
     len   = depth top - d + height top
 
 -- Ladder decomposition
 ld :: Tree G.Vertex -> G.Bounds -> Array G.Vertex Ladder
 ld t b = array b . concatMap (\(vs, l) -> map (,l) vs) . map extend $ lpd t
-
-findDepth :: Ladder -> Depth -> Maybe G.Vertex
-findDepth l d
-  | inRange (bounds l) d = Just (l!d)
-  | otherwise            = Nothing
 
 microTreeSizeMax :: Size -> Size
 microTreeSizeMax n = max 1 . floor $ (logBase 2 n') / 4
@@ -200,6 +195,11 @@ micros j (Node v ts (Just p) _ d _) = (v, MicroNode (rootLabel p) d j):concatMap
 laNodes :: Tree G.Vertex -> G.Bounds -> Array G.Vertex Ladder -> Array G.Vertex LANode
 laNodes t b l = array b $ macros t (rangeSize b) l
 
+findDepth :: Ladder -> Depth -> Maybe G.Vertex
+findDepth l d
+  | inRange (bounds l) d = Just (l!d)
+  | otherwise            = error "inconsisten ladder"
+
 nthParent :: LANode -> Array G.Vertex LANode -> Distance -> G.Vertex
 nthParent m@(MicroNode p _ _) _ 1 = p
 nthParent m@(MicroNode p _ _) n k = nthParent (n!p) n (k - 1)
@@ -220,7 +220,7 @@ levelAncestor t s b = ans
         | otherwise -> let i = log2Floor k
                            v = js!i
                        in findDepth (l!v) (d - k)
-      m@(MicroNode p d (JumpNode d' js))
+      m@(MicroNode _ d (JumpNode d' js))
         | d - k < 0   -> Nothing
         | d - k >= d' -> Just $ nthParent m n k
         | otherwise   -> let i = log2Floor $ d' - (d - k)
