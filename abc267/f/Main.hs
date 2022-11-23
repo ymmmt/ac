@@ -217,8 +217,8 @@ solve n abs uks = map ans uks
     l          = head . last $ T.levels t
     t'         = head $ G.dfs g [l]
     r          = head . last $ T.levels t'
-    ansL       = levelAncestor (rebuild t) n (1, n)
-    ansR       = levelAncestor (rebuild t') n (1, n)
+    ansL       = levelAncestor (rebuild t') n (1, n)
+    ansR       = levelAncestor (dfs g r) n (1, n)
     ans (u, k) = fromMaybe (-1) $ ansL u k <|> ansR u k
 
 main :: IO ()
