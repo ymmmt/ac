@@ -119,11 +119,11 @@ lpd t = lpd' [t] [] []
     lpd' [] [] xs = xs
     lpd' (t@(Node _ ts' _ _ _ _):ts) ps xs =
       if null ts'
-      then (lpd' ts [] $ (reverse (t:ps):xs))
+      then (lpd' ts [] $ reverse (t:ps):xs)
       else lpd' (ts' ++ ts) (t:ps) xs
 
 extend   :: LongPath G.Vertex -> ([G.Vertex], Ladder)
-extend p = (vs, listArray (d, d+len-1) . map rootLabel $ ts ++ p)
+extend p = (vs, listArray (d, d+len-1) $ map rootLabel ts ++ vs)
   where
     vs    = map rootLabel p
     top   = head p
@@ -148,16 +148,16 @@ microTreeSizeMax n = max 1 . floor $ (logBase 2 n') / 4
 jumps :: Tree G.Vertex -> Array G.Vertex Ladder -> Array Int G.Vertex
 jumps t lad
   | depth t == 0 = error "root node is jump node"
-  | otherwise = listArray (0, n-1) vs
-  where n = length vs
-        d = depth t - 1
-        v = rootLabel . fromJust $ parent t
+  | otherwise    = listArray (0, n-1) vs
+  where n  = length vs
+        d  = depth t - 1
+        v  = rootLabel . fromJust $ parent t
         vs = v:jumps' 1 (lad!v)
         jumps' :: Distance -> Ladder -> [G.Vertex]
         jumps' k l
-          | d - k < 0 = []
+          | d - k < 0                  = []
           | inRange (bounds l) (d - k) = (l!(d - k)):jumps' (2*k) l
-          | otherwise = jumps' k $ lad!(l!d0)
+          | otherwise                  = jumps' k $ lad!(l!d0)
           where d0 = fst $ bounds l
 
 jnFix :: LANode -> Tree G.Vertex -> (G.Vertex, LANode)
@@ -168,13 +168,13 @@ macros :: Tree G.Vertex -> Size -> Array G.Vertex Ladder -> [(G.Vertex, LANode)]
 macros t n l = macros' [t] [] []
   where
     thr = microTreeSizeMax n
-    macros'                          [] [] xs = xs
+    macros' []                          [] xs = xs
     macros' (t@(Node v ts' _ s d _):ts) ps xs
       | s <= thr  = let j = JumpNode d (jumps t l)
                     in macros' ts []
                        $ (v, j):(concatMap (micros j) ts' ++ map (jnFix j) ps ++ xs)
       | otherwise = macros' (ts' ++ ts) (t:ps) xs
-    macros'                          [] ps  _ = error "parents remain"
+    macros' []                          ps  _ = error "parents remain"
 
 -- macros :: Tree G.Vertex -> Size -> Array G.Vertex Ladder -> [(G.Vertex, LANode)]
 -- macros t@(Node v [] _ _ d _) _ l = [(v, JumpNode d $ jumps t l)]
@@ -227,7 +227,7 @@ levelAncestor t s b = ans
 
 -- https://atcoder.jp/contests/abc267/editorial/4714
 solve :: Size -> [G.Edge] -> [(G.Vertex, Depth)] -> [G.Vertex]
-solve n abs uks = map ans uks
+solve n abs = map ans
   where 
     g          = buildUndirectedG (1, n) abs
     t          = head $ G.dfs g [1]
