@@ -29,8 +29,8 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Graph as G
 import qualified Data.Map as Map
 import qualified Data.Ratio as R
-import qualified Data.Vector.Unboxed as UV
-import qualified Data.Vector.Unboxed.Mutable as UMV
+-- import qualified Data.Vector.Unboxed as UV
+-- import qualified Data.Vector.Unboxed.Mutable as UMV
 import qualified Numeric as N
 
 readInt :: IO Int
