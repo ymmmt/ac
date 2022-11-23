@@ -158,19 +158,35 @@ jumps t lad
           | otherwise = jumps' k $ lad!(l!d0)
           where d0 = fst $ bounds l
 
+jnFix :: LANode -> Tree G.Vertex -> (G.Vertex, LANode)
+jnFix j@(JumpNode _ _) t = (rootLabel t, MacroNode (depth t) j)
+jnFix _ _ = error "LANode is not JumpNode"
+
 macros :: Tree G.Vertex -> Size -> Array G.Vertex Ladder -> [(G.Vertex, LANode)]
-macros t@(Node v [] _ _ d _) _ l = [(v, JumpNode d $ jumps t l)]
-macros t@(Node v ts _ s d _) n l
-  | s > thr   = let j    = case snd x of
-                             (MacroNode _ j')  -> j'
-                             j'@(JumpNode _ _) -> j'
-                             (MicroNode _ _ _) -> error "unexpected micro node"
-                    x:xs = concatMap macros' ts
-                in (v, MacroNode d j):x:xs
-  | otherwise = let j = JumpNode d (jumps t l)
-                in (v, j):concatMap (micros j) ts
-  where thr        = microTreeSizeMax n
-        macros' t' = macros t' n l
+macros t n l = macros' [t] [] []
+  where
+    thr = microTreeSizeMax n
+    macros'                          [] [] xs = xs
+    macros' (t@(Node v ts' _ s d _):ts) ps xs
+      | s <= thr  = let j = JumpNode d (jumps t l)
+                    in macros' ts []
+                       $ (v, j):(concatMap (micros j) ts' ++ map (jnFix j) ps ++ xs)
+      | otherwise = macros' (ts' ++ ts) (t:ps) xs
+    macros'                          [] ps  _ = error "parents remain"
+
+-- macros :: Tree G.Vertex -> Size -> Array G.Vertex Ladder -> [(G.Vertex, LANode)]
+-- macros t@(Node v [] _ _ d _) _ l = [(v, JumpNode d $ jumps t l)]
+-- macros t@(Node v ts _ s d _) n l
+--   | s > thr   = let j    = case snd x of
+--                              (MacroNode _ j')  -> j'
+--                              j'@(JumpNode _ _) -> j'
+--                              (MicroNode _ _ _) -> error "unexpected micro node"
+--                     x:xs = concatMap macros' ts
+--                 in (v, MacroNode d j):x:xs
+--   | otherwise = let j = JumpNode d (jumps t l)
+--                 in (v, j):concatMap (micros j) ts
+--   where thr        = microTreeSizeMax n
+--         macros' t' = macros t' n l
                    
 micros :: LANode -> Tree G.Vertex -> [(G.Vertex, LANode)]
 micros j (Node v ts (Just p) _ d _) = (v, MicroNode (rootLabel p) d j):concatMap (micros j) ts
