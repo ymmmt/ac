@@ -91,12 +91,12 @@ instance Eq a => Eq (Tree a) where
   (==) = (==) `on` rootLabel
 
 type LongPath a = [Tree a]
-type Ladder     = Array Depth G.Vertex
+type Ladder     = UA.UArray Depth G.Vertex
 
 data LANode = MacroNode { _depth    :: Depth
                         , jumpNode  :: LANode }
             | JumpNode  { _depth    :: Depth
-                        , _jumps    :: Array Int G.Vertex }
+                        , _jumps    :: UA.UArray Int G.Vertex }
             | MicroNode { _parent   :: G.Vertex
                         , _depth    :: Depth
                         , jumpNode  :: LANode }
@@ -126,7 +126,7 @@ lpd t = lpd' [t] [] []
       else lpd' (ts' ++ ts) (t:ps) xs
 
 extend   :: LongPath G.Vertex -> ([G.Vertex], Ladder)
-extend p = (vs, listArray (d, d+len-1) $ map rootLabel ts ++ vs)
+extend p = (vs, UA.listArray (d, d+len-1) $ map rootLabel ts ++ vs)
   where
     vs    = map rootLabel p
     top   = head p
@@ -143,20 +143,20 @@ microTreeSizeMax :: Size -> Size
 microTreeSizeMax n = max 1 . floor $ (logBase 2 n') / 4
   where n' = fromIntegral n
 
-jumps :: Tree G.Vertex -> Array G.Vertex Ladder -> Array Int G.Vertex
+jumps :: Tree G.Vertex -> Array G.Vertex Ladder -> UA.UArray Int G.Vertex
 jumps t lad
   | depth t == 0 = error "root node is jump node"
-  | otherwise    = listArray (0, n-1) vs
+  | otherwise    = UA.listArray (0, n-1) vs
   where n  = length vs
         d  = depth t
         v  = rootLabel . fromJust $ parent t
         vs = jumps' 1 (lad!v)
         jumps' :: Distance -> Ladder -> [G.Vertex]
         jumps' k l
-          | d - k < 0                  = []
-          | inRange (bounds l) (d - k) = (l!(d - k)):jumps' (2*k) l
-          | otherwise                  = jumps' k $ lad!(l!d0)
-          where d0 = fst $ bounds l
+          | d - k < 0                     = []
+          | inRange (UA.bounds l) (d - k) = (l UA.! (d - k)):jumps' (2*k) l
+          | otherwise                     = jumps' k $ lad!(l UA.! d0)
+          where d0 = fst $ UA.bounds l
 
 jnFix :: LANode -> Tree G.Vertex -> (G.Vertex, LANode)
 jnFix j@(JumpNode _ _) t = (rootLabel t, MacroNode (depth t) j)
@@ -196,7 +196,7 @@ laNodes t b l = array b $ macros t (rangeSize b) l
 
 findDepth :: Ladder -> Depth -> Maybe G.Vertex
 findDepth l d
-  | inRange (bounds l) d = Just (l!d)
+  | inRange (UA.bounds l) d = Just (l UA.! d)
   | otherwise            = error "inconsistent ladder"
 
 nthParent :: LANode -> Array G.Vertex LANode -> Distance -> G.Vertex
@@ -212,18 +212,18 @@ levelAncestor t s b = ans
       MacroNode d (JumpNode d' js)
         | d - k < 0   -> Nothing
         | otherwise   -> let i = log2Floor $ d' - (d - k)
-                             v = js!i
+                             v = js UA.! i
                          in findDepth (l!v) (d - k)
       JumpNode d js
         | d - k < 0   -> Nothing
         | otherwise   -> let i = log2Floor k
-                             v = js!i
+                             v = js UA.! i
                          in findDepth (l!v) (d - k)
       m@(MicroNode _ d (JumpNode d' js))
         | d - k < 0   -> Nothing
         | d - k >= d' -> Just $ nthParent m n k
         | otherwise   -> let i = log2Floor $ d' - (d - k)
-                             v = js!i
+                             v = js UA.! i
                          in findDepth (l!v) (d - k)
 
 --
