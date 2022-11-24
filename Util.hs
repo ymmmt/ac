@@ -142,6 +142,11 @@ bothEnds g s = (l, r)
         t' = head $ G.dfs g [l]
         r  = head . last $ T.levels t'
 
+findDeepest :: G.Graph -> G.Vertex -> G.Vertex
+findDeepest g r = snd . head . last . takeWhile (not . null)
+                  $ iterate (concatMap children) [(-1, r)]
+  where children (p, v) = map (v,) $ filter (/= p) (g!v)
+
 -- Math
 
 -- Use fromEnum instead.
