@@ -51,8 +51,8 @@ readIntLists n = replicateM n readIntList
 readTuples :: Int -> IO [(Int, Int)]
 readTuples n = replicateM n (tup <$> readIntList)
 
-readIntListAll :: IO [[Int]]
-readIntListAll = map toIntList . BS.lines <$> BS.getContents
+readIntListsAll :: IO [[Int]]
+readIntListsAll = map toIntList . BS.lines <$> BS.getContents
 
 readTuplesAll :: IO [(Int, Int)]
 readTuplesAll = map tup <$> readIntListAll
