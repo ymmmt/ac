@@ -118,12 +118,19 @@ data LANode = MacroNode { _depth    :: Depth
                         , jumpNode  :: LANode }
             deriving (Show)
 
+-- needed to simplify lpd algorithm
+ensureHighestFirst :: [Tree G.Vertex] -> [Tree G.Vertex]
+ensureHighestFirst [] = []
+ensureHighestFirst ts = t':ts'
+  where (t', _, _) = maximumOn height ts
+        ts'        = delete t' ts
+
 buildT :: G.Graph -> G.Vertex -> Tree G.Vertex
 buildT g r = go 0 Nothing (-1) r
   where
     go d p u v = n
       where n  = Node v ts p s d h
-            ts = sortOn (negate . height) . map (go (d+1) (Just n) v)
+            ts = ensureHighestFirst . map (go (d+1) (Just n) v)
                  $ filter (/= u) (g!v)
             s  = 1 + (sum $ map size ts)
             h  = 1 + (if null ts then 0 else height $ head ts)
