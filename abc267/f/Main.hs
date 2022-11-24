@@ -121,9 +121,11 @@ data LANode = MacroNode { _depth    :: Depth
 -- needed to simplify lpd algorithm
 ensureHighestFirst :: [Tree G.Vertex] -> [Tree G.Vertex]
 ensureHighestFirst [] = []
-ensureHighestFirst ts = t':ts'
-  where (t', _, _) = maximumOn height ts
-        ts'        = delete t' ts
+ensureHighestFirst (t:ts) = t':ts'
+  where (t', ts') = foldl step (t, []) ts
+        step (ht, acc) t
+          | height ht < height t = (t, ht:acc)
+          | otherwise            = (ht, t:acc)
 
 buildT :: G.Graph -> G.Vertex -> Tree G.Vertex
 buildT g r = go 0 Nothing (-1) r
