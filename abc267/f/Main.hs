@@ -80,9 +80,12 @@ data Tree a = Node { rootLabel :: a
                    , height    :: Height }
 
 instance Show a => Show (Tree a) where
-  show t = "Node {rootLabel = " ++ (show $ rootLabel t) ++ ", subForest = " ++ show (map rootLabel $ subForest t) ++
-           ", parent = " ++ (show $ rootLabel <$> parent t) ++ ", size = " ++ (show $ size t) ++ ", depth = " ++
-           (show $ depth t) ++ ", height = " ++ (show $ height t) ++ "}"
+  show t = "Node {rootLabel = " ++ (show $ rootLabel t)
+           ++ ", subForest = " ++ show (map rootLabel $ subForest t)
+           ++ ", parent = " ++ (show $ rootLabel <$> parent t)
+           ++ ", size = " ++ (show $ size t)
+           ++ ", depth = " ++ (show $ depth t)
+           ++ ", height = " ++ (show $ height t) ++ "}"
 
 instance Eq a => Eq (Tree a) where
   (==) = (==) `on` rootLabel
@@ -108,10 +111,6 @@ rebuild = go 0 Nothing
             s   = 1 + (sum $ map size ts')
             h   = 1 + (height $ head ts')
             n   = Node v ts' p s d h
-
-foldTree :: (a -> [b] -> b) -> Tree a -> b
-foldTree f = go
-  where go (Node v ts _ _ _ _) = f v (map go ts)
 
 dfs :: G.Graph -> G.Vertex -> Tree G.Vertex
 dfs g r = rebuild . head $ G.dfs g [r]
@@ -173,7 +172,7 @@ macros t n l = macros' [t] [] []
                     in macros' ts []
                        $ (v, j):(concatMap (micros j) ts' ++ map (jnFix j) ps ++ xs)
       | otherwise = macros' (ts' ++ ts) (t:ps) xs
-    macros' []                          ps  _ = error "parents remain"
+    macros' []                          ps _  = error "parents remain"
 
 -- macros :: Tree G.Vertex -> Size -> Array G.Vertex Ladder -> [(G.Vertex, LANode)]
 -- macros t@(Node v [] _ _ d _) _ l = [(v, JumpNode d $ jumps t l)]
@@ -211,15 +210,15 @@ levelAncestor t s b = ans
     n       = laNodes t b l
     ans u k = case n!u of
       MacroNode d (JumpNode d' js)
-        | d - k < 0 -> Nothing
-        | otherwise -> let i = log2Floor $ d' - (d - k)
-                           v = js!i
-                       in findDepth (l!v) (d - k)
+        | d - k < 0   -> Nothing
+        | otherwise   -> let i = log2Floor $ d' - (d - k)
+                             v = js!i
+                         in findDepth (l!v) (d - k)
       JumpNode d js
-        | d - k < 0 -> Nothing
-        | otherwise -> let i = log2Floor k
-                           v = js!i
-                       in findDepth (l!v) (d - k)
+        | d - k < 0   -> Nothing
+        | otherwise   -> let i = log2Floor k
+                             v = js!i
+                         in findDepth (l!v) (d - k)
       m@(MicroNode _ d (JumpNode d' js))
         | d - k < 0   -> Nothing
         | d - k >= d' -> Just $ nthParent m n k
