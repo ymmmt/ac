@@ -34,18 +34,29 @@ import qualified Data.Tree as T
 -- import qualified Data.Vector.Unboxed.Mutable as UMV
 import qualified Numeric as N
 
+tup :: [Int] -> (Int, Int)
+tup [x, y] = (x, y)
+
 readInt :: IO Int
 readInt = fst . fromJust . BS.readInt <$> BS.getLine
 
+toIntList :: BS.ByteString -> [Int]
+toIntList = unfoldr (BS.readInt . BS.dropWhile isSpace)
+
 readIntList :: IO [Int]
-readIntList = unfoldr (BS.readInt . BS.dropWhile isSpace) <$> BS.getLine
+readIntList = toIntList <$> BS.getLine
 
 readIntLists :: Int -> IO [[Int]]
 readIntLists n = replicateM n readIntList
 
 readTuples :: Int -> IO [(Int, Int)]
-readTuples n = replicateM n (t <$> readIntList)
-  where t [x, y] = (x, y)
+readTuples n = replicateM n (tup <$> readIntList)
+
+readIntListAll :: IO [[Int]]
+readIntListAll = map toIntList . BS.lines <$> BS.getContents
+
+readTuplesAll :: IO [(Int, Int)]
+readTuplesAll = map tup <$> readIntListAll
 
 maximumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
 maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
@@ -246,5 +257,5 @@ main = do
   n   <- readInt
   abs <- readTuples (n-1)
   q   <- readInt
-  uks <- readTuples q
+  uks <- readTuplesAll
   putStr . unlines . map show $ solve n abs uks
