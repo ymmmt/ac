@@ -79,6 +79,11 @@ buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
 graphSize :: G.Graph -> Size
 graphSize g = rangeSize (bounds g)
 
+findDeepest :: G.Graph -> G.Vertex -> G.Vertex
+findDeepest g r = snd . head . last . takeWhile (not . null)
+                  $ iterate (concatMap children) [(-1, r)]
+  where children (p, v) = map (v,) $ filter (/= p) (g!v)
+
 -- Level Ancestor Problem
 -- https://37zigen.com/level-ancestor-problem/
 -- https://www.sciencedirect.com/science/article/pii/S0304397504001173
@@ -112,6 +117,16 @@ data LANode = MacroNode { _depth    :: Depth
                         , _depth    :: Depth
                         , jumpNode  :: LANode }
             deriving (Show)
+
+buildT :: G.Graph -> G.Vertex -> Tree G.Vertex
+buildT g r = go 0 Nothing (-1) r
+  where
+    go d p u v = n
+      where n  = Node v ts p s d h
+            ts = sortOn (negate . height) . map (go (d+1) (Just n) v)
+                 $ filter (/= u) (g!v)
+            s  = 1 + (sum $ map size ts)
+            h  = 1 + (if null ts then 0 else height $ head ts)
 
 rebuild :: T.Tree a -> Tree a
 rebuild = go 0 Nothing
@@ -208,7 +223,7 @@ laNodes t b l = array b $ macros t (rangeSize b) l
 findDepth :: Ladder -> Depth -> Maybe G.Vertex
 findDepth l d
   | inRange (UA.bounds l) d = Just (l UA.! d)
-  | otherwise            = error "inconsistent ladder"
+  | otherwise               = error "inconsistent ladder"
 
 nthParent :: LANode -> Array G.Vertex LANode -> Distance -> G.Vertex
 nthParent m@(MicroNode p _ _) _ 1 = p
@@ -244,12 +259,10 @@ solve :: Size -> [G.Edge] -> [(G.Vertex, Depth)] -> [G.Vertex]
 solve n abs = map ans
   where 
     g          = buildUndirectedG (1, n) abs
-    t          = head $ G.dfs g [1]
-    l          = head . last $ T.levels t
-    t'         = head $ G.dfs g [l]
-    r          = head . last $ T.levels t'
-    ansL       = levelAncestor (rebuild t') n (1, n)
-    ansR       = levelAncestor (dfs g r) n (1, n)
+    l          = findDeepest g 1
+    r          = findDeepest g l
+    ansL       = levelAncestor (buildT g l) n (1, n)
+    ansR       = levelAncestor (buildT g r) n (1, n)
     ans (u, k) = fromMaybe (-1) $ ansL u k <|> ansR u k
 
 main :: IO ()
