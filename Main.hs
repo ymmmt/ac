@@ -55,7 +55,7 @@ readIntListsAll :: IO [[Int]]
 readIntListsAll = map toIntList . BS.lines <$> BS.getContents
 
 readTuplesAll :: IO [(Int, Int)]
-readTuplesAll = map tup <$> readIntListAll
+readTuplesAll = map tup <$> readIntListsAll
 
 main :: IO ()
 main = do
