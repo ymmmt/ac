@@ -53,6 +53,16 @@ edges c = concatMap (\ij -> map (ij,) $ adjacents c ij) $ indices c
 encodeEdges :: Int -> [(Cell, Cell)] -> [G.Edge]
 encodeEdges w = map (cross (encode w, encode w))
 
+-- Matrix
+
+rowCells :: (Int, [a]) -> [(a, Cell)]
+rowCells (i, xs) = map (\(j, x) -> (x, (i, j))) $ zip [1..] xs
+
+-- Tuple
+
+tupWith :: (a -> b) -> a -> (a, b)
+tupWith f x = (x, f x)
+
 -- List
 
 sg :: Ord a => [a] -> [[a]]
