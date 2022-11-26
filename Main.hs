@@ -10,9 +10,11 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
 
-import Control.Applicative
+import Control.Applicative ((<*>), Alternative, empty, (<|>))
 import Control.Monad
+-- import Control.Monad.ST
 import Data.Array
+-- import Data.Array.ST
 import Data.Bits
 import Data.Char
 import Data.Function
@@ -29,6 +31,8 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.Graph as G
 import qualified Data.Map as Map
 import qualified Data.Ratio as R
+import qualified Data.Tree as T
+import qualified Data.Set as S
 -- import qualified Data.Vector.Unboxed as UV
 -- import qualified Data.Vector.Unboxed.Mutable as UMV
 import qualified Numeric as N
