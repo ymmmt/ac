@@ -63,6 +63,14 @@ rowCells (i, xs) = map (\(j, x) -> (x, (i, j))) $ zip [1..] xs
 tupWith :: (a -> b) -> a -> (a, b)
 tupWith f x = (x, f x)
 
+-- MArray (for Graph)
+
+see :: (MArray a Bool m, Ix i) => a i Bool -> i -> m ()
+see marr i = writeArray marr i True
+
+notSeen :: (MArray a Bool m, Ix i) => a i Bool -> i -> m Bool
+notSeen marr i = not <$> readArray marr i
+
 -- List
 
 sg :: Ord a => [a] -> [[a]]
