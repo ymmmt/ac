@@ -131,6 +131,9 @@ groupSeq _ [x]    = [[x]]
 groupSeq f (x:xs) = if f x y then (x:y:ys):yss else [x]:gs
   where gs@((y:ys):yss) = groupSeq f xs
 
+zapp :: [a -> b] -> [a] -> [b]
+zapp = zipWith ($)
+
 -- Map
 
 counter :: Ord a => [a] -> Map.Map a Int
@@ -257,3 +260,12 @@ instance Num a => Group (a, a) where
 imos :: Group a => Int -> Int -> [(Int, Int, a)] -> [a]
 imos lower upper = scanl1 gplus . Data.Foldable.toList . accumArray gplus gzero (lower, upper) . concatMap adds
   where adds (l, r, d) = [(l, d), (r, ginverse d)]
+
+bsearch :: (Int -> Bool) -> Int -> Int -> Int
+bsearch f l r = if l < r && f l then go l r
+                else error "bsearch: invalid arguments"
+  where go l r
+          | l+1 == r  = l
+          | f m       = go m r
+          | otherwise = go l m
+          where m = (l+r) `div` 2
