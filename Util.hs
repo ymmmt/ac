@@ -220,8 +220,8 @@ modulo = 998244353
 md :: Int -> Int
 md x = x `mod` modulo
 
-modAdd :: Int -> Int -> Int
-modAdd x y = (x+y) `mod` modulo
+madd :: Int -> Int -> Int
+madd x y = (x+y) `mod` modulo
 
 -- https://rosettacode.org/wiki/Modular_inverse
 modInv :: Int -> Int -> Maybe Int
