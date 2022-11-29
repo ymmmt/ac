@@ -76,6 +76,15 @@ notSeen marr i = not <$> readArray marr i
 sg :: Ord a => [a] -> [[a]]
 sg = group . sort
 
+filterByLength :: Ord a => (Int -> Bool) -> [a] -> [[a]]
+filterByLength p = filter (p . length) . sg
+
+repeated :: Ord a => [a] -> [a]
+repeated = repeatedBy (>1)
+
+repeatedBy :: Ord a => (Int -> Bool) -> [a] -> [a]
+repeatedBy p = map head . filterByLength p
+
 allUnique :: Ord a => [a] -> Bool
 allUnique = all (null . tail) . sg
 
@@ -99,6 +108,9 @@ choices _ []  = []
 choices n (x:xs)
   | n > 0     = (map (x:) $ choices (n-1) xs) ++ choices n xs
   | otherwise = []
+
+bfilter :: [a] -> [Bool] -> [a]
+bfilter xs bs = map fst . filter snd $ zip xs bs
 
 minimumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
 minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
