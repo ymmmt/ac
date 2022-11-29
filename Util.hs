@@ -257,6 +257,15 @@ gcdExt a b =
       (s, t, g) = gcdExt b r
   in (t, s - q * t, g)
 
+eps :: Double
+eps = 10**(-6)
+
+newton :: (Double -> Double) -> (Double -> Double) -> Double -> Double
+newton f f' x0 = improve x0
+  where improve x
+          | abs (f x) < eps = x
+          | otherwise       = improve $ x - (f x / f' x)
+
 class Group a where
   gzero    :: a
   gplus    :: a -> a -> a
