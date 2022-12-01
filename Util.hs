@@ -182,6 +182,61 @@ ind p x = if p x then 1 else 0
 
 -- Graph
 
+type Size     = Int
+type Depth    = Int
+type Height   = Int
+type Distance = Int
+
+data Tree a = Node { rootLabel :: a
+                   , subForest :: [Tree a]
+                   , parent    :: Maybe (Tree a)
+                   , size      :: Size
+                   , depth     :: Depth
+                   , height    :: Height }
+
+instance Show a => Show (Tree a) where
+  show t = "Node {rootLabel = " ++ (show $ rootLabel t)
+           ++ ", subForest = " ++ show (map rootLabel $ subForest t)
+           ++ ", parent = " ++ (show $ rootLabel <$> parent t)
+           ++ ", size = " ++ (show $ size t)
+           ++ ", depth = " ++ (show $ depth t)
+           ++ ", height = " ++ (show $ height t) ++ "}"
+
+instance Eq a => Eq (Tree a) where
+  (==) = (==) `on` rootLabel
+
+-- needed to simplify lpd algorithm
+ensureHighestFirst :: [Tree G.Vertex] -> [Tree G.Vertex]
+ensureHighestFirst [] = []
+ensureHighestFirst (t:ts) = t':ts'
+  where (t', ts') = foldl step (t, []) ts
+        step (ht, acc) t
+          | height ht < height t = (t, ht:acc)
+          | otherwise            = (ht, t:acc)
+
+buildT :: G.Graph -> G.Vertex -> Tree G.Vertex
+buildT g r = go 0 Nothing (-1) r
+  where
+    go d p u v = n
+      where n  = Node v ts p s d h
+            ts = ensureHighestFirst . map (go (d+1) (Just n) v)
+                 $ filter (/= u) (g!v)
+            s  = 1 + (sum $ map size ts)
+            h  = 1 + (if null ts then 0 else height $ head ts)
+
+rebuild :: T.Tree a -> Tree a
+rebuild = go 0 Nothing
+  where
+    go d p (T.Node v []) = Node v [] p 1 d 1
+    go d p (T.Node v ts) = n
+      where ts' = sortOn (negate . height) $ map (go (d+1) (Just n)) ts
+            s   = 1 + (sum $ map size ts')
+            h   = 1 + (height $ head ts')
+            n   = Node v ts' p s d h
+
+dfs :: G.Graph -> G.Vertex -> Tree G.Vertex
+dfs g r = rebuild . head $ G.dfs g [r]
+
 buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
 buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
 
@@ -200,6 +255,9 @@ findDeepest :: G.Graph -> G.Vertex -> G.Vertex
 findDeepest g r = snd . head . last . takeWhile (not . null)
                   $ iterate (concatMap children) [(-1, r)]
   where children (p, v) = map (v,) $ filter (/= p) (g!v)
+
+graphSize :: G.Graph -> Size
+graphSize g = rangeSize (bounds g)
 
 -- Math
 
