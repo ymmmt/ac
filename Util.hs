@@ -71,6 +71,11 @@ see marr i = writeArray marr i True
 notSeen :: (MArray a Bool m, Ix i) => a i Bool -> i -> m Bool
 notSeen marr i = not <$> readArray marr i
 
+-- Array
+
+mapArray :: (Ix a) => (a, a) -> (a -> b) -> Array a b
+mapArray b f = listArray b . map f $ range b
+
 -- List
 
 sg :: Ord a => [a] -> [[a]]
@@ -90,6 +95,14 @@ allUnique = all (null . tail) . sg
 
 sortUniq :: Ord a => [a] -> [a]
 sortUniq = map head . sg
+
+diff :: Ord a => [a] -> [a] -> [a]
+diff xs [] = xs
+diff [] _  = []
+diff xs@(x:xs') ys@(y:ys')
+  | x < y     = x:diff xs' ys
+  | x > y     = diff xs ys'
+  | otherwise = diff xs' ys'
 
 coordComp :: Ord a => Int -> [a] -> Map.Map Int a
 coordComp i0 = Map.fromAscList . zip [i0..] . sortUniq
@@ -163,10 +176,18 @@ cross (f, g) = pair (f . fst, g . snd)
 fork :: (a -> b) -> (a, a) -> (b, b)
 fork f (x, y) = (f x, f y)
 
+-- indicator function
+ind :: (a -> Bool) -> (a -> Int)
+ind p x = if p x then 1 else 0
+
 -- Graph
 
 buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
 buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
+
+complement :: G.Graph -> G.Graph
+complement g = G.buildG (bounds g) [(u, v) | u <- xs, v <- xs, u /= v, not (g!(u, v))]
+  where xs = range (bounds g)
 
 bothEnds :: G.Graph -> G.Vertex -> (G.Vertex, G.Vertex)
 bothEnds g s = (l, r)
