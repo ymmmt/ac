@@ -120,8 +120,8 @@ solve n xs = foldl' madd 0 [dp!(b, r) | b <- bs, r <- rs]
     bs        = [0..1023]
     rs        = [0..9]
     dp0       = listArray (l, u) (repeat 0)
-    step dp x = accumArray madd 0 (l, u) $ adds dp x
-    adds dp x = [((b, r), dp!(b, r)) | b <- bs, r <- rs]
+    step dp x = accumArray madd 0 (l, u)
+                $  [((b, r), dp!(b, r)) | b <- bs, r <- rs]
                 ++ [((b, x), dp!(b, x)) | b <- bs]
                 ++ [((bsInsert b x, x), dp!(b, r)) | b <- bs, not $ bsMember x b, r <- rs]
                 ++ [((bsSingleton x, x), 1)]
