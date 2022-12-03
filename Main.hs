@@ -11,23 +11,23 @@
 -- {-# LANGUAGE TypeFamilies #-}
 
 -- import Control.Applicative ((<*>), Alternative, empty, (<|>))
--- import Control.Monad
+import Control.Monad
 -- import Control.Monad.ST
 -- import Data.Array
 -- import Data.Array.ST
 -- import Data.Bits
--- import Data.Char
+import Data.Char
 -- import Data.Function
 -- import Data.Int
 -- import Data.Ix
--- import Data.List
--- import Data.Maybe
+import Data.List
+import Data.Maybe
 -- import Data.Tuple
 -- import Data.Void
 -- import Data.Word
 -- import Debug.Trace
 -- import qualified Data.Array.Unboxed as UA
--- import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Char8 as BS
 -- import qualified Data.Graph as G
 -- import qualified Data.Map as Map
 -- import qualified Data.Ratio as R
