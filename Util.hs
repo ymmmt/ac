@@ -268,6 +268,45 @@ findDeepest g r = snd . head . last . takeWhile (not . null)
 graphSize :: G.Graph -> Size
 graphSize g = rangeSize (bounds g)
 
+-- Bit set
+
+type BitSet = Int
+type Size   = Int
+type Member = Int
+
+bsUniv :: Size -> BitSet
+bsUniv n = 2^n - 1
+
+bsSize :: BitSet -> Size
+bsSize b = finiteBitSize b - 1
+
+bsCount :: BitSet -> Int
+bsCount = length . bsMembers
+
+bsEmpty :: BitSet -> Bool
+bsEmpty = (== 0)
+
+bsSingleton :: Member -> BitSet
+bsSingleton = bsInsert 0
+
+bitset :: [Member] -> BitSet
+bitset = foldr bsInsert 0
+
+bsMember :: Member -> BitSet -> Bool
+bsMember = flip testBit
+
+bsMembers :: BitSet -> [Member]
+bsMembers b = filter (flip bsMember b) [0..bsSize b]
+
+bsDiff :: BitSet -> BitSet -> BitSet
+bsDiff b b' = foldl' clearBit b (bsMembers b')
+
+bsInsert :: Member -> BitSet -> BitSet
+bsInsert b x = setBit b x
+
+bsDelete :: Member -> BitSet -> BitSet
+bsDelete b x = bsDiff b $ bsSingleton x
+
 -- Math
 
 -- Use fromEnum instead.
