@@ -78,6 +78,15 @@ mapArray b f = listArray b . map f $ range b
 
 -- List
 
+type Transposition = (Int, Int)
+
+swap :: Transposition -> [a] -> [a]
+swap (i, j) a
+  | i == j    = a
+  | otherwise = take k a ++ [a!!l] ++ drop (k+1) (take l a) ++ [a!!k] ++ drop (l+1) a
+  where k = min i j
+        l = max i j
+
 sg :: Ord a => [a] -> [[a]]
 sg = group . sort
 
