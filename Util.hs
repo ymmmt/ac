@@ -347,6 +347,13 @@ hyperFloor x = 2 ^ (floor . logBase 2 $ fromIntegral x)
 hyperCeiling :: Int -> Int
 hyperCeiling x = 2 ^ (ceiling . logBase 2 $ fromIntegral x)
 
+pfactors :: Int -> [Int]
+pfactors n = case fs of
+               [] -> [n]
+               _  -> fs ++ pfactors (n `div` (head fs))
+  where fs = take 1 $ filter (\x -> (n `mod` x) == 0) [2 .. n']
+        n' = floor . sqrt $ fromIntegral n
+
 mod' :: Integral a => a -> a -> a
 mod' k n
   | m < 0 = m + n
