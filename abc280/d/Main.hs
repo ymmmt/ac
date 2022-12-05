@@ -42,9 +42,9 @@ readInt = fst . fromJust . BS.readInt <$> BS.getLine
 
 pfactors :: Int -> [Int]
 pfactors n = case fs of
-               [] -> [n]
-               _  -> fs ++ pfactors (n `div` (head fs))
-  where fs = take 1 $ filter (\x -> (n `mod` x) == 0) [2 .. n']
+               []  -> [n]
+               f:_ -> f:pfactors (n `div` f)
+  where fs = take 1 $ filter ((== 0) . (n `mod`)) [2..n']
         n' = floor . sqrt $ fromIntegral n
 
 -- https://atcoder.jp/contests/abc280/editorial/5333
