@@ -34,9 +34,11 @@ readCMatrix h w = do
 
 printCMatrix :: CMatrix -> IO ()
 printCMatrix m = mapM_ printRow rs
-  where rs         = range . pair (fst . fst, fst . snd) $ bounds m
-        cs         = range . pair (snd . fst, snd . snd) $ bounds m
-        printRow r = mapM_ (putChar . (m!)) [(r, j) | j <- cs] >> putStrLn ""
+  where
+    ((x, y), (z, w)) = bounds m
+    rs               = range (x, z)
+    cs               = range (y, w)
+    printRow r       = mapM_ (putChar . (m!)) [(r, j) | j <- cs] >> putStrLn ""
 
 adjacents :: CMatrix -> Cell -> [Cell]
 adjacents c (i, j)
@@ -54,6 +56,17 @@ encodeEdges :: Int -> [(Cell, Cell)] -> [G.Edge]
 encodeEdges w = map (cross (encode w, encode w))
 
 -- Matrix
+
+type Cell     = (Int, Int)
+type Matrix a = Array Cell a
+
+printMatrix :: Show a => String -> Matrix a -> IO ()
+printMatrix s m = mapM_ printRow rs
+  where
+    ((x, y), (z, w)) = bounds m
+    rs               = range (x, z)
+    cs               = range (y, w)
+    printRow r       = putStrLn . joinStr s $ map (m!) [(r, j) | j <- cs]
 
 rowCells :: (Int, [a]) -> [(a, Cell)]
 rowCells (i, xs) = map (\(j, x) -> (x, (i, j))) $ zip [1..] xs
