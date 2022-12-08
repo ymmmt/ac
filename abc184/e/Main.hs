@@ -1,20 +1,20 @@
 {-# OPTIONS_GHC -O2 #-}
 
 -- {-# LANGUAGE DeriveFunctor #-}
--- {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts #-}
 -- {-# LANGUAGE FlexibleInstances #-}
 -- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- {-# LANGUAGE MultiParamTypeClasses #-}
 -- {-# LANGUAGE StandaloneDeriving #-}
 -- {-# LANGUAGE TemplateHaskell #-}
--- {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TupleSections #-}
 -- {-# LANGUAGE TypeFamilies #-}
 
 -- import Control.Applicative ((<*>), Alternative, empty, (<|>))
 import Control.Monad
--- import Control.Monad.ST
--- import Data.Array
--- import Data.Array.ST
+import Control.Monad.ST
+import Data.Array
+import Data.Array.ST
 -- import Data.Bits
 import Data.Char
 -- import Data.Function
@@ -26,9 +26,9 @@ import Data.Maybe
 -- import Data.Void
 -- import Data.Word
 -- import Debug.Trace
--- import qualified Data.Array.Unboxed as UA
+import qualified Data.Array.Unboxed as UA
 import qualified Data.ByteString.Char8 as BS
--- import qualified Data.Graph as G
+import qualified Data.Graph as G
 -- import qualified Data.Map as Map
 -- import qualified Data.Ratio as R
 import qualified Data.Set as S
@@ -67,6 +67,12 @@ pair (f, g) x = (f x, g x)
 cross :: (a -> c, b -> d) -> (a, b) -> (c, d)
 cross (f, g) = pair (f . fst, g . snd)
 
+count :: (a -> Bool) -> [a] -> Int
+count p = length . filter p
+
+buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
+buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
+
 type Cell    = (Int, Int)
 type CMatrix = Array Cell Char
 
@@ -77,61 +83,55 @@ readCMatrix h w = do
       colAssocs (i, r) = map (cross ((i,), id)) $ zip [1..w] r
   return $ array ((1, 1), (h, w)) as
 
--- printCMatrix :: CMatrix -> IO ()
--- printCMatrix m = mapM_ printRow rs
---   where
---     ((x, y), (z, w)) = bounds m
---     rs               = range (x, z)
---     cs               = range (y, w)
---     printRow r       = mapM_ (putChar . (m!)) [(r, j) | j <- cs] >> putStrLn ""
+encode :: Int -> Cell -> G.Vertex
+encode w (i, j) = w * (i - 1) + j
 
-adjacents :: CMatrix -> Cell -> [Cell]
-adjacents c (i, j)
-  | c!(i, j) == '#' = []
-  | otherwise       = filter ((&&) <$> inRange (bounds c) <*> (/= '#') . (c!))
-                      [(i-1, j), (i+1, j), (i, j-1), (i, j+1)]
-
--- encode :: Int -> Cell -> G.Vertex
--- encode w (i, j) = w * (i - 1) + j
-
--- edges :: CMatrix -> [(Cell, Cell)]
--- edges c = concatMap (\ij -> map (ij,) $ adjacents c ij) $ indices c
-
--- encodeEdges :: Int -> [(Cell, Cell)] -> [G.Edge]
--- encodeEdges w = map (cross (encode w, encode w))
-
--- buildG :: CMatrix -> G.Graph
--- buildG c = G.buildG (1, h*w) . encodeEdges w $ edges c
---   where ((1, 1), (h, w)) = bounds c
+buildG :: Int -> CMatrix -> G.Graph
+buildG w c = buildUndirectedG (1, h*w)
+             . concatMap (\ij -> map ((encode w ij,) . encode w) $ adjs c ij)
+             . map fst . filter ((/= '#') . snd) $ assocs c
+  where ((1, 1), (h, w)) = bounds c
+        adjs c (i, j)    = filter ((&&) <$> inRange (bounds c) <*> (/= '#') . (c!))
+                           [(i+1, j), (i, j+1)]
 
 swap :: (a, b) -> (b, a)
 swap (x, y) = (y, x)
 
-findDeepest :: G.Graph -> G.Vertex -> G.Vertex
-findDeepest g r = snd . head . last . takeWhile (not . null)
-                  $ iterate (concatMap children) [(-1, r)]
-  where children (p, v) = map (v,) $ filter (/= p) (g!v)
+see :: (MArray a Bool m, Ix i) => a i Bool -> i -> m ()
+see marr i = writeArray marr i True
 
-type Depth = Int
+notSeen :: (MArray a Bool m, Ix i) => a i Bool -> i -> m Bool
+notSeen marr i = not <$> readArray marr i
 
-bfs :: CMatrix -> Cell -> Cell -> Array Char [Cell] -> Depth
-bfs a s g warps = fromJust . findIndex ((g `elem`) . snd)
-                  . iterate (\(s, vs) -> foldr op (s, []) vs) (S.empty, [(-1, s)])
-  where
-    op (p, v) (s, us) = 
+warp :: Char -> Bool
+warp = inRange ('a', 'z')
 
 solve :: Int -> Int -> CMatrix -> Int
-solve h w a = bfs g s t warps
-  where 
+solve h w a = bfs
+  where
+    g     = buildG w a
     warps = accumArray (flip (:)) [] ('a', 'z')
-            . map swap
-            . filter (inRange ('a', 'z') . snd) $ assocs a
-    s = fst . head . filter ((== 'S') . snd) $ assocs a
-    g = fst . head . filter ((== 'G') . snd) $ assocs a
-    
-    
-    
-    
+            . map (cross (id, encode w) . swap)
+            . filter (warp . snd) $ assocs a
+    l     = UA.listArray (1, h*w) $ elems a :: UA.UArray Int Char
+    s     = encode w . fst . head . filter ((== 'S') . snd) $ assocs a
+    t     = encode w . fst . head . filter ((== 'G') . snd) $ assocs a
+    bfs   = runST $ do
+      seen <- newArray (1, h*w) False :: ST s (STUArray s Int Bool)
+      see seen s
+      let go d w vs
+            | t `elem` vs = return d
+            | null vs     = return (-1)
+            | otherwise   = do
+                let step (w, vs) v = do
+                      let b  = warp (l UA.! v) && S.notMember (l UA.! v) w
+                          w' = if b then S.insert (l UA.! v) w else w
+                      vs' <- filterM (notSeen seen) $ if b then g!v ++ warps!(l UA.! v) else g!v
+                      mapM_ (see seen) vs'
+                      return (w', vs' ++ vs)
+                (w', vs') <- foldM step (w, []) vs
+                go (d+1) w' vs'
+      go 0 S.empty [s]
 
 main :: IO ()
 main = do
