@@ -70,6 +70,12 @@ cross (f, g) = pair (f . fst, g . snd)
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
 
+foldM' :: (Monad m) => (a -> b -> m a) -> a -> [b] -> m a
+foldM' _ z []     = return z
+foldM' f z (x:xs) = do
+  z' <- f z x
+  z' `seq` foldM' f z' xs
+
 buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
 buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
 
@@ -97,14 +103,105 @@ buildG w c = buildUndirectedG (1, h*w)
 swap :: (a, b) -> (b, a)
 swap (x, y) = (y, x)
 
+warp :: Char -> Bool
+warp = inRange ('a', 'z')
+
+-- see mv i = UMV.unsafeWrite mv i True
+
+-- notSeen mv i = not <$> UMV.unsafeRead mv i
+
+-- solve :: Int -> Int -> CMatrix -> Int
+-- solve h w a = bfs
+--   where
+--     g     = buildG w a
+--     warps = accumArray (flip (:)) [] ('a', 'z')
+--             . map (cross (id, encode w) . swap)
+--             . filter (warp . snd) $ assocs a
+--     l     = UA.listArray (1, h*w) $ elems a :: UA.UArray Int Char
+--     s     = encode w . fst . head . filter ((== 'S') . snd) $ assocs a
+--     t     = encode w . fst . head . filter ((== 'G') . snd) $ assocs a
+--     bfs   = runST $ do
+--       seen <- UMV.replicate (h*w+1) False
+--       see seen s
+--       let go d w vs
+--             | t `elem` vs = return d
+--             | null vs     = return (-1)
+--             | otherwise   = do
+--                 let step (w, vs) v = do
+--                       let b  = warp (l UA.! v) && S.notMember (l UA.! v) w
+--                           w' = if b then S.insert (l UA.! v) w else w
+--                       vs' <- filterM (notSeen seen) $ if b then g!v ++ warps!(l UA.! v) else g!v
+--                       mapM_ (see seen) vs'
+--                       return (w', vs' ++ vs)
+--                 (w', vs') <- foldM' step (w, []) vs
+--                 go (d+1) w' vs'
+--       go 0 S.empty [s]
+
+-- solve :: Int -> Int -> CMatrix -> Int
+-- solve h w a = bfs
+--   where
+--     g     = buildG w a
+--     warps = accumArray (flip (:)) [] ('a', 'z')
+--             . map (cross (id, encode w) . swap)
+--             . filter (warp . snd) $ assocs a
+--     l     = UA.listArray (1, h*w) $ elems a :: UA.UArray Int Char
+--     s     = encode w . fst . head . filter ((== 'S') . snd) $ assocs a
+--     t     = encode w . fst . head . filter ((== 'G') . snd) $ assocs a
+--     seen  = UV.replicate (h*w+1) False UV.// [(s, True)]
+--     bfs   = go 0 S.empty seen [s]
+--     go d w seen vs
+--       | t `elem` vs = d
+--       | null vs     = -1
+--       | otherwise   = go (d+1) w' seen' vs''
+--       where
+--         (w', vs') = foldr step (w, []) vs
+--         step v (w, us) = (w', vs' ++ us)
+--           where
+--             b     = warp (l UA.! v) && S.notMember (l UA.! v) w
+--             w'    = if b then S.insert (l UA.! v) w else w
+--             vs'   = filter (not . (seen UV.!)) $ if b then g!v ++ warps!(l UA.! v) else g!v
+--         vs''      = sortUniq vs'
+--         seen'     = seen UV.// zip vs'' (repeat True)
+--         -- w'     = foldr S.insert w . filter warp $ map (l UA.!) vs'
+--         -- vs'    = sortUniq $ concatMap adjs vs
+--         -- seen'  = seen UV.// zip vs' (repeat True)
+--         -- adjs v = filter (not . (seen UV.!))
+--         --          $ if warp (l UA.! v) && S.notMember (l UA.! v) w
+--         --            then g!v ++ warps!(l UA.! v)
+--         --            else g!v
+
 see :: (MArray a Bool m, Ix i) => a i Bool -> i -> m ()
 see marr i = writeArray marr i True
 
 notSeen :: (MArray a Bool m, Ix i) => a i Bool -> i -> m Bool
 notSeen marr i = not <$> readArray marr i
 
-warp :: Char -> Bool
-warp = inRange ('a', 'z')
+-- solve :: Int -> Int -> CMatrix -> Int
+-- solve h w a = bfs
+--   where
+--     g     = buildG w a
+--     warps = accumArray (flip (:)) [] ('a', 'z')
+--             . map (cross (id, encode w) . swap)
+--             . filter (warp . snd) $ assocs a
+--     l     = UA.listArray (1, h*w) $ elems a :: UA.UArray Int Char
+--     s     = encode w . fst . head . filter ((== 'S') . snd) $ assocs a
+--     t     = encode w . fst . head . filter ((== 'G') . snd) $ assocs a
+--     bfs   = runST $ do
+--       seen <- newArray (1, h*w) False :: ST s (STUArray s Int Bool)
+--       see seen s
+--       let go d w vs
+--             | t `elem` vs = return d
+--             | null vs     = return (-1)
+--             | otherwise   = do
+--                 let step (w, vs) v = do
+--                       let b  = warp (l UA.! v) && S.notMember (l UA.! v) w
+--                           w' = if b then S.insert (l UA.! v) w else w
+--                       vs' <- filterM (notSeen seen) $ if b then g!v ++ warps!(l UA.! v) else g!v
+--                       mapM_ (see seen) vs'
+--                       return (w', vs' ++ vs)
+--                 (w', vs') <- foldM' step (w, []) vs
+--                 go (d+1) w' vs'
+--       go 0 S.empty [s]
 
 solve :: Int -> Int -> CMatrix -> Int
 solve h w a = bfs
@@ -116,22 +213,20 @@ solve h w a = bfs
     l     = UA.listArray (1, h*w) $ elems a :: UA.UArray Int Char
     s     = encode w . fst . head . filter ((== 'S') . snd) $ assocs a
     t     = encode w . fst . head . filter ((== 'G') . snd) $ assocs a
-    bfs   = runST $ do
-      seen <- newArray (1, h*w) False :: ST s (STUArray s Int Bool)
-      see seen s
-      let go d w vs
-            | t `elem` vs = return d
-            | null vs     = return (-1)
-            | otherwise   = do
-                let step (w, vs) v = do
-                      let b  = warp (l UA.! v) && S.notMember (l UA.! v) w
-                          w' = if b then S.insert (l UA.! v) w else w
-                      vs' <- filterM (notSeen seen) $ if b then g!v ++ warps!(l UA.! v) else g!v
-                      mapM_ (see seen) vs'
-                      return (w', vs' ++ vs)
-                (w', vs') <- foldM step (w, []) vs
-                go (d+1) w' vs'
-      go 0 S.empty [s]
+    seen  = S.singleton s
+    bfs   = go 0 S.empty seen [s]
+    go d w seen vs
+      | t `elem` vs = d
+      | null vs     = -1
+      | otherwise   = go (d+1) w' seen' vs'
+      where
+        (w', seen', vs') = foldr step (w, seen, []) vs
+        step v (w, seen, us) = (w', seen', vs' ++ us)
+          where
+            b     = warp (l UA.! v) && S.notMember (l UA.! v) w
+            w'    = if b then S.insert (l UA.! v) w else w
+            vs'   = filter (flip S.notMember seen) $ if b then g!v ++ warps!(l UA.! v) else g!v
+            seen' = foldr S.insert seen $ vs'
 
 main :: IO ()
 main = do
