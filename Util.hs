@@ -43,8 +43,8 @@ printCMatrix m = mapM_ printRow rs
 adjacents :: CMatrix -> Cell -> [Cell]
 adjacents c (i, j)
   | c!(i, j) == '#' = []
-  | otherwise       = filter ((&&) <$> inRange (bounds c) <*> (=='.') . (c!))
-                      $ [(i-1, j), (i+1, j), (i, j-1), (i, j+1)]
+  | otherwise       = filter ((&&) <$> inRange (bounds c) <*> (/= '#') . (c!))
+                      [(i-1, j), (i+1, j), (i, j-1), (i, j+1)]
 
 encode :: Int -> Cell -> G.Vertex
 encode w (i, j) = w * (i - 1) + j
@@ -103,6 +103,9 @@ swap (i, j) a
 sg :: Ord a => [a] -> [[a]]
 sg = group . sort
 
+sortUniq :: Ord a => [a] -> [a]
+sortUniq = map head . sg
+
 filterByLength :: Ord a => (Int -> Bool) -> [a] -> [[a]]
 filterByLength p = filter (p . length) . sg
 
@@ -114,9 +117,6 @@ repeatedBy p = map head . filterByLength p
 
 allUnique :: Ord a => [a] -> Bool
 allUnique = all (null . tail) . sg
-
-sortUniq :: Ord a => [a] -> [a]
-sortUniq = map head . sg
 
 diff :: Ord a => [a] -> [a] -> [a]
 diff xs [] = xs
