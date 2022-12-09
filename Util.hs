@@ -1,3 +1,11 @@
+-- Monad
+
+foldM' :: (Monad m) => (a -> b -> m a) -> a -> [b] -> m a
+foldM' _ z []     = return z
+foldM' f z (x:xs) = do
+  z' <- f z x
+  z' `seq` foldM' f z' xs
+
 -- IO
 
 yn :: Bool -> String
@@ -437,3 +445,38 @@ bsearch f l r = if l < r && f l then go l r
           | f m       = go m r
           | otherwise = go l m
           where m = (l+r) `div` 2
+
+-- Batched Queue
+
+data BatchedQueue a = BQ [a] [a]
+  deriving (Show)
+
+check :: [a] -> [a] -> BatchedQueue a
+check [] r = BQ (reverse r) []
+check f  r = BQ f r
+
+empty :: BatchedQueue a
+empty = BQ [] []
+
+qnull :: BatchedQueue a -> Bool
+qnull (BQ f _) = null f
+
+qsingleton :: a -> BatchedQueue a
+qsingleton x = BQ [x] []
+
+snoc :: BatchedQueue a -> a -> BatchedQueue a
+snoc (BQ f r) x = check f (x:r)
+
+qhead :: BatchedQueue a -> a
+qhead (BQ []    _) = error "empty queue"
+qhead (BQ (x:f) r) = x
+
+qtail :: BatchedQueue a -> BatchedQueue a
+qtail (BQ []    _) = error "empty queue"
+qtail (BQ (x:f) r) = check f r
+
+quncons :: BatchedQueue a -> (a, BatchedQueue a)
+quncons (BQ []    _) = error "empty queue"
+quncons (BQ (x:f) r) = (x, check f r)
+
+--
