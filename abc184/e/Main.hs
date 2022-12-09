@@ -32,9 +32,10 @@ import qualified Data.Graph as G
 -- import qualified Data.Map as Map
 -- import qualified Data.Ratio as R
 import qualified Data.Set as S
+-- import qualified Data.Sequence as Seq
 -- import qualified Data.Tree as T
--- import qualified Data.Vector.Unboxed as UV
--- import qualified Data.Vector.Unboxed.Mutable as UMV
+import qualified Data.Vector.Unboxed as UV
+import qualified Data.Vector.Unboxed.Mutable as UMV
 -- import qualified Numeric as N
 
 tup :: [Int] -> (Int, Int)
@@ -100,12 +101,19 @@ buildG h w c = buildUndirectedG (1, h*w) [(eij, encode w kl) | (ij, l) <- assocs
                                                              , l /= '#'
                                                              , let eij = encode w ij
                                                              , kl <- adjs ij]
-               -- . concatMap (\(ij, _) -> map ((encode w ij,) . encode w) $ adjs ij)
-               -- . filter ((/= '#') . snd) $ assocs c
   where ((1, 1), (h, w)) = bounds c
         inBounds (i, j)  = 1 <= i && i <= h && 1 <= j && j <= w
         adjs (i, j)      = filter ((&&) <$> inBounds <*> (/= '#') . (c!))
                            [(i+1, j), (i, j+1)]
+
+buildG' :: Int -> Int -> CMatrix -> G.Graph
+buildG' h w c = buildUndirectedG (1, h*w) [(eij, encode w kl) | (ij, l) <- assocs c
+                                                             , l /= '#'
+                                                             , let eij = encode w ij
+                                                             , kl <- adjs ij]
+  where ((1, 1), (h, w)) = bounds c
+        adjs (i, j)      = (if i < h && c!(i+1, j) /= '#' then [(i+1, j)] else []) ++
+                           (if j < w && c!(i, j+1) /= '#' then [(i, j+1)] else [])
 
 swap :: (a, b) -> (b, a)
 swap (x, y) = (y, x)
@@ -190,29 +198,30 @@ notSeen marr i = not <$> readArray marr i
 solve :: Int -> Int -> CMatrix -> Int
 solve h w a = bfs
   where
-    g     = buildG h w a
+    g     = buildG' h w a
     warps = accumArray (flip (:)) [] ('a', 'z')
             . map (cross (id, encode w) . swap)
             . filter (warp . snd) $ assocs a
-    l     = UA.listArray (1, h*w) $ elems a :: UA.UArray Int Char
-    s     = encode w . fst . head . filter ((== 'S') . snd) $ assocs a
-    t     = encode w . fst . head . filter ((== 'G') . snd) $ assocs a
+    l     = UV.fromList $ 'x':elems a
+    s     = encode w . fst . fromJust . find ((== 'S') . snd) $ assocs a
+    t     = encode w . fst . fromJust . find ((== 'G') . snd) $ assocs a
     bfs   = runST $ do
       seen <- newArray (1, h*w) False :: ST s (STUArray s Int Bool)
+      w    <- newArray ('#', 'z') False :: ST s (STUArray s Char Bool)
       see seen s
-      let go d w vs
+      let go d vs
             | t `elem` vs = return d
             | null vs     = return (-1)
             | otherwise   = do
-                let step (w, vs) v = do
-                      let b  = warp (l UA.! v) && S.notMember (l UA.! v) w
-                          w' = if b then S.insert (l UA.! v) w else w
-                      vs' <- filterM (notSeen seen) $ if b then g!v ++ warps!(l UA.! v) else g!v
+                let step vs v = do
+                      b  <- (warp (l `UV.unsafeIndex` v) &&) <$> notSeen w (l `UV.unsafeIndex` v)
+                      vs' <- filterM (notSeen seen) $ if b then g!v ++ warps!(l `UV.unsafeIndex` v) else g!v
+                      when b $ see w (l `UV.unsafeIndex` v)
                       mapM_ (see seen) vs'
-                      return (w', vs' ++ vs)
-                (w', vs') <- foldM' step (w, []) vs
-                go (d+1) w' vs'
-      go 0 S.empty [s]
+                      return $ vs' ++ vs
+                vs' <- foldM' step [] vs
+                go (d+1) vs'
+      go 0 [s]
 
 -- solve :: Int -> Int -> CMatrix -> Int
 -- solve h w a = bfs
