@@ -14,7 +14,7 @@
 -- import Control.Applicative ((<*>), Alternative, empty, (<|>))
 import Control.Monad
 -- import Control.Monad.ST
--- import Data.Array
+import Data.Array
 -- import Data.Array.ST
 -- import Data.Bits
 import Data.Char
