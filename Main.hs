@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -O2 #-}
 
+-- {-# LANGUAGE BangPatterns #-}
 -- {-# LANGUAGE DeriveFunctor #-}
 -- {-# LANGUAGE FlexibleContexts #-}
 -- {-# LANGUAGE FlexibleInstances #-}
