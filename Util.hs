@@ -137,6 +137,9 @@ diff xs@(x:xs') ys@(y:ys')
 coordComp :: Ord a => Int -> [a] -> Map.Map Int a
 coordComp i0 = Map.fromAscList . zip [i0..] . sortUniq
 
+powerset :: [a] -> [[a]]
+powerset = filterM (const [True, False])
+
 pairs1 :: [a] -> [(a, a)]
 pairs1 []     = []
 pairs1 [x]    = []
@@ -288,6 +291,10 @@ findDeepest g r = snd . head . last . takeWhile (not . null)
 
 graphSize :: G.Graph -> Size
 graphSize g = rangeSize (bounds g)
+
+clique :: G.Graph -> [G.Vertex] -> Bool
+clique g vs = all adj $ choices 2 vs
+  where adj [v, w] = v `elem` g!w
 
 -- Bit set
 
