@@ -18,6 +18,7 @@ import Data.Array
 -- import Data.Array.ST
 -- import Data.Bits
 import Data.Char
+import Data.Foldable
 -- import Data.Function
 -- import Data.Int
 -- import Data.Ix
@@ -33,6 +34,7 @@ import qualified Data.ByteString.Char8 as BS
 -- import qualified Data.Map as Map
 -- import qualified Data.Ratio as R
 -- import qualified Data.Set as S
+-- import qualified Data.Sequence as Seq
 -- import qualified Data.Tree as T
 -- import qualified Data.Vector.Unboxed as UV
 -- import qualified Data.Vector.Unboxed.Mutable as UMV
