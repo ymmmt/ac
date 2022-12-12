@@ -213,6 +213,10 @@ fork f (x, y) = (f x, f y)
 ind :: (a -> Bool) -> (a -> Int)
 ind p x = if p x then 1 else 0
 
+apply :: Int -> (a -> a) -> a -> a
+apply 0 _ = id
+apply n f = f . apply (n-1) f
+
 -- Graph
 
 type Size     = Int
@@ -485,5 +489,80 @@ qtail (BQ (x:f) r) = check f r
 quncons :: BatchedQueue a -> (a, BatchedQueue a)
 quncons (BQ []    _) = error "empty queue"
 quncons (BQ (x:f) r) = (x, check f r)
+
+-- Dijkstra's algorithm
+
+type Graph    = ([Vertex], [Edge])
+type Edge     = (Vertex, Vertex, Weight)
+type Vertex   = Int
+type Weight   = Int
+type Weights  = Array (Vertex, Vertex) Weight
+
+type Tree     = Graph
+type Forest   = [Tree]
+
+type State    = (Links, [Vertex])
+type Links    = Array Vertex (Vertex, Distance)
+type Distance = Int
+
+nodes :: Graph -> [Vertex]
+nodes (vs, _) = vs
+
+edges :: Graph -> [Edge]
+edges (_, es) = es
+
+source :: Edge -> Vertex
+source (u, _, _) = u
+
+target :: Edge -> Vertex
+target (_, v, _) = v
+
+weight :: Edge -> Weight
+weight (_, _, w) = w
+
+weights :: Graph -> Weights
+weights g = listArray ((1, 1), (n, n)) (repeat maxInt)
+            // [((u, v), w) | (u, v, w) <- edges g]
+  where n = length (nodes g)
+
+parent :: Links -> Vertex -> Vertex
+parent ls v = fst (ls!v)
+
+distance :: Links -> Vertex -> Distance
+distance ls v = snd (ls!v)
+
+extract :: State -> Tree
+extract (ls, _) = (indices ls, [(u, v, w) | (v, (u, w)) <- assocs ls, v /= 1])
+
+start :: Int -> State
+start n = (array (1, n) ((1, (1, 0)):[(v, (v, maxInt)) | v <- [2..n]]), [1..n])
+
+maxInt :: Int
+maxInt = maxBound
+
+gstep :: Weights -> State -> State
+gstep wa (ls, vs) = (ls', vs')
+  where
+    (d, v) = minimum [(distance ls v, v) | v <- vs]
+    vs'    = filter (/= v) vs
+    ls'    = accum better ls [(u, (v, sum d (wa!(v, u)))) | u <- vs']
+      where sum d w = if w == maxInt then maxInt else d + w
+    better (v1, d1) (v2, d2) = if d1 <= d2 then (v1, d1) else (v2, d2)
+
+dijkstra :: Graph -> Tree
+dijkstra g = extract $ apply (n-1) (gstep wa) (start n)
+  where n  = length (nodes g)
+        wa = traceShowId $ weights g
+
+dist :: Tree -> Vertex -> Vertex -> Maybe Distance
+dist t s g = dfs 0 s
+  where
+    children = accumArray (flip (:)) [] (1, h*w) [(u, (v, w)) | (u, v, w) <- edges t]
+    dfs d u
+      | u == g    = Just d
+      | null cs   = Nothing
+      | otherwise = asum $ map go cs
+      where cs        = children!u
+            go (v, w) = dfs (d+w) v
 
 --
