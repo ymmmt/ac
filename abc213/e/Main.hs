@@ -56,11 +56,7 @@ type Cell    = (Int, Int)
 type CMatrix = Array Cell Char
 
 readCMatrix :: Int -> Int -> IO CMatrix
-readCMatrix h w = do
-  rs <- replicateM h getLine
-  let as               = concatMap colAssocs $ zip [1..h] rs
-      colAssocs (i, r) = map (cross ((i,), id)) $ zip [1..w] r
-  return $ array ((1, 1), (h, w)) as
+readCMatrix h w = listArray ((1, 1), (h, w)) . concat <$> replicateM h getLine
 
 adjs0 :: CMatrix -> Cell -> [Cell]
 adjs0 s (i, j) = [kl | kl <- [(i-1, j), (i+1, j), (i, j-1), (i, j+1)]
