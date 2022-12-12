@@ -18,7 +18,7 @@ import Data.Array
 -- import Data.Array.ST
 -- import Data.Bits
 import Data.Char
-import Data.Foldable
+-- import Data.Foldable
 -- import Data.Function
 -- import Data.Int
 -- import Data.Ix
