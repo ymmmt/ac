@@ -136,6 +136,21 @@ coordComp i0 = Map.fromAscList . zip [i0..] . sortUniq
 powerset :: [a] -> [[a]]
 powerset = filterM (const [True, False])
 
+-- psSums = sort . map sum . powerset
+psSums :: (Ord a, Num a) => [a] -> [a]
+psSums []     = [0]
+psSums (x:xs) = merge ys $ map (+x) ys
+  where ys = psSums xs
+
+merge :: Ord a => [a] -> [a] -> [a]
+merge xs [] = xs
+merge [] ys = ys
+merge xs@(x:xs') ys@(y:ys') =
+  case compare x y of
+    LT -> x:merge xs' ys
+    EQ -> x:y:merge xs' ys'
+    GT -> y:merge xs ys'
+
 pairs1 :: [a] -> [(a, a)]
 pairs1 []     = []
 pairs1 [x]    = []
