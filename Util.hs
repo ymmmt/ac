@@ -311,6 +311,15 @@ clique :: G.Graph -> [G.Vertex] -> Bool
 clique g vs = all adj $ choices 2 vs
   where adj [v, w] = v `elem` g!w
 
+dfsPath :: G.Graph -> G.Vertex -> G.Vertex -> Maybe [G.Vertex]
+dfsPath g s t = go (-1) [s]
+  where
+    go p vs@(v:_)
+      | v == t    = Just (reverse vs)
+      | null cs   = Nothing
+      | otherwise = asum $ map (go v . (:vs)) cs
+      where cs = delete p (g!v)
+
 -- Bit set
 
 type BitSet = Int
