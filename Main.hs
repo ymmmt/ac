@@ -40,8 +40,11 @@ import qualified Data.ByteString.Char8 as BS
 -- import qualified Data.Vector.Unboxed.Mutable as UMV
 -- import qualified Numeric as N
 
-tup :: [Int] -> (Int, Int)
+tup :: [a] -> (a, a)
 tup [x, y] = (x, y)
+
+list :: (a, a) -> [a]
+list (x, y) = [x, y]
 
 readInt :: IO Int
 readInt = fst . fromJust . BS.readInt <$> BS.getLine
