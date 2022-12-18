@@ -108,7 +108,7 @@ solve w h = foldl' mmul 1 (xs ++ ys)
     h' = h - 1
     a  = min w' h'
     xs = [w' + h' - a + 1..w' + h']
-    ys = map (fromJust . flip modInv modulo) $ [1..a]
+    ys = map (fromJust . flip modInv modulo) [1..a]
 
 main :: IO ()
 main = do
