@@ -1,0 +1,12 @@
+#!/bin/bash
+
+if [ $# -ne 1 ]; then
+    echo "Usage: `basename $0` sample-input" >&2
+    exit 1
+fi
+
+f="$1"
+
+ghc Main.hs -prof -fprof-auto
+cat $f | ./Main +RTS -p
+cat Main.prof
