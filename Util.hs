@@ -319,6 +319,22 @@ dfsPath g s t = go (-1) [s]
       | otherwise = asum $ map (go v . (:vs)) cs
       where cs = delete p (g!v)
 
+bipartite :: G.Graph -> G.Vertex -> Maybe ([G.Vertex], [G.Vertex])
+bipartite g s = dfs (S.singleton s) (S.empty) [(s, True)]
+  where
+    dfs e o []              = Just (S.toList e, S.toList o)
+    dfs e o ((v, even):ves) = dfs e' o' . (++ ves) . map (, odd) =<< vs'
+      where
+        odd = not even
+        e'  = if odd  then foldr S.insert e (fromJust vs') else e
+        o'  = if even then foldr S.insert o (fromJust vs') else o
+        vs' = foldr new (Just []) (g!v)
+        new _ Nothing = Nothing
+        new w m@(Just ws)
+          | (even && S.member w e) || (odd && S.member w o) = Nothing
+          | (even && S.member w o) || (odd && S.member w e) = m
+          | otherwise                                       = Just (w:ws)
+
 -- Bit set
 
 type BitSet = Int
