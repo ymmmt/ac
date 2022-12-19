@@ -95,6 +95,10 @@ mapArray b f = listArray b . map f $ range b
 
 -- List
 
+single :: [a] -> Bool
+single [x] = True
+single _   = False
+
 type Transposition = (Int, Int)
 
 swap :: Transposition -> [a] -> [a]
@@ -151,13 +155,8 @@ merge xs@(x:xs') ys@(y:ys') =
     EQ -> x:y:merge xs' ys'
     GT -> y:merge xs ys'
 
-pairs1 :: [a] -> [(a, a)]
-pairs1 []     = []
-pairs1 [x]    = []
-pairs1 (x:xs) = [(x, y) | y <- xs]
-
 pairs :: [a] -> [(a, a)]
-pairs = concatMap pairs1 . tails
+pairs xs = [(x, y) | x:ys <- tails xs, y:zs <- tails ys]
 
 choices :: Int -> [a] -> [[a]]
 choices 0 _   = [[]]
@@ -388,6 +387,9 @@ choose :: Int -> Int -> Integer
 choose n k
   | n < k || n < 0 || k < 0 = 0
   | otherwise               = fact n `div` fact k `div` fact (n - k)
+
+c2 :: Int -> Int
+c2 n = if n >= 2 then n*(n-1)`div`2 else 0
 
 cut :: Ord a => a -> a -> a -> a
 cut l h | l > h     = undefined
