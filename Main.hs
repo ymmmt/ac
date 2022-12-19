@@ -6,6 +6,7 @@
 -- {-# LANGUAGE FlexibleInstances #-}
 -- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- {-# LANGUAGE MultiParamTypeClasses #-}
+-- {-# LANGUAGE MultiWayIf #-}
 -- {-# LANGUAGE StandaloneDeriving #-}
 -- {-# LANGUAGE TemplateHaskell #-}
 -- {-# LANGUAGE TupleSections #-}
