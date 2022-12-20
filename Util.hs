@@ -439,6 +439,9 @@ md x = x `mod` modulo
 madd :: Int -> Int -> Int
 madd x y = (x+y) `mod` modulo
 
+mmul :: Int -> Int -> Int
+mmul x y = (x*y) `mod` modulo
+
 -- https://rosettacode.org/wiki/Modular_inverse
 modInv :: Int -> Int -> Maybe Int
 modInv a m
