@@ -68,5 +68,8 @@ readIntListsAll = map toIntList . BS.lines <$> BS.getContents
 readTuplesAll :: IO [(Int, Int)]
 readTuplesAll = map tup <$> readIntListsAll
 
+putStrLns :: Show a => [a] -> IO ()
+putStrLns = putStr . unlines . map show
+
 main :: IO ()
 main = do
