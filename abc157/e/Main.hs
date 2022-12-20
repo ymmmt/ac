@@ -52,12 +52,6 @@ count p = length . filter p
 unwrap :: [a] -> a
 unwrap [x] = x
 
-pair :: (a -> b, a -> c) -> a -> (b, c)
-pair (f, g) x = (f x, g x)
-
-cross :: (a -> c, b -> d) -> (a, b) -> (c, d)
-cross (f, g) = pair (f . fst, g . snd)
-
 intervalMember :: (Ord a, Bounded a) => a -> a -> S.Set a -> Bool
 intervalMember l r s = x <= y
   where x = fromMaybe maxBound $ S.lookupGE l s
@@ -103,11 +97,8 @@ extract = reverse . snd
 solve :: Int -> String -> [Query] -> [Int]
 solve n s = extract . foldl step (a, [])
   where
-    a = array ('a', 'z')
-        . map (cross (id, S.fromList))
-        . assocs
-        . accumArray (flip (:)) [] ('a', 'z')
-        $ zip s [1..]
+    a = listArray ('a', 'z') . map S.fromList . elems
+        . accumArray (flip (:)) [] ('a', 'z') $ zip s [1..]
 
 main :: IO ()
 main = do
