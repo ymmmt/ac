@@ -95,6 +95,9 @@ mapArray b f = listArray b . map f $ range b
 
 -- List
 
+unwrap :: [a] -> a
+unwrap [x] = x
+
 single :: [a] -> Bool
 single [x] = True
 single _   = False
@@ -207,6 +210,13 @@ zapp = zipWith ($)
 counter :: Ord a => [a] -> Map.Map a Int
 counter = foldr (\x mp -> Map.insertWith f x 1 mp) Map.empty
   where f _ old = old + 1
+
+-- Set
+
+intervalMember :: (Ord a, Bounded a) => a -> a -> S.Set a -> Bool
+intervalMember l r s = x <= y
+  where x = fromMaybe maxBound $ S.lookupGE l s
+        y = fromMaybe minBound $ S.lookupLE r s
 
 -- Function
 
