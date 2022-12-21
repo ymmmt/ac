@@ -181,12 +181,18 @@ maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx >= ky then u else v
 
-sumOn :: Num a => (b -> a) -> [b] -> a
-sumOn f xs = foldl' step 0 xs
-  where step acc x = acc + f x
+sumOn :: Num b => (a -> b) -> [a] -> b
+sumOn f = foldl' step 0
+  where step s x = s + f x
 
 count :: (a -> Bool) -> [a] -> Int
 count p = length . filter p
+
+positions :: Ix a => [a] -> Array a [Int]
+positions (x:xs) = accumArray (flip (:)) [] (l, u) $ zip ys [n, n-1..1]
+  where
+    (l, u, n, ys)        = foldl' step (x, x, 1, [x]) xs
+    step (l, u, n, ys) y = (min l y, max u y, n+1, y:ys)
 
 type MultiSet a = [(a, Int)]
 
@@ -416,6 +422,9 @@ choose n k
 
 c2 :: Int -> Int
 c2 n = if n >= 2 then n*(n-1)`div`2 else 0
+
+tri :: Int -> Int
+tri n = n * (n+1) `div` 2
 
 cut :: Ord a => a -> a -> a -> a
 cut l h | l > h     = undefined
