@@ -48,7 +48,7 @@ readIntList :: IO [Int]
 readIntList = toIntList <$> BS.getLine
 
 joinStr :: Show a => String -> [a] -> String
-joinStr sep xs = intercalate sep $ map show xs
+joinStr sep = intercalate sep . map show
 
 type Cell    = (Int, Int)
 type CMatrix = Array Cell Char

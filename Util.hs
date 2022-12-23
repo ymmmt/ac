@@ -13,7 +13,7 @@ yn True  = "Yes"
 yn False = "No"
 
 joinStr :: Show a => String -> [a] -> String
-joinStr sep xs = intercalate sep $ map show xs
+joinStr sep = intercalate sep . map show
 
 -- Random
 
