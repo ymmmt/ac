@@ -211,6 +211,16 @@ groupSeq f (x:xs) = if f x y then (x:y:ys):yss else [x]:gs
 zapp :: [a -> b] -> [a] -> [b]
 zapp = zipWith ($)
 
+interleave :: [a] -> [a] -> [a]
+interleave xs     []     = xs
+interleave []     ys     = ys
+interleave (x:xs) (y:ys) = x:y:interleave xs ys
+
+chunks :: Int -> [a] -> [[a]]
+chunks n [] = []
+chunks n xs = ys:chunks n zs
+  where (ys, zs) = splitAt n xs
+
 -- Map
 
 counter :: Ord a => [a] -> Map.Map a Int
