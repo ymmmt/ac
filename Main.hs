@@ -15,6 +15,7 @@
 -- import Control.Applicative ((<*>), Alternative, empty, (<|>))
 import Control.Monad
 -- import Control.Monad.ST
+import Control.Monad.State
 import Data.Array
 -- import Data.Array.ST
 -- import Data.Bits
@@ -29,6 +30,7 @@ import Data.Maybe
 -- import Data.Void
 -- import Data.Word
 -- import Debug.Trace
+-- import System.Random -- random-1.0.1.1
 -- import qualified Data.Array.Unboxed as UA
 import qualified Data.ByteString.Char8 as BS
 -- import qualified Data.Graph as G
