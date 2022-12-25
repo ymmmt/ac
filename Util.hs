@@ -221,6 +221,15 @@ chunks n [] = []
 chunks n xs = ys:chunks n zs
   where (ys, zs) = splitAt n xs
 
+inserts :: a -> [a] -> [[a]]
+inserts x []     = [[x]]
+inserts x (y:ys) = (x:y:ys):map(y:) (inserts x ys)
+
+perms :: [a] -> [[a]]
+perms = foldr step [[]]
+  where
+    step x xss = concatMap (inserts x) xss
+
 -- Map
 
 counter :: Ord a => [a] -> Map.Map a Int
@@ -445,6 +454,12 @@ hyperFloor x = 2 ^ (floor . logBase 2 $ fromIntegral x)
 
 hyperCeiling :: Int -> Int
 hyperCeiling x = 2 ^ (ceiling . logBase 2 $ fromIntegral x)
+
+floor' :: Int -> Int -> Int
+floor' x y = floor (fromIntegral x / fromIntegral y)
+
+ceiling' :: Int -> Int -> Int
+ceiling' x y = ceiling (fromIntegral x / fromIntegral y)
 
 pfactors :: Int -> [Int]
 pfactors n = case fs of
