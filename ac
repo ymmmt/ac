@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # oj t -c 'sbcl --script main.lisp' -d tests
-ghcup run ghc -- Main.hs -package random -package mtl -package vector
+ghcup run ghc -- Main.hs -package random -package mtl -package vector -package extra
 if [ $? -eq 0 ]; then
     oj t -c './Main' -d tests
 fi
