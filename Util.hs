@@ -230,6 +230,17 @@ perms = foldr step [[]]
   where
     step x xss = concatMap (inserts x) xss
 
+type Partition a = [Segment a]
+type Segment a   = [a]
+
+splits :: [a] -> [(Segment a, Segment a)]
+splits []     = []
+splits (x:xs) = ([x], xs):[(x:ys, zs) | (ys, zs) <- splits xs]
+
+parts :: [a] -> [Partition a]
+parts [] = [[]]
+parts xs = [ys:yss | (ys, zs) <- splits xs, yss <- parts zs]
+
 -- Map
 
 counter :: Ord a => [a] -> Map.Map a Int
