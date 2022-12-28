@@ -137,8 +137,8 @@ diff xs@(x:xs') ys@(y:ys')
   | x > y     = diff xs ys'
   | otherwise = diff xs' ys'
 
-coordComp :: Ord a => Int -> [a] -> Map.Map Int a
-coordComp i0 = Map.fromAscList . zip [i0..] . sortUniq
+coordComp :: Ord a => Int -> [a] -> M.Map Int a
+coordComp i0 = M.fromAscList . zip [i0..] . sortUniq
 
 powerset :: [a] -> [[a]]
 powerset = filterM (const [True, False])
@@ -243,8 +243,8 @@ parts xs = [ys:yss | (ys, zs) <- splits xs, yss <- parts zs]
 
 -- Map
 
-counter :: Ord a => [a] -> Map.Map a Int
-counter = foldr (\x mp -> Map.insertWith f x 1 mp) Map.empty
+counter :: Ord a => [a] -> M.Map a Int
+counter = foldr (\x mp -> M.insertWith f x 1 mp) M.empty
   where f _ old = old + 1
 
 -- Set
