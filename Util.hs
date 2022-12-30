@@ -400,7 +400,7 @@ bsEmpty :: BitSet -> Bool
 bsEmpty = (== 0)
 
 bsSingleton :: Member -> BitSet
-bsSingleton = bsInsert 0
+bsSingleton = flip bsInsert 0
 
 bitset :: [Member] -> BitSet
 bitset = foldr bsInsert 0
@@ -415,10 +415,10 @@ bsDiff :: BitSet -> BitSet -> BitSet
 bsDiff b b' = foldl' clearBit b (bsMembers b')
 
 bsInsert :: Member -> BitSet -> BitSet
-bsInsert b x = setBit b x
+bsInsert = flip setBit
 
 bsDelete :: Member -> BitSet -> BitSet
-bsDelete b x = bsDiff b $ bsSingleton x
+bsDelete x b = bsDiff b (bsSingleton x)
 
 -- Math
 
