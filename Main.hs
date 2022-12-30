@@ -1,10 +1,10 @@
 {-# OPTIONS_GHC -O2 #-}
 
 -- {-# LANGUAGE BangPatterns #-}
--- {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFunctor #-}
 -- {-# LANGUAGE FlexibleContexts #-}
 -- {-# LANGUAGE FlexibleInstances #-}
--- {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- {-# LANGUAGE MultiParamTypeClasses #-}
 -- {-# LANGUAGE MultiWayIf #-}
 -- {-# LANGUAGE StandaloneDeriving #-}
@@ -18,7 +18,7 @@ import Control.Monad
 import Control.Monad.State
 import Data.Array
 -- import Data.Array.ST
--- import Data.Bits
+import Data.Bits
 import Data.Char
 -- import Data.Foldable
 -- import Data.Function
@@ -29,8 +29,8 @@ import Data.Maybe
 -- import Data.Tuple
 -- import Data.Tuple.Extra
 -- import Data.Void
--- import Data.Word
--- import Debug.Trace
+import Data.Word
+import Debug.Trace
 -- import System.Random -- random-1.0.1.1
 -- import qualified Data.Array.Unboxed as UA
 import qualified Data.ByteString.Char8 as BS
