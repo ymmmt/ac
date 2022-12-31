@@ -95,6 +95,7 @@ maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx >= ky then u else v
 
+-- https://img.atcoder.jp/abc148/editorial.pdf
 solve :: Int -> Int -> Int -> [G.Edge] -> Int
 solve n u v es = du!l + t (dv!l - du!l)
   where
