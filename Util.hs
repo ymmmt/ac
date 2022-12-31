@@ -137,6 +137,14 @@ diff xs@(x:xs') ys@(y:ys')
   | x > y     = diff xs ys'
   | otherwise = diff xs' ys'
 
+intersect :: Ord a => [a] -> [a] -> [a]
+intersect xs [] = []
+intersect [] ys = []
+intersect xs@(x:xs') ys@(y:ys')
+  | x < y     = intersect xs' ys
+  | x > y     = intersect xs ys'
+  | otherwise = x:intersect xs' ys'
+
 coordComp :: Ord a => Int -> [a] -> M.Map Int a
 coordComp i0 = M.fromAscList . zip [i0..] . sortUniq
 
@@ -171,12 +179,12 @@ choices n (x:xs)
 bfilter :: [a] -> [Bool] -> [a]
 bfilter xs bs = map fst . filter snd $ zip xs bs
 
-minimumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
+minimumOn :: Ord b => (a -> b) -> [a] -> (a, b, Int)
 minimumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx <= ky then u else v
 
-maximumOn :: Ord a => (b -> a) -> [b] -> (b, a, Int)
+maximumOn :: Ord b => (a -> b) -> [a] -> (a, b, Int)
 maximumOn k xs = foldl1 step $ zip3 xs (map k xs) [0..]
   where step u@(_, kx, _) v@(_, ky, _) =
           if kx >= ky then u else v
@@ -332,6 +340,14 @@ dfs g r = rebuild . head $ G.dfs g [r]
 
 buildUndirectedG :: G.Bounds -> [G.Edge] -> G.Graph
 buildUndirectedG b = G.buildG b . concatMap (\(u, v) -> [(u, v), (v, u)])
+
+dists :: G.Graph -> G.Vertex -> Array G.Vertex Int
+dists g r = array (bounds g) [(v, d) | (vs, d) <- zip (T.levels t) [0..], v <- vs]
+  where
+    t = head (G.dfs g [r])
+
+leaves :: G.Graph -> [G.Vertex]
+leaves = map fst . filter ((== 1) . snd) . assocs . G.indegree
 
 complement :: G.Graph -> G.Graph
 complement g = G.buildG (bounds g) [(u, v) | u <- xs, v <- xs, u /= v, not (g!(u, v))]
