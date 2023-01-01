@@ -569,6 +569,25 @@ bsearch f l r = if l < r && f l then go l r
           | otherwise = go l m
           where m = (l+r) `div` 2
 
+type Hash  = Int
+
+base :: Int
+base = 1000000007
+
+-- https://en.wikipedia.org/wiki/Rolling_hash
+rhash :: String -> (Int -> Int -> Hash)
+rhash s = get
+  where
+    n        = length s
+    rh       = UA.listArray (1, n) . tail $ scanl step 0 s :: UA.Array Int Hash
+    step h c = (base*h + ord c)
+    -- bs       = listArray (1, n) $ iterate (*base) base
+    bs       = UA.array (1, n) [(i, p i) | i <- [1..n]] :: UA.Array Int Int
+      where p i = if i == 1 then base else base * bs UA.! (i-1)
+    get i j
+      | i <= j && inRange (1, n) i && inRange (1, n) j = if i == 1 then rh UA.! j
+                                                         else (rh UA.! j - bs UA.! (j-i+1) * rh UA.! (i-1))
+
 -- Batched Queue
 
 data BatchedQueue a = BQ [a] [a]
