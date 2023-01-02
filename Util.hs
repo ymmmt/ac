@@ -569,7 +569,7 @@ bsearch f l r = if l < r && f l then go l r
           | otherwise = go l m
           where m = (l+r) `div` 2
 
-type Hash  = Int
+type Hash = Int
 
 base :: Int
 base = 1000000007
