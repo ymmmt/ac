@@ -56,6 +56,7 @@ readIntList = toIntList <$> BS.getLine
 ceiling' :: Int -> Int -> Int
 ceiling' x y = ceiling (fromIntegral x / fromIntegral y)
 
+-- https://atcoder.jp/contests/arc150/editorial/4864
 solve :: Int -> Int -> Int
 solve a b = minimum [(k+1) * max 0 (q-a) + k*a - b
                     | q <- map (ceiling' b) [1..sb] ++ [1..sb]
