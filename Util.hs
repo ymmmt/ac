@@ -495,6 +495,11 @@ pfactors n = case fs of
   where fs = take 1 $ filter ((== 0) . (n `mod`)) [2..n']
         n' = floor . sqrt $ fromIntegral n
 
+divisors :: Int -> [Int]
+divisors = foldr (concatMap . mulpowers) [1] . multiSet . pfactors
+  where
+    mulpowers (p, i) d = [d * p^j | j <- [0..i]]
+
 mod' :: Integral a => a -> a -> a
 mod' k n
   | m < 0 = m + n
