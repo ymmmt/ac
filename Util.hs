@@ -30,8 +30,9 @@ judgeSt p = (< p) <$> randomRSt (0.0, 1.0)
 
 -- Char Matrix
 
-type Cell    = (Int, Int)
-type CMatrix = Array Cell Char
+type Cell     = (Int, Int)
+type Matrix a = Array Cell a
+type CMatrix  = Matrix Char
 
 readCMatrix :: Int -> Int -> IO CMatrix
 readCMatrix h w = listArray ((1, 1), (h, w)) . concat <$> replicateM h getLine
@@ -75,6 +76,18 @@ printMatrix s m = mapM_ printRow rs
 rowCells :: (Int, [a]) -> [(a, Cell)]
 rowCells (i, xs) = map (\(j, x) -> (x, (i, j))) $ zip [1..] xs
 
+rectSum :: Num b => (a -> b) -> Matrix a -> (Cell -> Cell -> b)
+rectSum f m = get
+  where
+    ((1, 1), (h, w)) = bounds m
+    s = listArray ((0, 0), (h, w)) $ build 1 [replicate (w+1) 0]
+    build r xss@(xs:_)
+      | r > h     = concat (reverse xss)
+      | otherwise = build (r+1) (ys:xss)
+      where ys = zipWith (+) xs $ scanl' (+) 0 [f (m!(r, c)) | c <- [1..w]]
+    get (i, j) (k, l)
+      | i <= k && j <= l = s!(k, l) - s!(k, j-1) - s!(i-1, l) + s!(i-1, j-1)
+
 -- Tuple
 
 tupWith :: (a -> b) -> a -> (a, b)
@@ -93,6 +106,9 @@ notSeen marr i = not <$> readArray marr i
 mapArray :: (Ix a) => (a, a) -> (a -> b) -> Array a b
 mapArray b f = listArray b . map f $ range b
 
+tabulate :: Ix i => (i -> e) -> (i, i) -> Array i e
+tabulate f bounds = array bounds [(x, f x) | x <- range bounds]
+
 -- List
 
 unwrap :: [a] -> a
@@ -101,6 +117,10 @@ unwrap [x] = x
 single :: [a] -> Bool
 single [x] = True
 single _   = False
+
+same :: Eq a => [a] -> Bool
+same []     = True
+same (x:xs) = all (== x) xs
 
 type Transposition = (Int, Int)
 
@@ -218,6 +238,10 @@ groupSeq f (x:xs) = if f x y then (x:y:ys):yss else [x]:gs
 
 zapp :: [a -> b] -> [a] -> [b]
 zapp = zipWith ($)
+
+scanlWithIndex' :: (a -> b -> Int -> a) -> a -> Int -> [b] -> [a]
+scanlWithIndex' f e i []     = [e]
+scanlWithIndex' f e i (x:xs) = e `seq` e:scanlWithIndex' f (f e x i) (i+1) xs
 
 interleave :: [a] -> [a] -> [a]
 interleave xs     []     = xs
@@ -512,11 +536,17 @@ modulo = 998244353
 md :: Int -> Int
 md x = x `mod` modulo
 
+infixl 6 `madd`
 madd :: Int -> Int -> Int
 madd x y = (x+y) `mod` modulo
 
+infixl 7 `mmul`
 mmul :: Int -> Int -> Int
 mmul x y = (x*y) `mod` modulo
+
+modPow :: Int -> Int -> Int
+modPow x 0 = 1
+modPow x n = mmul x $ modPow x (n-1)
 
 -- https://rosettacode.org/wiki/Modular_inverse
 modInv :: Int -> Int -> Maybe Int
