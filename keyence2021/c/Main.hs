@@ -94,67 +94,38 @@ type Cell     = (Int, Int)
 type Matrix a = Array Cell a
 type CMatrix  = Matrix Char
 
--- rows :: CMatrix -> [[Char]]
--- rows = map (map snd) . groupBy ((==) `on` fst . fst) . assocs
+single :: [a] -> Bool
+single [x] = True
+single _   = False
 
--- solve :: Int -> Int -> Int -> CMatrix -> Int
--- solve h w k cs = modPow 3 (h*w-k) `mmul` head (foldr rowstep row css)
---   where
---     d                   = 2 `mmul` (fromJust $ modInv 3 modulo)
---     row                 = replicate (w-1) 0 ++ [1]
---     css                 = rows cs
---     rowstep cs row      = scanr colstep 0 (zip cs row)
---     colstep (c, dp) acc = case c of
---                             'D' -> dp
---                             'R' -> acc
---                             'X' -> dp `madd` acc
---                             ' ' -> md $ d * (dp + acc)
+-- https://atcoder.jp/contests/keyence2021/editorial/564
+solve :: Int -> Int -> Int -> CMatrix -> Int
+solve h w k cs = modPow 3 (h*w-k) `mmul` dp
+  where
+    d               = 2 `mmul` (fromJust $ modInv 3 modulo)
+    (_, _, dp)      = head $ until single step (step [(1, 1, 1)])
+    step            = merge . concatMap distribute
+    merge []          = []
+    merge [(i, j, v)] = if j <= w then [(i, j, v)] else []
+    merge ((i, j, v):(k, l, w):rest)
+      | i > h     = merge ((k, l, w):rest)
+      | i == k    = (i, j, v `madd` w):merge rest -- (i, j) == (k, l) <=> i == k (because of invariant: i+j == k+l)
+      | otherwise = (i, j, v):merge ((k, l, w):rest)
+    distribute (i, j, v)
+      = case cs!(i, j) of
+          'D' -> [(i+1, j, v)]
+          'R' -> [(i, j+1, v)]
+          'X' -> [(i+1, j, v), (i, j+1, v)]
+          ' ' -> [(i+1, j, d `mmul` v), (i, j+1, d `mmul` v)]
 
--- -- https://atcoder.jp/contests/keyence2021/editorial/564
+-- -- ver. 2
 -- solve :: Int -> Int -> Int -> CMatrix -> Int
 -- solve h w k cs = modPow 3 (h*w-k) `mmul` dp
 --   where
---     d  = 2 `mmul` (fromJust $ modInv 3 modulo)
---     dp = build 1 (replicate (w+1) 0)
---     build i xs
---       | i > h     = last xs
---       | otherwise = last ys `seq` build (i+1) ys
---       where
---         ys = scanl' step 0 $ zip (tail xs) [1..]
---         step y (x, j)
---           | i == 1 && j == 1 = 1
---           | otherwise        = y * factor (i, j-1) 'R' `madd` x * factor (i-1, j) 'D'
---     factor (i, j) c
---       | i == 0 || j == 0                   = 0
---       | cs!(i, j) == 'X' || cs!(i, j) == c = 1
---       | cs!(i, j) == ' '                   = d
---       | otherwise                          = 0
-
--- -- Row major index: (1, 1) <--> 1, (h, w) <--> h*w
--- rmi :: Int -> Cell -> Int
--- rmi w (i, j) = (i-1)*w + j
--- {-# INLINE rmi #-}
-
--- https://atcoder.jp/contests/keyence2021/editorial/564
--- https://atcoder.jp/contests/keyence2021/submissions/19515050
-solve :: Int -> Int -> Int -> CMatrix -> Int
-solve h w k cs = modPow 3 (h*w-k) `mmul` calc
-  where
-    d    = 2 `mmul` (fromJust $ modInv 3 modulo)
-    cs' = listArray (1, h*w) (elems cs)
-    calc = runST $ do
-      dp <- UMV.replicate (h*w+1) (0 :: Int)
-      UMV.write dp 1 1
-      let modify i x = when (i <= h*w) $ UMV.modify dp (`madd` x) i
-          dist 0 _   = return ()
-          dist i x   = case cs'!i of
-                         'D' -> modify x (i+w)
-                         'R' -> modify x (i+1)
-                         'X' -> modify x (i+w) >> modify x (i+1)
-                         ' ' -> modify (d*x) (i+w) >> modify (d*x) (i+1)
-      UMV.imapM_ dist dp
-      UMV.read dp (h*w)
- 
+--     d               = 2 `mmul` (fromJust $ modInv 3 modulo)
+--     (_, _, dp) = head $ until single (extend 0 []) [(1, 1, 1)]
+--     step downBuf x@(i, j, v) [] = if valid x then [x] else 
+      
 readCMatrix :: Int -> Int -> Int -> IO CMatrix
 readCMatrix h w k
   = array ((1, 1), (h, w)) . (zip (range ((1, 1), (h, w))) (repeat ' ') ++)
