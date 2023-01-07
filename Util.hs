@@ -1,3 +1,14 @@
+-- Strict pair
+-- Data.Tuple.Strict
+
+data Pair a b = P !a !b
+
+pfst :: Pair a b -> a
+pfst (P x _) = x
+
+psnd :: Pair a b -> b
+psnd (P _ y) = y
+
 -- Monad
 
 foldM' :: (Monad m) => (a -> b -> m a) -> a -> [b] -> m a
@@ -5,6 +16,18 @@ foldM' _ z []     = return z
 foldM' f z (x:xs) = do
   z' <- f z x
   z' `seq` foldM' f z' xs
+
+-- Data.Vector.Fusion.Stream.Monadic
+
+rep :: (Monad m) => Int -> Int -> (Int -> m ()) -> m ()
+rep l r = flip FSM.mapM_ (stream l r)
+
+stream :: (Monad m) => Int -> Int -> FSM.Stream m Int
+stream !l !r = FSM.Stream step l
+  where
+    step x
+      | x < r     = return $ FSM.Yield x (x + 1)
+      | otherwise = return FSM.Done
 
 -- IO
 
@@ -88,6 +111,16 @@ rectSum f m = get
     get (i, j) (k, l)
       | i <= k && j <= l = s!(k, l) - s!(k, j-1) - s!(i-1, l) + s!(i-1, j-1)
 
+-- Converts row major index to cell
+cell :: Int -> Int -> Cell
+cell w i = (q+1, r+1)
+  where (q, r) = divMod (i-1) w
+
+-- Row major index: (1, 1) <--> 1, (h, w) <--> h*w
+rmi :: Int -> Cell -> Int
+rmi w (i, j) = (i-1)*w + j
+{-# INLINE rmi #-}
+
 -- Tuple
 
 tupWith :: (a -> b) -> a -> (a, b)
@@ -101,6 +134,13 @@ see marr i = writeArray marr i True
 notSeen :: (MArray a Bool m, Ix i) => a i Bool -> i -> m Bool
 notSeen marr i = not <$> readArray marr i
 
+-- MArray
+
+update :: (Num e, MArray a e m, Ix i) => (e -> e -> e) -> a i e -> i -> e -> m ()
+update f marr i y = do
+  x <- readArray marr i
+  writeArray marr i (f x y)
+
 -- Array
 
 mapArray :: (Ix a) => (a, a) -> (a -> b) -> Array a b
@@ -108,6 +148,15 @@ mapArray b f = listArray b . map f $ range b
 
 tabulate :: Ix i => (i -> e) -> (i, i) -> Array i e
 tabulate f bounds = array bounds [(x, f x) | x <- range bounds]
+
+-- Vector
+
+readCVector :: Int -> Int -> Int -> IO (UV.Vector Char)
+readCVector h w k
+  = UV.unsafeAccum (flip const) (UV.replicate (h*w+1) ' ')
+    <$> replicateM k (do
+                         [sh, sw, sc] <- words <$> getLine
+                         return (rmi w (read sh, read sw), head sc))
 
 -- List
 
