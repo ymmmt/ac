@@ -128,9 +128,6 @@ pfactors spfv n = p:pfactors spfv (n `div` p)
 tabulate :: Ix i => (i -> e) -> (i, i) -> Array i e
 tabulate f bounds = array bounds [(x, f x) | x <- range bounds]
 
-mapArray :: (Ix a) => (a, a) -> (a -> b) -> Array a b
-mapArray b f = listArray b . map f $ range b
-
 modFacts :: Int -> Array Int Int
 modFacts n = fs
   where
