@@ -561,6 +561,18 @@ floor' x y = floor (fromIntegral x / fromIntegral y)
 ceiling' :: Int -> Int -> Int
 ceiling' x y = ceiling (fromIntegral x / fromIntegral y)
 
+-- make smallest prime factors vector
+mkspfv :: Int -> Array Int Int
+mkspfv n
+  | n >= 1 = array (1, n) $ concatMap mulAssocs [n, n-1..2] ++ [(1, 1)]
+  where mulAssocs k = [(d, k) | d <- [k, 2*k..n]]
+
+-- prime factorization with spfv
+pfactors :: Array Int Int -> Int -> [Int]
+pfactors _    1 = []
+pfactors spfv n = p:pfactors spfv (n `div` p)
+  where p = spfv!n
+
 pfactors :: Int -> [Int]
 pfactors n = case fs of
                []  -> [n]
@@ -618,6 +630,12 @@ gcdExt a b =
   let (q, r) = a `quotRem` b
       (s, t, g) = gcdExt b r
   in (t, s - q * t, g)
+
+modFacts :: Int -> Array Int Int
+modFacts n = fs
+  where
+    fs  = tabulate f (0, n)
+    f n = if n <= 1 then 1 else n `mmul` fs!(n-1)
 
 eps :: Double
 eps = 10**(-6)
