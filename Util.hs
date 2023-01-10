@@ -795,4 +795,43 @@ dist t s g = dfs 0 s
       where cs        = children!u
             go (v, w) = dfs (d+w) v
 
+-- Thinning
+
+thinBy :: (a -> a -> Bool) -> [a] -> [a]
+thinBy _ []  = []
+thinBy _ [x] = [x]
+thinBy cmp (x:y:xs)
+  | cmp x y   = thinBy cmp (x:xs)
+  | cmp y x   = thinBy cmp (y:xs)
+  | otherwise = x:thinBy cmp (y:xs)
+
+mergeBy :: (a -> a -> Bool) -> [[a]] -> [a]
+mergeBy cmp = foldr merge []
+  where
+    merge xs [] = xs
+    merge [] ys = ys
+    merge (x:xs) (y:ys)
+      | cmp x y   = x:merge xs (y:ys)
+      | otherwise = y:merge (x:xs) ys
+
+-- longest common subsequences
+-- from ADwH
+ext (p, k, ws, us) = us
+psn (p, k, ws, us) = p
+lng (p, k, ws, us) = k
+
+cons x (p, k, ws, us) = (p-1-length as, k+1, tail bs, x:us)
+  where (as, bs) = span (/= x) ws
+
+lcs :: Eq a => [a] -> [a] -> [a]
+lcs xs = ext . head . foldr tstep start
+  where
+    start              = [(length xs, 0, reverse xs, [])]
+    tstep y yss        = thinBy (<|) (mergeBy cmp [yss, zss])
+      where
+        zss       = dropWhile negpos (map (cons y) yss)
+        negpos ys = psn ys < 0
+        q1 <| q2  = psn q1 >= psn q2 && lng q1 >= lng q2
+        cmp q1 q2 = psn q1 <= psn q2
+
 --
